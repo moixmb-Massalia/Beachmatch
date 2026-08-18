@@ -1,0 +1,30 @@
+name: ITF Beach Tennis Live & Calendar Sync Cron
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync_itf_to_firebase:
+    name: Sync ITF Results to Firebase Firestore
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install firebase-admin requests beautifulsoup4
+
+      - name: 🚀 Run ITF Sync
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          python backend/itf_sync_engine.py
