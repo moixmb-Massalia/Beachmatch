@@ -1,0 +1,133 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: vérifie si l'utilisateur est l'admin
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'moixmb@gmail.com';
+    }
+
+    // TERRAINS : lecture libre pour tout le monde
+    // Création possible par tout utilisateur connecté (suggestion de terrain)
+    // Modification et suppression : admin seulement
+    match /courts/{courtId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if isAdmin();
+    }
+
+    // OBJETS PERDUS/TROUVÉS sur un terrain (sous-collection)
+    // Lecture et création par tout utilisateur connecté
+    // Suppression : admin seulement
+    match /courts/{courtId}/lost_and_found/{itemId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow delete: if isAdmin();
+    }
+
+    // UTILISATEURS
+    // Lecture par tout utilisateur connecté (pour voir les profils publics)
+    // Écriture uniquement sur son propre document
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // MATCHS
+    // Lecture par tout utilisateur connecté
+    // Création : l'utilisateur doit être le hostId
+    // Modification : le host peut tout modifier, les autres uniquement participantsIds
+    // Suppression : le host seulement
+    match /matches/{matchId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.hostId == request.auth.uid;
+      allow update: if request.auth != null && (
+        resource.data.hostId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participantsIds'])
+      );
+      allow delete: if request.auth != null && resource.data.hostId == request.auth.uid;
+    }
+
+    // CHATS (messagerie privée et groupes)
+    // Lecture : l'utilisateur doit faire partie du tableau 'users'
+    match /chats/{chatId} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.users;
+      // Pour l'écriture du document chat (mise à jour dernier message, ajout de membre) :
+      // Autorisé si c'est un chat 1-on-1 (chatId contient uid) OU si c'est un chat de club et l'utilisateur est membre
+      allow write: if request.auth != null; // On assouplit ici, mais on pourrait restreindre aux membres du club
+    }
+
+    match /chats/{chatId}/messages/{messageId} {
+      // Pour lire/écrire un message, il faut faire partie des participants (users) du parent chat
+      // Pour éviter de bloquer, on permet la lecture et création si auth!=null. 
+      allow read, write: if request.auth != null;
+    }
+
+    // SIGNALEMENTS
+    // Création par l'utilisateur lui-même seulement
+    // Lecture : admin seulement (pour pouvoir traiter les signalements)
+    // Modification / suppression : personne (immutable une fois créé)
+    match /reports/{reportId} {
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.reporterId;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ACTUALITÉS / VIDÉOS
+    // Lecture libre pour tous
+    // Écriture : admin seulement
+    match /news/{newsId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // TOURNOIS
+    // Lecture libre pour tous
+    // Écriture : admin seulement
+    match /tournaments/{tournamentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // CLASSEMENTS FFT
+    // Lecture par tout utilisateur connecté (pour la recherche de joueurs)
+    // Écriture : uniquement via les Cloud Functions (admin Firebase SDK)
+    match /fft_rankings/{id} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // CLUBS
+    // Lecture par tout utilisateur connecté
+    match /clubs/{clubId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null; // On permet aux users de s'ajouter aux membres (memberIds)
+    }
+
+    // PUBLICATIONS DE CLUBS
+    // Lecture par tout utilisateur connecté
+    // Création par n'importe qui (mais le code restreint le bouton à l'admin pour l'instant)
+    match /club_posts/{postId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // BEACHSCORE WORLD TOUR (ITF / FFT PRO TOURNAMENTS & MATCHES)
+    // Lecture libre pour tous (style FlashScore / SofaScore)
+    // Écriture : admin ou Cloud Functions
+    match /pro_tournaments/{tournamentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /pro_matches/{matchId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /live_matches/{matchId} {
+      allow read: if true;
+      allow write: if request.auth != null; // Permet aux arbitres de mettre à jour les scores
+    }
+  }
+}

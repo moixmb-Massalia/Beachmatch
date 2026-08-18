@@ -1,0 +1,390 @@
+{
+  "@@locale": "pt",
+  "appTitle": "BeachMatch",
+  "navHome": "Início",
+  "navCourts": "Campos",
+  "navPlayers": "Jogadores",
+  "navTournaments": "Torneios",
+  "navChat": "Chat",
+  "navProfile": "Perfil",
+  "homeHeaderLevel": "Nív. {level}",
+  "@homeHeaderLevel": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
+  "homeHeaderSeason": "TEMPORADA 2026",
+  "homeHeaderTitle": "Beach Tennis Club",
+  "homeHeaderSubtitle": "Encontre um campo e parceiros em 1 clique",
+  "homeWeatherSunny": "{temp}°C · Ensolarado",
+  "@homeWeatherSunny": {
+    "placeholders": {
+      "temp": {
+        "type": "int"
+      }
+    }
+  },
+  "homeWeatherWindSand": "Vento {wind}km/h · Areia quente 🏖️",
+  "@homeWeatherWindSand": {
+    "placeholders": {
+      "wind": {
+        "type": "int"
+      }
+    }
+  },
+  "homeWeatherPerfect": "Perfeito",
+  "homeDirectNews": "DIRETO E NOTÍCIAS",
+  "homeMatchOnSand": "PARTIDA NA AREIA",
+  "homeMatchPlayersInfo": "{current}/{max} Jogadores",
+  "@homeMatchPlayersInfo": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "homeMatchRequiredLevel": "Nív. {level}",
+  "@homeMatchRequiredLevel": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
+  "homeMatchTapDetails": "Toque para ver os detalhes",
+  "homeMatchCancel": "Cancelar",
+  "homeMatchQuit": "Sair",
+  "homeMatchFull": "Completo",
+  "homeMatchJoin": "Entrar",
+  "homeDialogCancelTitle": "Cancelar a partida",
+  "homeDialogCancelContent": "Tem certeza que deseja cancelar esta partida?",
+  "homeDialogNoKeep": "Não, manter",
+  "homeDialogYesCancel": "Sim, cancelar",
+  "homeManagePlayersTitle": "Gerir Jogadores",
+  "homeManagePlayersEmpty": "Nenhum outro jogador entrou nesta partida ainda.",
+  "homeManagePlayersRemoved": "{name} foi removido da partida.",
+  "@homeManagePlayersRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "homeMatchDetailsRequiredLevel": "Nível exigido: {level}",
+  "@homeMatchDetailsRequiredLevel": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
+  "homeMatchDetailsWeatherWind": "{temp}°C • Vento: {wind} km/h ({dir})",
+  "@homeMatchDetailsWeatherWind": {
+    "placeholders": {
+      "temp": {
+        "type": "int"
+      },
+      "wind": {
+        "type": "int"
+      },
+      "dir": {
+        "type": "String"
+      }
+    }
+  },
+  "homeMatchDetailsPlayersRegistered": "{current} / {max} Jogadores Inscritos",
+  "@homeMatchDetailsPlayersRegistered": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "homeMatchDetailsHost": "ANFITRIÃO",
+  "homeMatchDetailsPlayerStats": "Nível {level} · {score} pts",
+  "@homeMatchDetailsPlayerStats": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      },
+      "score": {
+        "type": "int"
+      }
+    }
+  },
+  "homeMatchDetailsCancelGame": "Cancelar minha partida",
+  "homeMatchDetailsQuitGame": "Sair da partida",
+  "homeMatchDetailsJoinGame": "Entrar na partida",
+  "homeMatchDetailsFull": "Completo",
+  "homeMatchesTitle": "Próximas partidas",
+  "homeMatchesLive": "Ao vivo",
+  "homeEmptyStateTitle": "A areia te espera!",
+  "homeEmptyStateSubtitle": "Seja o primeiro a organizar uma partida de Beach Tennis na sua área.",
+  "homeCreateMatchButton": "Criar uma partida",
+  "homeFabCreate": "Criar um jogo",
+  "homeHeaderGreeting": "Olá",
+  "homeNewsTitle": "MUNDO BEACH TENNIS",
+  "homeNewsBadgeDefault": "NOTÍCIA",
+  "homeNewsBadgeLive": "AO VIVO 🔴",
+  "homeNewsBadgeTuto": "TUTORIAL 🎓",
+  "homeNewsBtnLive": "ASSISTIR AO VIVO 🔴",
+  "homeNewsBtnTuto": "INICIAR TUTORIAL EM VÍDEO 🎬",
+  "homeMatchShareMessage": "Junte-se a mim para jogar Beach Tennis no dia {date}! \nNível alvo: {level}\nBaixe o BeachMatch para entrar na minha partida: https://beachmatch.app/match/{id}",
+  "@homeMatchShareMessage": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "level": {
+        "type": "int"
+      },
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "homeMatchShareTooltip": "Compartilhar",
+  "homeMatchManageTooltip": "Gerenciar jogadores",
+  "mapSearchError": "Cidade não encontrada. Tente ser mais específico (ex: Rio de Janeiro, Brasil).",
+  "mapSearchGenericError": "Erro de busca: {error}",
+  "@mapSearchGenericError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "mapAddCourtBtn": "Adicionar uma quadra",
+  "mapFindCourtTitle": "Encontrar uma quadra",
+  "mapCourtsCount": "{count} Quadras",
+  "@mapCourtsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mapSearchCityPrompt": "Buscar \"{query}\"",
+  "@mapSearchCityPrompt": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "mapSearchCitySub": "Mover mapa para esta cidade",
+  "mapCourtFree": "Acesso Livre e Gratuito",
+  "mapCourtPaid": "Quadra Paga / Clube",
+  "mapWeatherWind": "{temp}°C • Vento: {wind} km/h ({dir})",
+  "@mapWeatherWind": {
+    "placeholders": {
+      "temp": {
+        "type": "int"
+      },
+      "wind": {
+        "type": "int"
+      },
+      "dir": {
+        "type": "String"
+      }
+    }
+  },
+  "mapLostFoundBtn": "Achados e Perdidos",
+  "mapLostFoundCount": "{count} item(ns) reportado(s) aqui",
+  "@mapLostFoundCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mapSubscribeBtn": "Inscrever-se nas partidas",
+  "mapSubscribedBtn": "Inscrito nos alertas",
+  "mapSubscribeSub": "Receba notificações quando uma partida for criada aqui.",
+  "mapAdminDeleteCourtBtn": "Excluir esta quadra (Admin)",
+  "mapAdminDeleteTitle": "Confirmar exclusão",
+  "mapAdminDeleteContent": "Tem certeza de que deseja excluir a quadra '{name}'?",
+  "@mapAdminDeleteContent": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mapBtnCancel": "Cancelar",
+  "mapBtnDelete": "Excluir",
+  "mapBtnClose": "Fechar",
+  "mapLostFoundTitle": "Achados e Perdidos",
+  "mapLostFoundEmpty": "Nenhum item reportado nesta quadra.",
+  "mapLostBadge": "PERDIDO",
+  "mapFoundBadge": "ACHADO",
+  "mapLostDeclareBtn": "Perdi um item",
+  "mapFoundDeclareBtn": "Item achado",
+  "mapDeclareLostTitle": "Reportar item perdido",
+  "mapDeclareFoundTitle": "Reportar item achado",
+  "mapDeclareOnCourt": "Na quadra: {name}",
+  "@mapDeclareOnCourt": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mapDeclareSuccess": "Anúncio publicado!",
+  "mapDeclarePublishBtn": "Publicar anúncio",
+  "mapProposeCourtTitle": "Propor uma Quadra",
+  "mapProposeCourtSuccess": "Obrigado! A quadra foi adicionada.",
+  "mapProposeCourtBtn": "Adicionar quadra",
+  "tournamentListTitle": "Calendário Oficial",
+  "tournamentListCount": "{count} Torneios",
+  "@tournamentListCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tournamentListEmpty": "Nenhum torneio encontrado para este filtro.",
+  "tournamentFilterAll": "Todos",
+  "tournamentDetailEventDetails": "Detalhes do Evento",
+  "tournamentDetailDates": "Datas",
+  "tournamentDetailAddress": "Endereço",
+  "tournamentDetailCity": "Cidade",
+  "tournamentDetailEvents": "Eventos",
+  "tournamentDetailBalls": "Bolas",
+  "tournamentDetailPrice": "Preço",
+  "tournamentDetailCategory": "Categoria",
+  "tournamentDetailRegistration": "Inscrição e Contato",
+  "tournamentDetailRegistrationType": "Tipo de inscrição:",
+  "tournamentDetailReferee": "Árbitro",
+  "profileTitle": "Meu Perfil",
+  "profileCityUnknown": "Cidade não definida",
+  "profileLevel": "🏅 NÍVEL {level} · COMPETIDOR",
+  "@profileLevel": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
+  "profileRanking": "🎾 Ranking Beach Tennis: {ranking}",
+  "@profileRanking": {
+    "placeholders": {
+      "ranking": {
+        "type": "String"
+      }
+    }
+  },
+  "profileMatchesPlayed": "Partidas Jogadas",
+  "profileFftRanking": "RANKING FFT",
+  "profileAdminPanelTitle": "Painel de Administração",
+  "profileAdminPanelSub": "Gerencie vídeos do YouTube e notícias ao vivo.",
+  "profileAdminPanelBtn": "Abrir Painel 👑",
+  "profileRadarTitle": "Radar de Torneios (Sniper)",
+  "profileRadarActivated": "Radar ativado para a região: {region}",
+  "@profileRadarActivated": {
+    "placeholders": {
+      "region": {
+        "type": "String"
+      }
+    }
+  },
+  "profileRadarError": "Erro ao ativar o radar",
+  "profileRadarSub": "Receba uma notificação push instantânea quando um torneio for anunciado em sua região para ser o primeiro a se inscrever.",
+  "profileRadarRegion": "Região monitorada: ",
+  "profileRadarEditRegion": "Editar região",
+  "profileRadarRegionHint": "Digite uma cidade ou região...",
+  "profileBtnCancel": "Cancelar",
+  "profileBtnValidate": "Validar",
+  "profilePreferencesTitle": "Preferências de Jogo",
+  "profilePrefPosition": "Posição preferida",
+  "profilePrefNotSet": "Não especificado",
+  "profilePrefAvailability": "Disponibilidade",
+  "profileLegalTitle": "Legal",
+  "profilePrivacy": "Política de Privacidade",
+  "profileTerms": "Termos de Serviço",
+  "profileAccountManagement": "Gestão de Conta",
+  "profileLogout": "Sair",
+  "profileDeleteAccount": "Excluir minha conta",
+  "profileDeleteAccountConfirmTitle": "Excluir conta",
+  "profileDeleteAccountConfirmSub": "Esta ação é irreversível. Seu perfil, partidas e mensagens serão excluídos permanentemente.",
+  "profileBtnDelete": "Excluir",
+  "rankingFirst": "1º",
+  "rankingNth": "{num}º",
+  "@rankingNth": {
+    "placeholders": {
+      "num": {
+        "type": "int"
+      }
+    }
+  },
+  "profileEditPhotoError": "Erro de seleção: {error}",
+  "@profileEditPhotoError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "profileEditPhotoDeleted": "Foto de perfil removida (clique em Salvar para confirmar).",
+  "profileEditPhotoTitle": "Foto de perfil",
+  "profileEditPhotoGallery": "Escolher da galeria",
+  "profileEditPhotoCamera": "Tirar uma foto",
+  "profileEditPhotoRemove": "Remover foto atual",
+  "profileEditLicenceSuccess": "Licença FFT validada! Ranking atualizado.",
+  "profileEditLicenceNotFound": "Licença não encontrada no ranking oficial.",
+  "profileEditLicenceError": "Erro de conexão: {error}",
+  "@profileEditLicenceError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "profileEditSaveError": "Erro: {error}",
+  "@profileEditSaveError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "profileEditTitle": "Editar Perfil",
+  "profileEditName": "Nome e Sobrenome",
+  "profileEditLicence": "Número da licença (Opcional)",
+  "profileEditVerifyBtn": "Verificar",
+  "profileEditCity": "Cidade ou Região",
+  "profileEditFft": "Ranking FFT (ex. 3/6, Não classificado...)",
+  "profileEditLevel": "Nível",
+  "profileEditLevelBtn": "Nív. {level}",
+  "@profileEditLevelBtn": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
+  "profileEditPosition": "Posição preferida",
+  "profileEditPosLeft": "Esquerda",
+  "profileEditPosRight": "Direita",
+  "profileEditPosAny": "Qualquer",
+  "profileEditSelect": "Selecionar",
+  "profileEditAvailability": "Disponibilidade",
+  "profileEditAvailEvening": "Noites e finais de semana",
+  "profileEditAvailWeek": "Dias de semana",
+  "profileEditAvailAll": "Sempre",
+  "profileEditAvailVar": "Variável",
+  "profileEditLookingForPartner": "Procurando parceiro",
+  "profileEditLookingForPartnerSub": "Apareça no Beach Tinder para encontrar um parceiro do seu nível.",
+  "profileEditSaveBtn": "Salvar",
+  "mapDeclareLostHint": "Ex: Esqueci meus óculos Oakley rosas no banco...",
+  "mapDeclareFoundHint": "Ex: Encontrei uma capa MBB perto da rede 3..."
+}
