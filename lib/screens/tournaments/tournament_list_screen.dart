@@ -8,6 +8,7 @@ import '../../models/tournament.dart';
 import '../profile_screen.dart';
 import 'tournament_detail_screen.dart';
 import 'beach_score_hub_screen.dart';
+import '../../services/sound_service.dart';
 import '../../l10n/app_localizations.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
@@ -532,17 +533,35 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                   ),
 
                 Expanded(
-                  child: filteredTournaments.isEmpty 
-                    ? Center(
-                        child: Text(AppLocalizations.of(context)!.tournamentListEmpty, style: const TextStyle(color: Colors.white70)),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.only(left: 20, right: 20, top: 8, bottom: 100),
-                        itemCount: filteredTournaments.length,
-                        itemBuilder: (context, index) {
-                          return _buildTournamentCard(context, filteredTournaments[index]);
-                        },
-                      ),
+                  child: RefreshIndicator(
+                    color: AppColors.coral,
+                    backgroundColor: const Color(0xFF141D30),
+                    onRefresh: () async {
+                      HapticFeedback.mediumImpact();
+                      SoundService.playRacketPop();
+                      _initUserLocation();
+                      await Future.delayed(const Duration(milliseconds: 500));
+                      if (mounted) setState(() {});
+                    },
+                    child: filteredTournaments.isEmpty 
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            const SizedBox(height: 80),
+                            Center(
+                              child: Text(AppLocalizations.of(context)!.tournamentListEmpty, style: const TextStyle(color: Colors.white70)),
+                            ),
+                          ],
+                        )
+                      : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                          padding: const EdgeInsets.only(left: 20, right: 20, top: 8, bottom: 100),
+                          itemCount: filteredTournaments.length,
+                          itemBuilder: (context, index) {
+                            return _buildTournamentCard(context, filteredTournaments[index]);
+                          },
+                        ),
+                  ),
                 ),
               ],
             ),

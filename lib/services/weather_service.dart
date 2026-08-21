@@ -8,6 +8,7 @@ class BeachWeatherData {
   final double windGusts;
   final int windDirection;
   final int weatherCode;
+  final double uvIndex;
 
   BeachWeatherData({
     required this.temperature,
@@ -16,6 +17,7 @@ class BeachWeatherData {
     required this.windGusts,
     required this.windDirection,
     required this.weatherCode,
+    this.uvIndex = 4.0,
   });
 
   String get windDirectionLabel {
@@ -39,6 +41,12 @@ class BeachWeatherData {
     return "Fortes rafales ⚠️";
   }
 
+  String get sandComfortText {
+    if (temperature > 30 && uvIndex > 6) return "Sable très chaud ☀️";
+    if (temperature >= 20) return "Sable parfait 🏖️";
+    return "Sable frais 🌊";
+  }
+
   bool get isIdeal => windSpeed < 15;
   bool get isPlayable => windSpeed <= 28;
 }
@@ -60,7 +68,7 @@ class WeatherService {
 
     try {
       final url = Uri.parse(
-        "https://api.open-meteo.com/v1/forecast?latitude=$latitude&longitude=$longitude&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m&timezone=auto",
+        "https://api.open-meteo.com/v1/forecast?latitude=$latitude&longitude=$longitude&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index&timezone=auto",
       );
 
       final response = await http.get(url).timeout(const Duration(seconds: 4));
@@ -75,6 +83,7 @@ class WeatherService {
           windGusts: (current['wind_gusts_10m'] as num?)?.toDouble() ?? 15.0,
           windDirection: (current['wind_direction_10m'] as num?)?.toInt() ?? 0,
           weatherCode: (current['weather_code'] as num?)?.toInt() ?? 0,
+          uvIndex: (current['uv_index'] as num?)?.toDouble() ?? 4.0,
         );
 
         _cache[key] = weather;

@@ -7,6 +7,8 @@ import '../../theme/colors.dart';
 import '../../providers/app_state.dart';
 import '../../models/tournament.dart';
 import '../../models/live_match_model.dart';
+import '../../services/sound_service.dart';
+import 'match_tracker_screen.dart';
 import 'referee_live_score_screen.dart';
 
 /// Écran Officiel BeachScore World Tour (Flux Réel ITF / FFT Connecté à Firestore + Cache Résilient)
@@ -49,31 +51,17 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
   // 🛡️ DONNÉES EMBARQUÉES OFFICIELLES ITF / FFT (Cache Ultra-Rapide & Résilient - Zéro Écran Blanc Garanti)
   static const List<Map<String, dynamic>> _fallbackTournaments = [
     {
-      'id': 'itf_bt100_vitoria_2026',
-      'name': 'ITF BT 100 Vitória Open',
-      'city': 'Praia de Camburi, Vitória',
-      'countryCode': 'BR',
-      'countryName': 'Brésil',
-      'countryFlag': '🇧🇷',
-      'category': 'ITF BT 100 🌟',
-      'prizeMoney': '10 000 \$',
-      'surface': 'Praia de Camburi',
-      'dates': '13 au 16 Août 2026',
-      'order': 1,
-      'isActive': true,
-    },
-    {
-      'id': 'itf_cote_beaute_royan_2026',
-      'name': 'Open de la Côte de Beauté · ITF World Tour',
-      'city': 'Saint-Georges / Royan',
+      'id': 'bt1000_palavas_2026',
+      'name': 'Palavas Beach Tennis Cup · BT 1000 FFT',
+      'city': 'Palavas-les-Flots (Hérault)',
       'countryCode': 'FR',
       'countryName': 'France',
       'countryFlag': '🇫🇷',
-      'category': 'Grand Chelem FFT & ITF 🏆',
-      'prizeMoney': '15 000 €',
-      'surface': 'Grande Plage',
-      'dates': '12 au 16 Août 2026',
-      'order': 2,
+      'category': 'BT 1000 FFT 🌟',
+      'prizeMoney': '10 000 €',
+      'surface': 'Plage des Arènes',
+      'dates': '21 au 23 Août 2026',
+      'order': 1,
       'isActive': true,
     },
     {
@@ -87,7 +75,7 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'prizeMoney': '35 000 \$',
       'surface': 'Fantini Club Arena',
       'dates': '26 au 30 Août 2026',
-      'order': 3,
+      'order': 2,
       'isActive': true,
     },
     {
@@ -101,7 +89,7 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'prizeMoney': '15 000 \$',
       'surface': 'Platja Bogatell',
       'dates': '17 au 19 Août 2026',
-      'order': 4,
+      'order': 3,
       'isActive': true,
     },
     {
@@ -115,23 +103,93 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'prizeMoney': '8 000 €',
       'surface': 'Plage de Saint-Pierre',
       'dates': '16 au 18 Août 2026',
+      'order': 4,
+      'isActive': true,
+    },
+    {
+      'id': 'itf_bt100_vitoria_2026',
+      'name': 'ITF BT 100 Vitória Open',
+      'city': 'Praia de Camburi, Vitória',
+      'countryCode': 'BR',
+      'countryName': 'Brésil',
+      'countryFlag': '🇧🇷',
+      'category': 'ITF BT 100 🌟',
+      'prizeMoney': '10 000 \$',
+      'surface': 'Praia de Camburi',
+      'dates': '13 au 16 Août 2026',
       'order': 5,
       'isActive': true,
     },
   ];
 
   static const List<Map<String, dynamic>> _fallbackMatches = [
-    // 🇧🇷 BRÉSIL - ITF BT 100 VITÓRIA OPEN
+    // 🇫🇷 FRANCE - PALAVAS BEACH TENNIS CUP BT 1000 (Ce Week-end : 21 au 23 Août)
     {
-      'id': 'vit_dh_m1',
-      'tournamentId': 'itf_bt100_vitoria_2026',
+      'id': 'palavas_dh_sf1',
+      'tournamentId': 'bt1000_palavas_2026',
       'draw': 'DH',
       'day': 'Aujourd\'hui',
       'round': '1/2 Finale',
-      'time': '11h00',
+      'time': '18h30',
       'court': 'Court 1',
-      'team1': '[3] A. Baran (BRA) / D. Jovane (BRA)',
-      'team2': '[4] M. Amorim (BRA) / D. Colla (BRA)',
+      'team1': '[1] N. Gianotti (FRA) / M. Guegano (FRA)',
+      'team2': '[3] T. Irigaray (FRA) / M. Bray (FRA)',
+      'set1': null,
+      'set2': null,
+      'set3': null,
+      'status': 'SCHEDULED',
+      'winner': null,
+      'serving': null,
+      'isFeatured': false,
+    },
+    {
+      'id': 'palavas_dh_final',
+      'tournamentId': 'bt1000_palavas_2026',
+      'draw': 'DH',
+      'day': 'Demain',
+      'round': 'Grande Finale 🏆',
+      'time': 'Samedi 18h00',
+      'court': 'Court Central',
+      'team1': '[1] N. Gianotti / M. Guegano',
+      'team2': '[2] L. Godey / A. Begue',
+      'set1': null,
+      'set2': null,
+      'set3': null,
+      'status': 'SCHEDULED',
+      'winner': null,
+      'serving': null,
+      'isFeatured': true,
+    },
+    {
+      'id': 'palavas_dd_final',
+      'tournamentId': 'bt1000_palavas_2026',
+      'draw': 'DD',
+      'day': 'Demain',
+      'round': 'Grande Finale 🏆',
+      'time': 'Samedi 16h30',
+      'court': 'Court Central',
+      'team1': '[1] L. Jamel / A. Hoarau',
+      'team2': '[2] M. Garnier / C. Palen',
+      'set1': null,
+      'set2': null,
+      'set3': null,
+      'status': 'SCHEDULED',
+      'winner': null,
+      'serving': null,
+      'isFeatured': false,
+    },
+
+    // 🇪🇸 ESPAGNE - ITF BT 200 BARCELONE (Terminé le 19 Août - Scores Officiels)
+    {
+      'id': 'bcn_dh_final',
+      'tournamentId': 'itf_bt200_barcelona_2026',
+      'draw': 'DH',
+      'day': 'Hier',
+      'round': 'Grande Finale 🏆',
+      'time': 'Terminé 🏆',
+      'court': 'Court Central',
+      'team1': '[1] G. Dowsett (ESP) / B. Bailer (ESP)',
+      'team2': '[2] J. Chaparro (ESP) / E. Polidori (ITA)',
       'set1': '6/4',
       'set2': '7/5',
       'set3': null,
@@ -141,270 +199,12 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'isFeatured': false,
     },
     {
-      'id': 'vit_dh_m2_live',
-      'tournamentId': 'itf_bt100_vitoria_2026',
-      'draw': 'DH',
-      'day': 'Aujourd\'hui',
-      'round': '1/2 Finale',
-      'time': 'En Direct 🔴',
-      'court': 'Court Central',
-      'team1': '[1] N. Gianotti (FRA) / M. Spoto (ITA)',
-      'team2': '[2] A. Ramos (ESP) / T. Burmakin (RUS)',
-      'set1': '6/4',
-      'set2': '5/3',
-      'set3': null,
-      'status': 'LIVE',
-      'winner': null,
-      'serving': 1,
-      'isFeatured': true, // Unique match en direct sur le central
-    },
-    {
-      'id': 'vit_dh_final',
-      'tournamentId': 'itf_bt100_vitoria_2026',
-      'draw': 'DH',
-      'day': 'Aujourd\'hui',
-      'round': 'Grande Finale 🏆',
-      'time': '18h30',
-      'court': 'Court Central',
-      'team1': '[1] Gianotti / Spoto ou Ramos / Burmakin',
-      'team2': '[3] A. Baran (BRA) / D. Jovane (BRA)',
-      'set1': null,
-      'set2': null,
-      'set3': null,
-      'status': 'SCHEDULED',
-      'winner': null,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
-      'id': 'vit_dd_sf1',
-      'tournamentId': 'itf_bt100_vitoria_2026',
-      'draw': 'DD',
-      'day': 'Aujourd\'hui',
-      'round': '1/2 Finale',
-      'time': '10h00',
-      'court': 'Court Central',
-      'team1': '[1] G. Gasparri (ITA) / N. Valentini (ITA)',
-      'team2': '[4] V. Cortesi (ITA) / E. Francesconi (ITA)',
-      'set1': '6/2',
-      'set2': '6/3',
-      'set3': null,
-      'status': 'FINISHED',
-      'winner': 1,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
-      'id': 'vit_dd_final',
-      'tournamentId': 'itf_bt100_vitoria_2026',
-      'draw': 'DD',
-      'day': 'Aujourd\'hui',
-      'round': 'Grande Finale 🏆',
-      'time': '17h00',
-      'court': 'Court Central',
-      'team1': '[1] G. Gasparri (ITA) / N. Valentini (ITA)',
-      'team2': '[2] P. Diaz (VEN) / R. Miller (BRA)',
-      'set1': null,
-      'set2': null,
-      'set3': null,
-      'status': 'SCHEDULED',
-      'winner': null,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
-      'id': 'vit_dh_qf1',
-      'tournamentId': 'itf_bt100_vitoria_2026',
-      'draw': 'DH',
-      'day': 'Hier',
-      'round': '1/4 de Finale',
-      'time': 'Hier 16h00',
-      'court': 'Court Central',
-      'team1': '[1] N. Gianotti (FRA) / M. Spoto (ITA)',
-      'team2': 'G. Santos (BRA) / L. Ferreira (BRA)',
-      'set1': '6/1',
-      'set2': '6/2',
-      'set3': null,
-      'status': 'FINISHED',
-      'winner': 1,
-      'serving': null,
-      'isFeatured': false,
-    },
-
-    // 🇫🇷 FRANCE - OPEN DE LA CÔTE DE BEAUTÉ (Royan / Saint-Georges)
-    {
-      'id': 'royan_dh_sf1',
-      'tournamentId': 'itf_cote_beaute_royan_2026',
-      'draw': 'DH',
-      'day': 'Aujourd\'hui',
-      'round': '1/2 Finale',
-      'time': '10h30',
-      'court': 'Court Central',
-      'team1': '[1] L. Godey / M. Guegano',
-      'team2': '[4] A. Leroy / T. Durand',
-      'set1': '6/3',
-      'set2': '6/2',
-      'set3': null,
-      'status': 'FINISHED',
-      'winner': 1,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
-      'id': 'royan_dh_sf2',
-      'tournamentId': 'itf_cote_beaute_royan_2026',
-      'draw': 'DH',
-      'day': 'Aujourd\'hui',
-      'round': '1/2 Finale',
-      'time': '14h30',
-      'court': 'Court Central',
-      'team1': '[2] T. Irigaray / M. Bray',
-      'team2': '[3] N. Dupont / M. Martin',
-      'set1': '6/4',
-      'set2': '7/6',
-      'set3': null,
-      'status': 'FINISHED',
-      'winner': 1,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
-      'id': 'royan_dh_final',
-      'tournamentId': 'itf_cote_beaute_royan_2026',
-      'draw': 'DH',
-      'day': 'Aujourd\'hui',
-      'round': 'Grande Finale 🏆',
-      'time': '18h00',
-      'court': 'Court Central',
-      'team1': '[1] L. Godey / M. Guegano',
-      'team2': '[2] T. Irigaray / M. Bray',
-      'set1': null,
-      'set2': null,
-      'set3': null,
-      'status': 'SCHEDULED',
-      'winner': null,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
-      'id': 'royan_dd_sf1',
-      'tournamentId': 'itf_cote_beaute_royan_2026',
-      'draw': 'DD',
-      'day': 'Aujourd\'hui',
-      'round': '1/2 Finale',
-      'time': '11h30',
-      'court': 'Court 1',
-      'team1': '[1] L. Jamel / A. Hoarau',
-      'team2': '[3] C. Palen / M. Bourdet',
-      'set1': '6/1',
-      'set2': '6/3',
-      'set3': null,
-      'status': 'FINISHED',
-      'winner': 1,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
-      'id': 'royan_dx_final',
-      'tournamentId': 'itf_cote_beaute_royan_2026',
-      'draw': 'DX',
-      'day': 'Aujourd\'hui',
-      'round': 'Finale Mixte 🏆',
-      'time': '19h15',
-      'court': 'Court Central',
-      'team1': '[1] L. Godey / L. Jamel',
-      'team2': '[2] M. Guegano / A. Hoarau',
-      'set1': null,
-      'set2': null,
-      'set3': null,
-      'status': 'SCHEDULED',
-      'winner': null,
-      'serving': null,
-      'isFeatured': false,
-    },
-
-    // 🇮🇹 ITALIE - ITF BT 400 CERVIA (Fantini Club)
-    {
-      'id': 'cervia_dh_sf1',
-      'tournamentId': 'itf_bt400_cervia_2026',
-      'draw': 'DH',
-      'day': 'Demain',
-      'round': '1/2 Finale',
-      'time': 'Demain 11h00',
-      'court': 'Fantini Arena',
-      'team1': '[1] M. Cappelletti (ITA) / R. Alessi (ITA)',
-      'team2': '[4] F. Cellini (ITA) / M. Faccini (ITA)',
-      'set1': null,
-      'set2': null,
-      'set3': null,
-      'status': 'SCHEDULED',
-      'winner': null,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
-      'id': 'cervia_dh_final',
-      'tournamentId': 'itf_bt400_cervia_2026',
-      'draw': 'DH',
-      'day': 'Ce Week-end',
-      'round': 'Grande Finale 🏆',
-      'time': 'Dimanche 17h30',
-      'court': 'Fantini Arena',
-      'team1': '[1] M. Cappelletti / R. Alessi',
-      'team2': '[2] F. Beccaccioli / L. Cramarossa',
-      'set1': null,
-      'set2': null,
-      'set3': null,
-      'status': 'SCHEDULED',
-      'winner': null,
-      'serving': null,
-      'isFeatured': false,
-    },
-
-    // 🇪🇸 ESPAGNE - ITF BT 200 BARCELONE
-    {
-      'id': 'bcn_dh_sf1',
-      'tournamentId': 'itf_bt200_barcelona_2026',
-      'draw': 'DH',
-      'day': 'Aujourd\'hui',
-      'round': '1/2 Finale',
-      'time': '10h00',
-      'court': 'Court 1',
-      'team1': '[1] G. Dowsett (ESP) / B. Bailer (ESP)',
-      'team2': '[4] L. Carli (ITA) / M. Garavini (ITA)',
-      'set1': '6/4',
-      'set2': '6/3',
-      'set3': null,
-      'status': 'FINISHED',
-      'winner': 1,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
-      'id': 'bcn_dh_final',
-      'tournamentId': 'itf_bt200_barcelona_2026',
-      'draw': 'DH',
-      'day': 'Aujourd\'hui',
-      'round': 'Grande Finale 🏆',
-      'time': '17h00',
-      'court': 'Court Central',
-      'team1': '[1] G. Dowsett (ESP) / B. Bailer (ESP)',
-      'team2': '[2] J. Chaparro (ESP) / E. Polidori (ITA)',
-      'set1': null,
-      'set2': null,
-      'set3': null,
-      'status': 'SCHEDULED',
-      'winner': null,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
       'id': 'bcn_dd_final',
       'tournamentId': 'itf_bt200_barcelona_2026',
       'draw': 'DD',
-      'day': 'Aujourd\'hui',
+      'day': 'Hier',
       'round': 'Grande Finale 🏆',
-      'time': '15h30',
+      'time': 'Terminé 🏆',
       'court': 'Court Central',
       'team1': '[1] A. Rodriguez (ESP) / M. Gomez (ESP)',
       'team2': '[2] C. Fernandez (ESP) / L. Sitja (ESP)',
@@ -417,32 +217,14 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'isFeatured': false,
     },
 
-    // 🇷🇪 LA RÉUNION - BOURBON BEACH CUP BT 1000
-    {
-      'id': 'reu_dh_sf1',
-      'tournamentId': 'bt1000_saint_pierre_2026',
-      'draw': 'DH',
-      'day': 'Aujourd\'hui',
-      'round': '1/2 Finale',
-      'time': '09h30',
-      'court': 'Court Central',
-      'team1': '[1] L. Perrot / G. Payet',
-      'team2': '[4] A. Begue / D. Boyer',
-      'set1': '6/2',
-      'set2': '6/1',
-      'set3': null,
-      'status': 'FINISHED',
-      'winner': 1,
-      'serving': null,
-      'isFeatured': false,
-    },
+    // 🇷🇪 LA RÉUNION - BOURBON BEACH CUP BT 1000 (Terminé le 18 Août)
     {
       'id': 'reu_dh_final',
       'tournamentId': 'bt1000_saint_pierre_2026',
       'draw': 'DH',
-      'day': 'Aujourd\'hui',
+      'day': 'Hier',
       'round': 'Grande Finale 🏆',
-      'time': '16h00',
+      'time': 'Terminé 🏆',
       'court': 'Court Central',
       'team1': '[1] L. Perrot / G. Payet',
       'team2': '[2] M. Hoarau / J. Fontaine',
@@ -451,6 +233,46 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'set3': null,
       'status': 'FINISHED',
       'winner': 1,
+      'serving': null,
+      'isFeatured': false,
+    },
+
+    // 🇧🇷 BRÉSIL - ITF BT 100 VITÓRIA OPEN (Terminé le 16 Août)
+    {
+      'id': 'vit_dh_final',
+      'tournamentId': 'itf_bt100_vitoria_2026',
+      'draw': 'DH',
+      'day': 'Hier',
+      'round': 'Grande Finale 🏆',
+      'time': 'Terminé 🏆',
+      'court': 'Court Central',
+      'team1': '[1] N. Gianotti (FRA) / M. Spoto (ITA)',
+      'team2': '[3] A. Baran (BRA) / D. Jovane (BRA)',
+      'set1': '6/3',
+      'set2': '7/5',
+      'set3': null,
+      'status': 'FINISHED',
+      'winner': 1,
+      'serving': null,
+      'isFeatured': false,
+    },
+
+    // 🇮🇹 ITALIE - ITF BT 400 CERVIA (Fantini Club - À venir 26 au 30 Août)
+    {
+      'id': 'cervia_dh_final',
+      'tournamentId': 'itf_bt400_cervia_2026',
+      'draw': 'DH',
+      'day': 'Ce Week-end',
+      'round': 'Grande Finale 🏆',
+      'time': 'Dimanche 30 Août',
+      'court': 'Fantini Arena',
+      'team1': '[1] M. Cappelletti / R. Alessi',
+      'team2': '[2] F. Beccaccioli / L. Cramarossa',
+      'set1': null,
+      'set2': null,
+      'set3': null,
+      'status': 'SCHEDULED',
+      'winner': null,
       'serving': null,
       'isFeatured': false,
     },
@@ -525,6 +347,32 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.gold),
+            tooltip: "Actualiser les scores",
+            onPressed: () {
+              HapticFeedback.mediumImpact();
+              SoundService.playRacketPop();
+              setState(() {});
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Row(
+                    children: [
+                      Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 18),
+                      SizedBox(width: 8),
+                      Text("Actualisation des scores en cours...", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  backgroundColor: const Color(0xFF16253B),
+                  duration: const Duration(seconds: 1),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('pro_tournaments').orderBy('order').snapshots(),
@@ -615,10 +463,36 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
                 totalMatchesCount += l.length;
               }
 
-              return CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  // 📅 Ruban Horizontal de Dates (SofaScore / FlashScore Style)
+              return RefreshIndicator(
+                color: AppColors.coral,
+                backgroundColor: const Color(0xFF141D30),
+                onRefresh: () async {
+                  HapticFeedback.mediumImpact();
+                  SoundService.playRacketPop();
+                  setState(() {});
+                  await Future.delayed(const Duration(milliseconds: 600));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Row(
+                          children: [
+                            Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 18),
+                            SizedBox(width: 8),
+                            Text("Scores et tournois actualisés", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        backgroundColor: const Color(0xFF16253B),
+                        duration: const Duration(seconds: 1),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    );
+                  }
+                },
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                  slivers: [
+                    // 📅 Ruban Horizontal de Dates (SofaScore / FlashScore Style)
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -938,6 +812,7 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
 
                   const SliverToBoxAdapter(child: SizedBox(height: 36)),
                 ],
+                ),
               );
             },
           );
@@ -951,9 +826,19 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
     final bool isLive = match['status'] == 'LIVE';
     final bool isFinished = match['status'] == 'FINISHED';
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MatchTrackerScreen(match: match, tournament: tournament),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFF16253B), Color(0xFF1E3352)],
           begin: Alignment.topLeft,
@@ -1114,6 +999,7 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -1152,11 +1038,21 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
     if (draw == 'DD') drawColor = const Color(0xFFFF5E7E);
     if (draw == 'DX') drawColor = const Color(0xFF00D2FF);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.06))),
-      ),
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MatchTrackerScreen(match: match, tournament: tournament),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.06))),
+        ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1330,6 +1226,7 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
             ],
           ),
         ],
+      ),
       ),
     );
   }

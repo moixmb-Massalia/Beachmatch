@@ -234,6 +234,18 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
         ),
         useMaterial3: true,
       ),
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        // 📐 Responsive Anti-Débordement : Verrouillage intelligent de l'échelle des textes (0.85x à 1.15x)
+        final clampedTextScaler = mediaQuery.textScaler.clamp(
+          minScaleFactor: 0.85,
+          maxScaleFactor: 1.15,
+        );
+        return MediaQuery(
+          data: mediaQuery.copyWith(textScaler: clampedTextScaler),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {

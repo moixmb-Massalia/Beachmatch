@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/club.dart';
 import '../../theme/colors.dart';
+import '../../services/sound_service.dart';
 import 'club_detail_screen.dart';
 import 'dart:ui';
 
@@ -76,13 +78,24 @@ class _ClubListScreenState extends State<ClubListScreen> {
                         );
                       }
 
-                      return ListView.builder(
-                        padding: const EdgeInsets.only(top: 8, left: 16, right: 16, bottom: 100),
-                        itemCount: clubs.length,
-                        itemBuilder: (context, index) {
-                          final club = clubs[index];
-                          return _buildClubCard(context, club);
+                      return RefreshIndicator(
+                        color: AppColors.coral,
+                        backgroundColor: const Color(0xFF141D30),
+                        onRefresh: () async {
+                          HapticFeedback.mediumImpact();
+                          SoundService.playRacketPop();
+                          await Future.delayed(const Duration(milliseconds: 500));
+                          if (context.mounted) setState(() {});
                         },
+                        child: ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                          padding: const EdgeInsets.only(top: 8, left: 16, right: 16, bottom: 100),
+                          itemCount: clubs.length,
+                          itemBuilder: (context, index) {
+                            final club = clubs[index];
+                            return _buildClubCard(context, club);
+                          },
+                        ),
                       );
                     },
                   ),

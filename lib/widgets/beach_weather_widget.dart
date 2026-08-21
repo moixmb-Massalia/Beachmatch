@@ -129,8 +129,8 @@ class BeachWeatherWidget extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              weather.weatherConditionLabel,
-                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                              weather.sandComfortText,
+                              style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
