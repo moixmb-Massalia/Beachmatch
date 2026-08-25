@@ -23,12 +23,30 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
 
-  String _selectedDay = 'Aujourd\'hui';
+  String _selectedDay = 'Tous';
   String _selectedCountry = 'ALL'; // 'ALL', 'BR', 'RE', 'IT', 'ES', 'FR'
   String _selectedDraw = 'ALL'; // 'ALL', 'DH', 'DD', 'DX'
   String _selectedFilter = 'Tous'; // 'Tous', '🔴 En Direct', '🏆 Finales', 'Terminés'
 
-  final List<String> _days = ['Hier', 'Aujourd\'hui', 'Demain', 'Ce Week-end'];
+  final List<String> _days = ['Tous', 'Aujourd\'hui', 'Demain', 'Ce Week-end', 'Hier'];
+
+  String _resolveMatchDay(Map<String, dynamic> match) {
+    final dateStr = match['date'];
+    if (dateStr != null && dateStr is String && dateStr.isNotEmpty) {
+      try {
+        final parsed = DateTime.parse(dateStr);
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final mDate = DateTime(parsed.year, parsed.month, parsed.day);
+        final diff = mDate.difference(today).inDays;
+        if (diff < 0) return 'Hier';
+        if (diff == 0) return 'Aujourd\'hui';
+        if (diff == 1) return 'Demain';
+        return 'Ce Week-end';
+      } catch (_) {}
+    }
+    return (match['day'] as String?) ?? 'Aujourd\'hui';
+  }
 
   final List<Map<String, String>> _countries = [
     {'id': 'ALL', 'label': '🌍 Tous les Majeurs'},
@@ -411,8 +429,10 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
                 final tId = t['id'] as String;
                 final tMatches = allMatches.where((m) => m['tournamentId'] == tId).toList();
 
-                // Filtrage strict par Jour
-                var list = tMatches.where((m) => m['day'] == _selectedDay).toList();
+                // Filtrage dynamique par Jour
+                var list = _selectedDay == 'Tous'
+                    ? tMatches
+                    : tMatches.where((m) => _resolveMatchDay(m) == _selectedDay).toList();
 
                 // Filtrage strict par Tableau (DH / DD / DX)
                 if (_selectedDraw != 'ALL') {
