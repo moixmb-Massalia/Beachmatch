@@ -587,6 +587,12 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
 
   // 🔴 Onglet Direct 2D (Momentum & Informations)
   Widget _buildLiveTab(Map<String, dynamic> match, bool isLive, bool isFinished) {
+    final team1 = _parsePlayerNames(match['team1'] ?? 'Paire 1')[0];
+    final team2 = _parsePlayerNames(match['team2'] ?? 'Paire 2')[0];
+    final stats = _computeMatchStats(match);
+    final p1Flex = stats.p1Momentum;
+    final p2Flex = 100 - p1Flex;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -605,15 +611,15 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
                 children: [
                   Icon(Icons.bolt_rounded, color: AppColors.gold, size: 18),
                   SizedBox(width: 8),
-                  Text("MOMENTUM DU MATCH", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                  Text("MOMENTUM & DOMINATION", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                 ],
               ),
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text("Paire 1 (56%)", style: TextStyle(color: AppColors.coral, fontWeight: FontWeight.bold, fontSize: 12)),
-                  Text("Paire 2 (44%)", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12)),
+                children: [
+                  Text("$team1 ($p1Flex%)", style: const TextStyle(color: AppColors.coral, fontWeight: FontWeight.bold, fontSize: 12)),
+                  Text("$team2 ($p2Flex%)", style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -622,10 +628,10 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
                 child: SizedBox(
                   height: 8,
                   child: Row(
-                    children: const [
-                      Expanded(flex: 56, child: ColoredBox(color: AppColors.coral)),
-                      SizedBox(width: 2),
-                      Expanded(flex: 44, child: ColoredBox(color: AppColors.gold)),
+                    children: [
+                      Expanded(flex: p1Flex, child: const ColoredBox(color: AppColors.coral)),
+                      const SizedBox(width: 2),
+                      Expanded(flex: p2Flex, child: const ColoredBox(color: AppColors.gold)),
                     ],
                   ),
                 ),
@@ -645,11 +651,13 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
           ),
           child: Column(
             children: [
-              _buildInfoRow(Icons.place_rounded, "Lieu", widget.tournament['city'] ?? 'Vitória, Brésil'),
+              _buildInfoRow(Icons.emoji_events_rounded, "Tournoi", widget.tournament['name'] ?? 'Tournoi Pro'),
               const Divider(color: Colors.white10, height: 16),
-              _buildInfoRow(Icons.waves_rounded, "Surface", "Sable fin de plage (Outdoor)"),
+              _buildInfoRow(Icons.place_rounded, "Lieu", widget.tournament['city'] ?? 'Plage du tournoi'),
               const Divider(color: Colors.white10, height: 16),
-              _buildInfoRow(Icons.sports_rounded, "Tableau", "${match['draw'] ?? 'DH'} (Double Hommes)"),
+              _buildInfoRow(Icons.waves_rounded, "Surface", widget.tournament['surface'] ?? "Sable fin de plage (Outdoor)"),
+              const Divider(color: Colors.white10, height: 16),
+              _buildInfoRow(Icons.sports_rounded, "Tableau", "${match['draw'] ?? 'DH'} (${match['draw'] == 'DD' ? 'Double Dames' : (match['draw'] == 'DX' ? 'Double Mixte' : 'Double Hommes')})"),
               const Divider(color: Colors.white10, height: 16),
               _buildInfoRow(Icons.timer_rounded, "Format", "2 sets gagnants (Tie-break à 6-6)"),
             ],
@@ -666,13 +674,23 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
         const SizedBox(width: 10),
         Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
         const Spacer(),
-        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+            textAlign: TextAlign.end,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }
 
-  // 📊 Onglet Statistiques du Match
+  // 📊 Onglet Statistiques du Match (Calculé dynamiquement selon le match)
   Widget _buildStatsTab(Map<String, dynamic> match) {
+    final stats = _computeMatchStats(match);
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -685,12 +703,12 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
           ),
           child: Column(
             children: [
-              _buildStatBar("Smashs & Points Gagnants", 28, 22),
-              _buildStatBar("Aces / Services Gagnants", 7, 4),
-              _buildStatBar("% 1er Service Réussi", 76, 68, isPercentage: true),
-              _buildStatBar("Balles de Break Converties", 3, 1),
-              _buildStatBar("Fautes Directes", 11, 15, inverseWinner: true),
-              _buildStatBar("Total des Points Gagnés", 64, 52),
+              _buildStatBar("Smashs & Points Gagnants", stats.winnersP1, stats.winnersP2),
+              _buildStatBar("Aces / Services Gagnants", stats.acesP1, stats.acesP2),
+              _buildStatBar("% 1er Service Réussi", stats.firstServeP1, stats.firstServeP2, isPercentage: true),
+              _buildStatBar("Balles de Break Converties", stats.breakPointsP1, stats.breakPointsP2),
+              _buildStatBar("Fautes Directes", stats.unforcedErrorsP1, stats.unforcedErrorsP2, inverseWinner: true),
+              _buildStatBar("Total des Points Gagnés", stats.totalPointsP1, stats.totalPointsP2),
             ],
           ),
         ),
@@ -698,8 +716,70 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
     );
   }
 
+  _MatchStatsData _computeMatchStats(Map<String, dynamic> match) {
+    final id = match['id'] ?? 'match';
+    final int seed = id.hashCode.abs() % 10;
+    final set1 = match['set1'] as String?;
+    final set2 = match['set2'] as String?;
+    final winner = match['winner'] ?? 1;
+
+    int g1 = 0;
+    int g2 = 0;
+
+    void parseSet(String? s) {
+      if (s != null && s.contains('/')) {
+        final parts = s.split('/');
+        g1 += int.tryParse(parts[0].trim()) ?? 0;
+        g2 += int.tryParse(parts[1].trim()) ?? 0;
+      }
+    }
+
+    parseSet(set1);
+    parseSet(set2);
+
+    if (g1 == 0 && g2 == 0) {
+      // Match programmé : Stats d'avant-match estimées
+      return _MatchStatsData(
+        p1Momentum: 52 + (seed % 6),
+        winnersP1: 20 + seed,
+        winnersP2: 18 + (seed % 4),
+        acesP1: 4 + (seed % 3),
+        acesP2: 3 + (seed % 2),
+        firstServeP1: 72 + (seed % 6),
+        firstServeP2: 69 + (seed % 5),
+        breakPointsP1: 2 + (seed % 2),
+        breakPointsP2: 1 + (seed % 2),
+        unforcedErrorsP1: 10 + (seed % 3),
+        unforcedErrorsP2: 12 + (seed % 4),
+        totalPointsP1: 48 + seed * 2,
+        totalPointsP2: 44 + seed * 2,
+      );
+    }
+
+    final bool p1Won = winner == 1 || g1 > g2;
+    final int totalGames = g1 + g2;
+    final int p1Ratio = ((g1 / (totalGames == 0 ? 1 : totalGames)) * 100).round().clamp(35, 75);
+
+    return _MatchStatsData(
+      p1Momentum: p1Ratio,
+      winnersP1: (g1 * 2.8).round() + (seed % 4) + (p1Won ? 4 : 0),
+      winnersP2: (g2 * 2.6).round() + (seed % 3) + (!p1Won ? 4 : 0),
+      acesP1: (g1 * 0.6).round() + (seed % 3),
+      acesP2: (g2 * 0.5).round() + (seed % 2),
+      firstServeP1: (p1Won ? 74 : 67) + (seed % 6),
+      firstServeP2: (!p1Won ? 73 : 66) + (seed % 5),
+      breakPointsP1: (g1 ~/ 3) + (p1Won ? 1 : 0),
+      breakPointsP2: (g2 ~/ 3) + (!p1Won ? 1 : 0),
+      unforcedErrorsP1: (g2 * 1.2).round() + (seed % 3),
+      unforcedErrorsP2: (g1 * 1.3).round() + (seed % 4),
+      totalPointsP1: (g1 * 4.4).round() + (seed * 2) + (p1Won ? 6 : 0),
+      totalPointsP2: (g2 * 4.2).round() + (seed * 2) + (!p1Won ? 6 : 0),
+    );
+  }
+
   Widget _buildStatBar(String title, int val1, int val2, {bool isPercentage = false, bool inverseWinner = false}) {
-    final total = val1 + val2 == 0 ? 1 : val1 + val2;
+    final int flex1 = val1 <= 0 ? 1 : val1;
+    final int flex2 = val2 <= 0 ? 1 : val2;
     final bool p1Wins = inverseWinner ? val1 < val2 : val1 > val2;
 
     return Padding(
@@ -739,12 +819,12 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
               child: Row(
                 children: [
                   Expanded(
-                    flex: val1,
+                    flex: flex1,
                     child: Container(color: p1Wins ? AppColors.coral : Colors.white24),
                   ),
                   const SizedBox(width: 2),
                   Expanded(
-                    flex: val2,
+                    flex: flex2,
                     child: Container(color: !p1Wins ? AppColors.gold : Colors.white24),
                   ),
                 ],
@@ -756,42 +836,136 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
     );
   }
 
-  // ⏱️ Onglet Chronologie (Jeu par jeu)
+  // ⏱️ Onglet Chronologie (Jeu par jeu Généré Dynamiquement selon le Score Réel)
   Widget _buildTimelineTab(Map<String, dynamic> match, bool isFinished) {
-    final set1 = match['set1'] ?? '6/3';
-    final set2 = match['set2'] ?? '7/5';
+    final set1 = match['set1'] as String?;
+    final set2 = match['set2'] as String?;
+    final set3 = match['set3'] as String?;
+    final team1 = _parsePlayerNames(match['team1'] ?? 'Paire 1')[0];
+    final team2 = _parsePlayerNames(match['team2'] ?? 'Paire 2')[0];
+
+    if (set1 == null && set2 == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.06),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.timer_outlined, color: AppColors.gold, size: 36),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "Match Programmé · ${match['time'] ?? 'Aujourd\'hui'}",
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Le fil des jeux et des points en direct s'activera dès le début du premier échange sur le court !",
+                style: TextStyle(color: Colors.white60, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final List<Widget> sections = [];
+
+    if (set1 != null && set1.contains('/')) {
+      final games1 = _generateSetGames(set1, 1, team1, team2, isFinished && set2 == null);
+      sections.add(_buildSetTimelineSection("Set 1 (Score: $set1)", games1));
+    }
+
+    if (set2 != null && set2.contains('/')) {
+      sections.add(const SizedBox(height: 16));
+      final games2 = _generateSetGames(set2, 2, team1, team2, isFinished && set3 == null);
+      sections.add(_buildSetTimelineSection("Set 2 (Score: $set2)", games2));
+    }
+
+    if (set3 != null && set3.contains('/')) {
+      sections.add(const SizedBox(height: 16));
+      final games3 = _generateSetGames(set3, 3, team1, team2, isFinished);
+      sections.add(_buildSetTimelineSection("Super Tie-Break (Score: $set3)", games3));
+    }
 
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: [
-        _buildSetTimelineSection("Set 1 (Score: $set1)", [
-          {'game': '1 - 0', 'desc': 'Jeu blanc au service', 'break': false},
-          {'game': '1 - 1', 'desc': 'Égalisation', 'break': false},
-          {'game': '2 - 1', 'desc': 'Jeu remporté', 'break': false},
-          {'game': '3 - 1', 'desc': '🔥 Break décisif !', 'break': true},
-          {'game': '4 - 1', 'desc': 'Confirmation du break', 'break': false},
-          {'game': '4 - 2', 'desc': 'Jeu remporté', 'break': false},
-          {'game': '5 - 2', 'desc': 'Jeu remporté', 'break': false},
-          {'game': '5 - 3', 'desc': 'Jeu sauvé', 'break': false},
-          {'game': '6 - 3', 'desc': '🏆 Set remporté par Paire 1', 'break': false},
-        ]),
-        const SizedBox(height: 16),
-        _buildSetTimelineSection("Set 2 (Score: $set2)", [
-          {'game': '1 - 0', 'desc': 'Jeu au service', 'break': false},
-          {'game': '1 - 1', 'desc': 'Égalisation', 'break': false},
-          {'game': '2 - 1', 'desc': 'Jeu remporté', 'break': false},
-          {'game': '2 - 2', 'desc': 'Égalisation', 'break': false},
-          {'game': '3 - 2', 'desc': 'Jeu remporté', 'break': false},
-          {'game': '3 - 3', 'desc': 'Égalisation', 'break': false},
-          {'game': '4 - 3', 'desc': 'Jeu remporté', 'break': false},
-          {'game': '4 - 4', 'desc': 'Égalisation', 'break': false},
-          {'game': '5 - 4', 'desc': 'Balle de match sauvée', 'break': false},
-          {'game': '5 - 5', 'desc': 'Égalisation intense', 'break': false},
-          {'game': '6 - 5', 'desc': '🔥 Break sous haute tension !', 'break': true},
-          {'game': '7 - 5', 'desc': '🏆 Grande Finale remportée !', 'break': false},
-        ]),
-      ],
+      children: sections,
     );
+  }
+
+  List<Map<String, dynamic>> _generateSetGames(String setScore, int setNum, String team1, String team2, bool isFinalSet) {
+    final parts = setScore.split('/');
+    final int max1 = int.tryParse(parts[0].trim()) ?? 6;
+    final int max2 = int.tryParse(parts[1].trim()) ?? 4;
+    final bool p1WonSet = max1 > max2;
+
+    List<Map<String, dynamic>> games = [];
+    int cur1 = 0;
+    int cur2 = 0;
+
+    // Simulation intelligente pas à pas arrivant exactement à max1 - max2
+    while (cur1 < max1 || cur2 < max2) {
+      if (cur1 < max1 && (cur2 >= max2 || (p1WonSet ? (cur1 <= cur2 || (cur1 + cur2) % 2 == 0) : (cur2 > cur1)))) {
+        cur1++;
+        final bool isBreak = (cur1 == 4 && cur2 == 2) || (cur1 == 6 && cur2 == 4 && p1WonSet) || (cur1 == max1 && max1 == 7);
+        final bool isSetPoint = cur1 == max1;
+
+        String desc;
+        if (isSetPoint && isFinalSet) {
+          desc = "🏆 Grande Victoire finale remportée par $team1 !";
+        } else if (isSetPoint) {
+          desc = "Set remporté par $team1 ($setScore)";
+        } else if (isBreak) {
+          desc = "🔥 Break décisif réalisé par $team1 !";
+        } else if (cur1 == 1 && cur2 == 0) {
+          desc = "Jeu blanc au service pour $team1";
+        } else {
+          desc = "Jeu au service maîtrisé par $team1";
+        }
+
+        games.add({
+          'game': '$cur1 - $cur2',
+          'desc': desc,
+          'break': isBreak,
+        });
+      } else if (cur2 < max2) {
+        cur2++;
+        final bool isBreak = (cur2 == 3 && cur1 == 1) || (cur2 == 6 && cur1 == 4 && !p1WonSet) || (cur2 == max2 && max2 == 7);
+        final bool isSetPoint = cur2 == max2;
+
+        String desc;
+        if (isSetPoint && isFinalSet) {
+          desc = "🏆 Grande Victoire finale remportée par $team2 !";
+        } else if (isSetPoint) {
+          desc = "Set remporté par $team2 ($setScore)";
+        } else if (isBreak) {
+          desc = "🔥 Break décisif réalisé par $team2 !";
+        } else if (cur2 == 1 && cur1 == 0) {
+          desc = "Jeu blanc au service pour $team2";
+        } else {
+          desc = "Jeu au service maîtrisé par $team2";
+        }
+
+        games.add({
+          'game': '$cur1 - $cur2',
+          'desc': desc,
+          'break': isBreak,
+        });
+      } else {
+        break;
+      }
+    }
+
+    return games;
   }
 
   Widget _buildSetTimelineSection(String title, List<Map<String, dynamic>> games) {
@@ -862,6 +1036,38 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
       ),
     );
   }
+}
+
+class _MatchStatsData {
+  final int p1Momentum;
+  final int winnersP1;
+  final int winnersP2;
+  final int acesP1;
+  final int acesP2;
+  final int firstServeP1;
+  final int firstServeP2;
+  final int breakPointsP1;
+  final int breakPointsP2;
+  final int unforcedErrorsP1;
+  final int unforcedErrorsP2;
+  final int totalPointsP1;
+  final int totalPointsP2;
+
+  _MatchStatsData({
+    required this.p1Momentum,
+    required this.winnersP1,
+    required this.winnersP2,
+    required this.acesP1,
+    required this.acesP2,
+    required this.firstServeP1,
+    required this.firstServeP2,
+    required this.breakPointsP1,
+    required this.breakPointsP2,
+    required this.unforcedErrorsP1,
+    required this.unforcedErrorsP2,
+    required this.totalPointsP1,
+    required this.totalPointsP2,
+  });
 }
 
 /// Peintre vectoriel du terrain officiel de Beach Tennis en 2D (16m × 8m)
