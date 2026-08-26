@@ -281,7 +281,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
             set1: match['set1'],
             set2: match['set2'],
             set3: match['set3'],
-            currentPoints: isLive ? "40" : null,
+            currentPoints: isLive ? (match['points1'] ?? '30') : null,
           ),
           const Divider(color: Colors.white12, height: 16),
 
@@ -293,7 +293,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
             set1: match['set1'],
             set2: match['set2'],
             set3: match['set3'],
-            currentPoints: isLive ? "15" : null,
+            currentPoints: isLive ? (match['points2'] ?? '15') : null,
             isTeam2: true,
           ),
         ],
