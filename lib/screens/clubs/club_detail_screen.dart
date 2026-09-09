@@ -213,9 +213,11 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
     // Détection Président / Admin
     final firebaseEmail = FirebaseAuth.instance.currentUser?.email?.toLowerCase().trim() ?? '';
     final isAppAdmin = currentUser.isAdmin == true;
-    final isPresident = firebaseEmail.isNotEmpty && 
-        widget.club.presidentEmails.map((e) => e.toLowerCase().trim()).contains(firebaseEmail);
-    final canEditPhoto = isAppAdmin || isPresident;
+    final isPresident = isAppAdmin ||
+        (widget.club.adminId.isNotEmpty && widget.club.adminId == currentUser.id) ||
+        (firebaseEmail.isNotEmpty && 
+            widget.club.presidentEmails.map((e) => e.toLowerCase().trim()).contains(firebaseEmail));
+    final canEditPhoto = isPresident;
     final isMember = widget.club.memberIds.contains(currentUser.id);
     final displayLocation = (widget.club.location.isEmpty || widget.club.location.toLowerCase().contains('recherche'))
         ? "France"

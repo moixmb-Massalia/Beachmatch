@@ -8,6 +8,10 @@ import 'profile_edit_screen.dart';
 import 'privacy_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'login_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../models/club.dart';
+import 'clubs/president_dashboard_screen.dart';
 import '../l10n/app_localizations.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -80,6 +84,7 @@ class ProfileScreen extends StatelessWidget {
                       _buildStatsGrid(context, user),
                       const SizedBox(height: 24),
                       _buildAdminSection(context, user),
+                      _buildPresidentClubSection(context, user),
                       _buildRadarSection(context, user),
                       const SizedBox(height: 24),
                       _buildPreferences(context),
@@ -285,6 +290,114 @@ class ProfileScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildPresidentClubSection(BuildContext context, UserModel user) {
+    final firebaseEmail = FirebaseAuth.instance.currentUser?.email?.toLowerCase().trim() ?? '';
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('clubs').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+
+        final presidentClubs = snapshot.data!.docs
+            .map((doc) => ClubModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+            .where((club) {
+              final hasAdminId = club.adminId.isNotEmpty && club.adminId == user.id;
+              final hasEmail = firebaseEmail.isNotEmpty &&
+                  club.presidentEmails.map((e) => e.toLowerCase().trim()).contains(firebaseEmail);
+              return hasAdminId || hasEmail;
+            })
+            .toList();
+
+        if (presidentClubs.isEmpty) return const SizedBox.shrink();
+
+        final myClub = presidentClubs.first;
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: _buildGlassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.coral.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.shield_outlined, color: AppColors.coral, size: 22),
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Espace Président de Club",
+                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.white),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            "Gérez votre club et vos tournois",
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white.withOpacity(0.15)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.domain, color: AppColors.gold, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          myClub.name,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.coral,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.dashboard_customize, size: 18),
+                    label: const Text("Ouvrir le Tableau de Bord Club", style: TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => PresidentDashboardScreen(club: myClub)),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

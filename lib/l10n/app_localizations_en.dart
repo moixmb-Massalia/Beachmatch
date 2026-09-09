@@ -574,7 +574,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileEditLookingForPartnerSub =>
-      'Appear in Beach Tinder to find a partner at your level.';
+      'Appear in partner search to find a teammate at your level.';
 
   @override
   String get profileEditSaveBtn => 'Save';

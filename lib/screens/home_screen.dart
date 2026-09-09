@@ -2,7 +2,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/colors.dart';
@@ -13,15 +12,14 @@ import '../models/user.dart';
 import '../models/club.dart';
 import '../models/news_item.dart';
 import '../services/news_service.dart';
-import '../services/weather_service.dart';
 import '../widgets/beach_weather_widget.dart';
-import '../models/match.dart' as bm_match;
 import '../l10n/app_localizations.dart';
 import '../models/court.dart';
 import 'package:geolocator/geolocator.dart';
 import 'create_match_screen.dart';
 import 'clubs/club_detail_screen.dart';
 import 'map_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -100,14 +98,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildHeader(user),
                 const SizedBox(height: 18),
                 _buildRadarCard(context, user, courts),
-                const SizedBox(height: 18),
+                const SizedBox(height: 14),
                 _buildWeekendRitualCard(context),
-                _buildHeroBanner(),
-                const SizedBox(height: 20),
-                _buildWeatherCard(user),
-                const SizedBox(height: 24),
-                _buildWorldNewsSection(context),
-                const SizedBox(height: 28),
+                const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -199,6 +192,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ...matches.map((m) => _buildMatchCard(context, user, m, courts)),
+                const SizedBox(height: 24),
+                _buildWeatherCard(user),
+                const SizedBox(height: 24),
+                _buildWorldNewsSection(context),
                 const SizedBox(height: 90), // FAB space
               ],
             ),
@@ -251,55 +248,84 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeader(user) {
     return _buildGlassContainer(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.gold, width: 2),
-                  image: user?.photoUrl != null ? DecorationImage(image: NetworkImage(user!.photoUrl!), fit: BoxFit.cover) : null,
-                ),
-                child: user?.photoUrl == null 
-                    ? Center(child: Text(user?.displayName.isNotEmpty == true ? user!.displayName[0].toUpperCase() : "?", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)))
-                    : null,
-              ),
-              const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+              },
+              behavior: HitTestBehavior.opaque,
+              child: Row(
                 children: [
-                  Text("${AppLocalizations.of(context)!.homeHeaderGreeting} ${user?.displayName.split(' ').first ?? ''} 🎾", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                  const SizedBox(height: 2),
-                  Row(
+                  Stack(
                     children: [
-                      const Icon(Icons.location_on, color: AppColors.gold, size: 14),
-                      const SizedBox(width: 4),
-                      Text(user?.location ?? 'Nice, France', style: const TextStyle(fontSize: 13, color: Colors.white70)),
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.gold, width: 2),
+                          image: user?.photoUrl != null ? DecorationImage(image: NetworkImage(user!.photoUrl!), fit: BoxFit.cover) : null,
+                        ),
+                        child: user?.photoUrl == null 
+                            ? Center(child: Text(user?.displayName.isNotEmpty == true ? user!.displayName[0].toUpperCase() : "?", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)))
+                            : null,
+                      ),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle),
+                          child: const Icon(Icons.settings, size: 10, color: Colors.black87),
+                        ),
+                      ),
                     ],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("${AppLocalizations.of(context)!.homeHeaderGreeting} ${user?.displayName.split(' ').first ?? ''} 🎾", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on, color: AppColors.gold, size: 13),
+                            const SizedBox(width: 4),
+                            Expanded(child: Text(user?.location ?? 'Nice, France', style: const TextStyle(fontSize: 12, color: Colors.white70), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              gradient: AppColors.goldGradient,
-              borderRadius: BorderRadius.circular(20),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: AppColors.goldGradient,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.star, color: Colors.white, size: 14),
+                  const SizedBox(width: 4),
+                  Text(AppLocalizations.of(context)!.homeHeaderLevel(user?.level ?? 1), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                ],
+              ),
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.star, color: Colors.white, size: 14),
-                const SizedBox(width: 4),
-                Text(AppLocalizations.of(context)!.homeHeaderLevel(user?.level ?? 1), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-              ],
-            ),
-          )
+          ),
         ],
       ),
     );
@@ -738,64 +764,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildHeroBanner() {
-    return Container(
-      height: 140,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        image: const DecorationImage(
-          image: AssetImage('assets/images/beach_tennis_racket_1785052259397.jpg'),
-          fit: BoxFit.cover,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          )
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                gradient: LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [
-                    AppColors.primary.withOpacity(0.85),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.gold,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(AppLocalizations.of(context)!.homeHeaderSeason, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900)),
-                ),
-                const SizedBox(height: 8),
-                Text(AppLocalizations.of(context)!.homeHeaderTitle, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
-                Text(AppLocalizations.of(context)!.homeHeaderSubtitle, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-              ],
-            ),
-          )
-        ],
-      ),
-    );
-  }
 
   (double, double) _getUserCoordinates(String? location) {
     final text = (location ?? '').toLowerCase();

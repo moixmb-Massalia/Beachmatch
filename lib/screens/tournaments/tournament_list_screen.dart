@@ -11,7 +11,6 @@ import 'beach_score_hub_screen.dart';
 import '../../services/sound_service.dart';
 import '../../l10n/app_localizations.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
 
 class TournamentListScreen extends StatefulWidget {
   const TournamentListScreen({super.key});
@@ -31,7 +30,7 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
   final List<Map<String, String>> _countryFilters = [
     {'id': 'ALL', 'label': 'Tous 🌍'},
     {'id': 'NEARBY', 'label': 'À proximité 📍'},
-    {'id': 'FR', 'label': 'France 🇫🇷'},
+    {'id': 'FR', 'label': 'Métropole 🇫🇷'},
     {'id': 'RE', 'label': 'Réunion 🇷🇪'},
     {'id': 'BR', 'label': 'Brésil 🇧🇷'},
     {'id': 'IT', 'label': 'Italie 🇮🇹'},

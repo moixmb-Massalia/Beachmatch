@@ -1109,7 +1109,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileEditLookingForPartnerSub.
   ///
   /// In fr, this message translates to:
-  /// **'Apparaissez dans le Tinder du Beach pour trouver un partenaire de votre niveau.'**
+  /// **'Apparaissez dans la recherche de partenaires pour trouver un coéquipier de votre niveau.'**
   String get profileEditLookingForPartnerSub;
 
   /// No description provided for @profileEditSaveBtn.

@@ -6,11 +6,9 @@ import '../providers/app_state.dart';
 import '../theme/colors.dart';
 import 'home_screen.dart';
 import 'map_screen.dart';
+import 'competition_screen.dart';
 import 'community_screen.dart';
 import 'messages_screen.dart';
-import 'tournaments/tournament_list_screen.dart';
-import 'fft_rankings_screen.dart';
-import 'profile_screen.dart';
 import 'tutorial_screen.dart';
 import '../services/chat_service.dart';
 import '../l10n/app_localizations.dart';
@@ -30,7 +28,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;
+    _currentIndex = widget.initialIndex.clamp(0, 4);
   }
   
   @override
@@ -47,11 +45,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _screens = [
     const HomeScreen(),
     const MapScreen(),
+    const CompetitionScreen(),
     const CommunityScreen(),
-    const TournamentListScreen(),
-    const FftRankingsScreen(),
     const MessagesScreen(),
-    const ProfileScreen(),
   ];
 
   @override
@@ -95,15 +91,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     children: [
                       _buildNavItem(0, CupertinoIcons.home, CupertinoIcons.house_fill, AppLocalizations.of(context)!.navHome),
                       _buildNavItem(1, CupertinoIcons.map, CupertinoIcons.map_fill, AppLocalizations.of(context)!.navCourts),
-                      _buildNavItem(2, CupertinoIcons.person_3, CupertinoIcons.person_3_fill, "Clubs"),
-                      _buildNavItem(3, CupertinoIcons.star, CupertinoIcons.star_fill, AppLocalizations.of(context)!.navTournaments),
-                      _buildNavItem(4, Icons.emoji_events_outlined, Icons.emoji_events, "Classement"),
+                      _buildNavItem(2, Icons.emoji_events_outlined, Icons.emoji_events, "Compétition"),
+                      _buildNavItem(3, CupertinoIcons.person_3, CupertinoIcons.person_3_fill, "Communauté"),
                       StreamBuilder<int>(
                         stream: _unreadCountStream ?? const Stream.empty(),
                         builder: (context, snapshot) {
                           final unreadCount = snapshot.data ?? 0;
                           return _buildNavItem(
-                            5,
+                            4,
                             CupertinoIcons.chat_bubble_2,
                             CupertinoIcons.chat_bubble_2_fill,
                             AppLocalizations.of(context)!.navChat,
@@ -111,7 +106,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                           );
                         },
                       ),
-                      _buildNavItem(6, CupertinoIcons.person_crop_circle, CupertinoIcons.person_crop_circle_fill, AppLocalizations.of(context)!.navProfile),
                     ],
                   ),
                 ),
@@ -131,7 +125,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(horizontal: isSelected ? 8 : 4, vertical: 6),
+        padding: EdgeInsets.symmetric(horizontal: isSelected ? 12 : 8, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.coral.withOpacity(0.25) : Colors.transparent,
           borderRadius: BorderRadius.circular(18),
@@ -150,7 +144,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     isSelected ? activeIcon : icon,
                     key: ValueKey<bool>(isSelected),
                     color: isSelected ? AppColors.gold : Colors.white70,
-                    size: isSelected ? 22 : 20,
+                    size: isSelected ? 24 : 22,
                   ),
                 ),
                 if (badgeCount > 0)
@@ -185,9 +179,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             Text(
               label,
               style: TextStyle(
-                fontSize: 8.5,
-                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w500,
-                color: isSelected ? Colors.white : Colors.white60,
+                fontSize: 10.5,
+                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                color: isSelected ? Colors.white : Colors.white70,
               ),
             ),
           ],

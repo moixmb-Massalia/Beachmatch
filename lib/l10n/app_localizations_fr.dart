@@ -576,7 +576,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get profileEditLookingForPartnerSub =>
-      'Apparaissez dans le Tinder du Beach pour trouver un partenaire de votre niveau.';
+      'Apparaissez dans la recherche de partenaires pour trouver un coéquipier de votre niveau.';
 
   @override
   String get profileEditSaveBtn => 'Enregistrer';

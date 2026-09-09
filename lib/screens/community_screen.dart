@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../theme/colors.dart';
 import 'players_screen.dart';
 import 'clubs/club_list_screen.dart';
-import '../l10n/app_localizations.dart';
 
 class CommunityScreen extends StatelessWidget {
   const CommunityScreen({super.key});

@@ -174,7 +174,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                                 children: [
                                   Icon(Icons.handshake, size: 16, color: _selectedTabIndex == 1 ? Colors.white : Colors.white70),
                                   const SizedBox(width: 6),
-                                  Text("Tinder du Beach", style: TextStyle(color: _selectedTabIndex == 1 ? Colors.white : Colors.white70, fontWeight: FontWeight.bold, fontSize: 13)),
+                                  Text("Recherche Partenaire", style: TextStyle(color: _selectedTabIndex == 1 ? Colors.white : Colors.white70, fontWeight: FontWeight.bold, fontSize: 13)),
                                 ],
                               ),
                             ),
@@ -463,7 +463,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
   Widget _buildPartnerFinder(BuildContext context, List<UserModel> allPlayers, UserModel? currentUser) {
     if (currentUser == null) {
       return const Center(
-        child: Text("Connectez-vous pour utiliser le Tinder du Beach", style: TextStyle(color: Colors.white)),
+        child: Text("Connectez-vous pour utiliser la Recherche de Partenaire", style: TextStyle(color: Colors.white)),
       );
     }
 
