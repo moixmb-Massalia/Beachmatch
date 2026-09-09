@@ -47,6 +47,47 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
     super.dispose();
   }
 
+  bool _isMatchFinished(Map<String, dynamic> m) {
+    final status = (m['status'] as String? ?? '').toUpperCase();
+    if (status == 'FINISHED') return true;
+    if (m['winner'] != null) return true;
+    final time = (m['time'] as String? ?? '').toLowerCase();
+    if (time.contains('termin')) return true;
+    final set1 = m['set1'] as String?;
+    final set2 = m['set2'] as String?;
+    if (status != 'LIVE' && set1 != null && set2 != null && set1.contains('/') && set2.contains('/')) {
+      return true;
+    }
+    return false;
+  }
+
+  bool _isMatchLive(Map<String, dynamic> m) {
+    if (_isMatchFinished(m)) return false;
+    final status = (m['status'] as String? ?? '').toUpperCase();
+    if (status == 'LIVE') return true;
+    final time = (m['time'] as String? ?? '').toLowerCase();
+    if (time.contains('direct') || time.contains('live')) return true;
+    return false;
+  }
+
+  bool _isMatchScheduled(Map<String, dynamic> m) {
+    return !_isMatchLive(m) && !_isMatchFinished(m);
+  }
+
+  String _formatRound(String? rawRound) {
+    if (rawRound == null || rawRound.trim().isEmpty) return 'Match';
+    final r = rawRound.trim().toLowerCase();
+    if (r.contains('1/32') || r.contains('r64')) return '1/32 de Finale';
+    if (r.contains('1/16') || r.contains('r32')) return '1/16 de Finale';
+    if (r.contains('1/8') || r.contains('r16') || r.contains('huit')) return '1/8 de Finale';
+    if (r.contains('1/4') || r.contains('qf') || r.contains('quart')) return 'Quart de Finale';
+    if (r.contains('1/2') || r.contains('sf') || r.contains('demi')) return 'Demi-Finale';
+    if (r.contains('3e') || r.contains('petite')) return 'Petite Finale (3e place)';
+    if (r.contains('poule') || r.contains('group')) return 'Phase de Poules';
+    if (r.contains('final')) return 'Finale 🏆';
+    return rawRound.trim();
+  }
+
   @override
   Widget build(BuildContext context) {
     final matchId = widget.match['id'] ?? '';
@@ -78,7 +119,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
               ],
             ),
             Text(
-              "${widget.match['round'] ?? 'Match'} · ${widget.match['court'] ?? 'Court Central'}",
+              "${_formatRound(widget.match['round'])} · ${widget.match['court'] ?? 'Court Central'}",
               style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w600),
             ),
           ],
@@ -108,8 +149,8 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
             }
           }
 
-          final bool isLive = currentMatch['status'] == 'LIVE';
-          final bool isFinished = currentMatch['status'] == 'FINISHED';
+          final bool isFinished = _isMatchFinished(currentMatch);
+          final bool isLive = _isMatchLive(currentMatch);
 
           return NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) {
@@ -168,7 +209,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
               controller: _tabController,
               children: [
                 _buildLiveTab(currentMatch, isLive, isFinished),
-                _buildStatsTab(currentMatch),
+                _buildStatsTab(currentMatch, isLive, isFinished),
                 _buildTimelineTab(currentMatch, isFinished),
               ],
             ),
@@ -180,6 +221,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
 
   // 🏆 Scoreboard Card Hero
   Widget _buildScoreboardCard(Map<String, dynamic> match, bool isLive, bool isFinished) {
+    final bool isScheduled = !isLive && !isFinished;
     final team1 = match['team1'] ?? 'Paire 1';
     final team2 = match['team2'] ?? 'Paire 2';
     final serving = match['serving'];
@@ -244,14 +286,14 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
                       ),
                       const SizedBox(width: 6),
                       const Text(
-                        "EN DIRECT",
+                        "EN DIRECT 🔴",
                         style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w900, fontSize: 11),
                       ),
                     ] else if (isFinished) ...[
                       const Icon(Icons.emoji_events_rounded, color: AppColors.gold, size: 14),
                       const SizedBox(width: 6),
                       const Text(
-                        "TERMINÉ",
+                        "TERMINÉ 🏆",
                         style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 11),
                       ),
                     ] else ...[
@@ -276,11 +318,11 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
           // Ligne Équipe 1
           _buildTeamScoreRow(
             teamName: team1,
-            isWinner: winner == 1,
-            isServing: serving == 1,
-            set1: match['set1'],
-            set2: match['set2'],
-            set3: match['set3'],
+            isWinner: isFinished && winner == 1,
+            isServing: isLive && serving == 1,
+            set1: isScheduled ? null : match['set1'],
+            set2: isScheduled ? null : match['set2'],
+            set3: isScheduled ? null : match['set3'],
             currentPoints: isLive ? (match['points1'] ?? '30') : null,
           ),
           const Divider(color: Colors.white12, height: 16),
@@ -288,11 +330,11 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
           // Ligne Équipe 2
           _buildTeamScoreRow(
             teamName: team2,
-            isWinner: winner == 2,
-            isServing: serving == 2,
-            set1: match['set1'],
-            set2: match['set2'],
-            set3: match['set3'],
+            isWinner: isFinished && winner == 2,
+            isServing: isLive && serving == 2,
+            set1: isScheduled ? null : match['set1'],
+            set2: isScheduled ? null : match['set2'],
+            set3: isScheduled ? null : match['set3'],
             currentPoints: isLive ? (match['points2'] ?? '15') : null,
             isTeam2: true,
           ),
@@ -435,7 +477,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildPlayerBadge(names1[0], serving == 1, 1),
+                        _buildPlayerBadge(names1[0], isLive && serving == 1, 1),
                         _buildPlayerBadge(names1[1], false, 2),
                       ],
                     ),
@@ -472,9 +514,9 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
                         ] else ...[
                           const Icon(Icons.schedule_rounded, color: Colors.white70, size: 14),
                           const SizedBox(width: 6),
-                          const Text(
-                            "Échauffement des joueurs sur le court",
-                            style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 11.5),
+                          Text(
+                            "Match programmé · Coup d'envoi à ${match['time'] ?? 'venir'}",
+                            style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 11.5),
                           ),
                         ],
                       ],
@@ -487,7 +529,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildPlayerBadge(names2[0], serving == 2, 3),
+                        _buildPlayerBadge(names2[0], isLive && serving == 2, 3),
                         _buildPlayerBadge(names2[1], false, 4),
                       ],
                     ),
@@ -596,49 +638,88 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Barre de Domination / Momentum
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141D30),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.bolt_rounded, color: AppColors.gold, size: 18),
-                  SizedBox(width: 8),
-                  Text("MOMENTUM & DOMINATION", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("$team1 ($p1Flex%)", style: const TextStyle(color: AppColors.coral, fontWeight: FontWeight.bold, fontSize: 12)),
-                  Text("$team2 ($p2Flex%)", style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: SizedBox(
-                  height: 8,
-                  child: Row(
-                    children: [
-                      Expanded(flex: p1Flex, child: const ColoredBox(color: AppColors.coral)),
-                      const SizedBox(width: 2),
-                      Expanded(flex: p2Flex, child: const ColoredBox(color: AppColors.gold)),
-                    ],
+        if (isLive || isFinished) ...[
+          // Barre de Domination / Momentum (Uniquement pour match en direct ou terminé)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141D30),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.bolt_rounded, color: AppColors.gold, size: 18),
+                    SizedBox(width: 8),
+                    Text("MOMENTUM & DOMINATION", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("$team1 ($p1Flex%)", style: const TextStyle(color: AppColors.coral, fontWeight: FontWeight.bold, fontSize: 12)),
+                    Text("$team2 ($p2Flex%)", style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: SizedBox(
+                    height: 8,
+                    child: Row(
+                      children: [
+                        Expanded(flex: p1Flex, child: const ColoredBox(color: AppColors.coral)),
+                        const SizedBox(width: 2),
+                        Expanded(flex: p2Flex, child: const ColoredBox(color: AppColors.gold)),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ] else ...[
+          // Carte Avant-match intuitive et claire
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF16253B),
+                  const Color(0xFF1F3554).withOpacity(0.85),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.gold.withOpacity(0.35)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.schedule_rounded, color: AppColors.gold, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      "RENCONTRE PROGRAMMÉE · ${match['time'] ?? 'À venir'}",
+                      style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  "L'animation 2D du court et le radar des échanges s'activeront dès que l'arbitre officiel donnera le premier coup d'envoi.",
+                  style: TextStyle(color: Colors.white, fontSize: 13, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
 
         // Détails du match
@@ -687,8 +768,13 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
     );
   }
 
-  // 📊 Onglet Statistiques du Match (Calculé dynamiquement selon le match)
-  Widget _buildStatsTab(Map<String, dynamic> match) {
+  // 📊 Onglet Statistiques du Match (Dynamique et Logique)
+  Widget _buildStatsTab(Map<String, dynamic> match, bool isLive, bool isFinished) {
+    // Si le match est programmé et non débuté, afficher la carte d'attente intuitive
+    if (!isLive && !isFinished) {
+      return _buildPreMatchStatsTab(match);
+    }
+
     final stats = _computeMatchStats(match);
 
     return ListView(
@@ -709,6 +795,145 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
               _buildStatBar("Balles de Break Converties", stats.breakPointsP1, stats.breakPointsP2),
               _buildStatBar("Fautes Directes", stats.unforcedErrorsP1, stats.unforcedErrorsP2, inverseWinner: true),
               _buildStatBar("Total des Points Gagnés", stats.totalPointsP1, stats.totalPointsP2),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ⏳ Vue d'avant-match quand les statistiques ne sont pas encore jouées
+  Widget _buildPreMatchStatsTab(Map<String, dynamic> match) {
+    final time = match['time'] ?? 'Programmé';
+    final day = match['day'] ?? 'À venir';
+    final court = match['court'] ?? 'Court Central';
+    final round = _formatRound(match['round']);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Carte d'information d'avant-match
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141D30),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.gold.withOpacity(0.3)),
+                ),
+                child: const Icon(Icons.bar_chart_rounded, color: AppColors.gold, size: 32),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                "Statistiques Disponibles dès le Coup d'Envoi",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Ce match n'a pas encore débuté ($day · $time). Les statistiques en direct seront enregistrées et actualisées point par point dès le premier échange.",
+                style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Carte des métriques officielles suivies en direct
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141D30),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.insights_rounded, color: AppColors.coral, size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    "DONNÉES QUI SERONT ENREGISTRÉES EN DIRECT",
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _buildMetricItem(Icons.bolt_rounded, "Smashs & Points Gagnants", "Comptabilisation des attaques décisives"),
+              const Divider(color: Colors.white10, height: 16),
+              _buildMetricItem(Icons.sports_tennis_rounded, "Aces & Services Gagnants", "Efficacité sur première balle de service"),
+              const Divider(color: Colors.white10, height: 16),
+              _buildMetricItem(Icons.percent_rounded, "% 1er Service Réussi", "Régularité et précision de mise en jeu"),
+              const Divider(color: Colors.white10, height: 16),
+              _buildMetricItem(Icons.crisis_alert_rounded, "Balles de Break Converties", "Performance sur les points clés"),
+              const Divider(color: Colors.white10, height: 16),
+              _buildMetricItem(Icons.shield_outlined, "Fautes Directes Évitées", "Solidité défensive et constance des échanges"),
+              const Divider(color: Colors.white10, height: 16),
+              _buildMetricItem(Icons.timeline_rounded, "Momentum de Domination", "Graphique d'ascendant psychologique en direct"),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Fiche officielle de la rencontre
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141D30),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+          ),
+          child: Column(
+            children: [
+              _buildInfoRow(Icons.schedule_rounded, "Horaire", "$day · $time"),
+              const Divider(color: Colors.white10, height: 16),
+              _buildInfoRow(Icons.place_rounded, "Court", court),
+              const Divider(color: Colors.white10, height: 16),
+              _buildInfoRow(Icons.emoji_events_rounded, "Tour", round),
+              const Divider(color: Colors.white10, height: 16),
+              _buildInfoRow(Icons.timer_rounded, "Format", "2 sets gagnants (Tie-break à 6-6, No-Ad)"),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricItem(IconData icon, String title, String subtitle) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: AppColors.gold, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              Text(
+                subtitle,
+                style: const TextStyle(color: Colors.white54, fontSize: 11),
+              ),
             ],
           ),
         ),
@@ -738,21 +963,21 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
     parseSet(set2);
 
     if (g1 == 0 && g2 == 0) {
-      // Match programmé : Stats d'avant-match estimées
+      // Aucun jeu joué : retourner zéro statistique pour ne rien inventer
       return _MatchStatsData(
-        p1Momentum: 52 + (seed % 6),
-        winnersP1: 20 + seed,
-        winnersP2: 18 + (seed % 4),
-        acesP1: 4 + (seed % 3),
-        acesP2: 3 + (seed % 2),
-        firstServeP1: 72 + (seed % 6),
-        firstServeP2: 69 + (seed % 5),
-        breakPointsP1: 2 + (seed % 2),
-        breakPointsP2: 1 + (seed % 2),
-        unforcedErrorsP1: 10 + (seed % 3),
-        unforcedErrorsP2: 12 + (seed % 4),
-        totalPointsP1: 48 + seed * 2,
-        totalPointsP2: 44 + seed * 2,
+        p1Momentum: 50,
+        winnersP1: 0,
+        winnersP2: 0,
+        acesP1: 0,
+        acesP2: 0,
+        firstServeP1: 0,
+        firstServeP2: 0,
+        breakPointsP1: 0,
+        breakPointsP2: 0,
+        unforcedErrorsP1: 0,
+        unforcedErrorsP2: 0,
+        totalPointsP1: 0,
+        totalPointsP2: 0,
       );
     }
 
@@ -844,7 +1069,9 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
     final team1 = _parsePlayerNames(match['team1'] ?? 'Paire 1')[0];
     final team2 = _parsePlayerNames(match['team2'] ?? 'Paire 2')[0];
 
-    if (set1 == null && set2 == null) {
+    final bool isScheduled = _isMatchScheduled(match);
+
+    if (isScheduled || (set1 == null && set2 == null)) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),

@@ -26,9 +26,55 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
   String _selectedDay = 'Tous';
   String _selectedCountry = 'ALL'; // 'ALL', 'BR', 'RE', 'IT', 'ES', 'FR'
   String _selectedDraw = 'ALL'; // 'ALL', 'DH', 'DD', 'DX'
-  String _selectedFilter = 'Tous'; // 'Tous', '🔴 En Direct', '🏆 Finales', 'Terminés'
+  String _selectedFilter = 'Tous'; // 'Tous', '🔴 En Direct', '⏳ À venir', '🏆 Finales', 'Terminés'
 
   final List<String> _days = ['Tous', 'Aujourd\'hui', 'Demain', 'Ce Week-end', 'Hier'];
+
+  static String formatRound(String? rawRound) {
+    if (rawRound == null || rawRound.trim().isEmpty) return 'Match';
+    final r = rawRound.trim().toLowerCase();
+    if (r.contains('1/32') || r.contains('r64')) return '1/32 de Finale';
+    if (r.contains('1/16') || r.contains('r32')) return '1/16 de Finale';
+    if (r.contains('1/8') || r.contains('r16') || r.contains('huit')) return '1/8 de Finale';
+    if (r.contains('1/4') || r.contains('qf') || r.contains('quart')) return 'Quart de Finale';
+    if (r.contains('1/2') || r.contains('sf') || r.contains('demi')) return 'Demi-Finale';
+    if (r.contains('3e') || r.contains('petite')) return 'Petite Finale (3e place)';
+    if (r.contains('poule') || r.contains('group')) return 'Phase de Poules';
+    if (r.contains('final')) return 'Finale 🏆';
+    return rawRound.trim();
+  }
+
+  static bool isMatchFinished(Map<String, dynamic> m) {
+    final status = (m['status'] as String? ?? '').toUpperCase();
+    if (status == 'FINISHED') return true;
+    if (m['winner'] != null) return true;
+    final time = (m['time'] as String? ?? '').toLowerCase();
+    if (time.contains('termin')) return true;
+    final set1 = m['set1'] as String?;
+    final set2 = m['set2'] as String?;
+    if (status != 'LIVE' && set1 != null && set2 != null && set1.contains('/') && set2.contains('/')) {
+      return true;
+    }
+    return false;
+  }
+
+  static bool isMatchLive(Map<String, dynamic> m) {
+    if (isMatchFinished(m)) return false;
+    final status = (m['status'] as String? ?? '').toUpperCase();
+    if (status == 'LIVE') return true;
+    final time = (m['time'] as String? ?? '').toLowerCase();
+    if (time.contains('direct') || time.contains('live')) return true;
+    return false;
+  }
+
+  static bool isMatchScheduled(Map<String, dynamic> m) {
+    return !isMatchLive(m) && !isMatchFinished(m);
+  }
+
+  static bool isTrueFinal(String? rawRound) {
+    final f = formatRound(rawRound);
+    return f == 'Finale 🏆' || f == 'Petite Finale (3e place)';
+  }
 
   String _resolveMatchDay(Map<String, dynamic> match) {
     final dateStr = match['date'];
@@ -64,7 +110,7 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
     {'id': 'DX', 'label': 'DX · Double Mixte 👨‍🦱👩‍🦰'},
   ];
 
-  final List<String> _filters = ['Tous', '🔴 En Direct', '🏆 Finales', 'Terminés'];
+  final List<String> _filters = ['Tous', '🔴 En Direct', '⏳ À venir', '🏆 Finales', 'Terminés'];
 
   // 🛡️ DONNÉES EMBARQUÉES OFFICIELLES ITF / FFT (Cache Ultra-Rapide & Résilient - Zéro Écran Blanc Garanti)
   static const List<Map<String, dynamic>> _fallbackTournaments = [
@@ -111,6 +157,34 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'isActive': true,
     },
     {
+      'id': 'bt1000_dijon_2026',
+      'name': 'BT 1000 Dijon · Ligue BFC',
+      'city': 'Dijon (Côte-d\'Or)',
+      'countryCode': 'FR',
+      'countryName': 'France',
+      'countryFlag': '🇫🇷',
+      'category': 'BT 1000 FFT 🌟',
+      'prizeMoney': '1 500 €',
+      'surface': 'Ligue Bourgogne Franche-Comté',
+      'dates': '19 au 20 Septembre 2026',
+      'order': 4,
+      'isActive': true,
+    },
+    {
+      'id': 'open_france_2026',
+      'name': 'Open de France de Beach Tennis',
+      'city': 'Lamotte-Beuvron (Loir-et-Cher)',
+      'countryCode': 'FR',
+      'countryName': 'France',
+      'countryFlag': '🇫🇷',
+      'category': 'BT 250 FFT',
+      'prizeMoney': 'Dotations officielles FFT',
+      'surface': 'Parc Equestre Fédéral',
+      'dates': '25 au 27 Septembre 2026',
+      'order': 5,
+      'isActive': true,
+    },
+    {
       'id': 'itf_bt200_barcelona_2026',
       'name': 'ITF BT 200 Barcelona Summer Open',
       'city': 'Platja del Bogatell, Barcelone',
@@ -121,7 +195,7 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'prizeMoney': '15 000 \$',
       'surface': 'Platja Bogatell',
       'dates': '17 au 19 Août 2026',
-      'order': 4,
+      'order': 6,
       'isActive': true,
     },
     {
@@ -135,45 +209,85 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'prizeMoney': '8 000 €',
       'surface': 'Plage de Saint-Pierre',
       'dates': '16 au 18 Août 2026',
-      'order': 5,
+      'order': 7,
       'isActive': true,
     },
   ];
 
   static const List<Map<String, dynamic>> _fallbackMatches = [
-    // 🇮🇹 ITALIE - ITF BT 400 CERVIA (26 au 30 Août)
+    // 🇮🇹 ITALIE - ITF BT 400 CERVIA
     {
-      'id': 'cervia_dh_r16_2',
+      'id': 'cervia_dh_live',
       'tournamentId': 'itf_bt400_cervia_2026',
       'draw': 'DH',
-      'date': '2026-08-26',
+      'date': '2026-09-09',
       'day': 'Aujourd\'hui',
-      'round': '1/8 Finale',
+      'round': 'Demi-Finale',
       'time': '17h30 · En Direct 🔴',
-      'court': 'Court 1',
-      'team1': '[2] N. Gianotti (FRA) / M. Spoto (ITA)',
-      'team2': 'D. Jovane (BRA) / M. Amorim (BRA)',
+      'court': 'Court Central Fantini',
+      'team1': '[1] M. Cappelletti (ITA) / R. Alessi (ITA)',
+      'team2': '[4] F. Beccaccioli (ITA) / L. Cramarossa (ITA)',
       'set1': '6/4',
       'set2': '3/3',
       'set3': null,
+      'points1': '30',
+      'points2': '15',
       'status': 'LIVE',
       'winner': null,
-      'serving': 2,
+      'serving': 1,
       'isFeatured': true,
     },
     {
-      'id': 'cervia_dh_r16_1',
+      'id': 'cervia_dh_upcoming_final',
       'tournamentId': 'itf_bt400_cervia_2026',
       'draw': 'DH',
-      'date': '2026-08-26',
-      'day': 'Aujourd\'hui',
-      'round': '1/8 Finale',
+      'date': '2026-09-13',
+      'day': 'Ce Week-end',
+      'round': 'Finale 🏆',
+      'time': 'Dimanche 18h00',
+      'court': 'Court Central Fantini',
+      'team1': '[2] N. Gianotti (FRA) / M. Spoto (ITA)',
+      'team2': 'Vainqueur Demi-Finale 1',
+      'set1': null,
+      'set2': null,
+      'set3': null,
+      'status': 'SCHEDULED',
+      'winner': null,
+      'serving': null,
+      'isFeatured': false,
+    },
+    {
+      'id': 'cervia_dd_upcoming_sf',
+      'tournamentId': 'itf_bt400_cervia_2026',
+      'draw': 'DD',
+      'date': '2026-09-13',
+      'day': 'Ce Week-end',
+      'round': 'Demi-Finale',
+      'time': 'Dimanche 15h30',
+      'court': 'Court 1',
+      'team1': '[1] G. Gasparri (ITA) / N. Valentini (ITA)',
+      'team2': '[3] V. Casadei (ITA) / E. Giusti (ITA)',
+      'set1': null,
+      'set2': null,
+      'set3': null,
+      'status': 'SCHEDULED',
+      'winner': null,
+      'serving': null,
+      'isFeatured': false,
+    },
+    {
+      'id': 'cervia_dh_qf',
+      'tournamentId': 'itf_bt400_cervia_2026',
+      'draw': 'DH',
+      'date': '2026-08-28',
+      'day': 'Hier',
+      'round': 'Quart de Finale',
       'time': 'Terminé 🏆',
-      'court': 'Fantini Arena Central',
+      'court': 'Court Central Fantini',
       'team1': '[1] M. Cappelletti (ITA) / R. Alessi (ITA)',
-      'team2': 'A. Bolletta (ITA) / M. Faccini (ITA)',
+      'team2': '[6] A. Bolletta (ITA) / M. Faccini (ITA)',
       'set1': '6/3',
-      'set2': '6/4',
+      'set2': '7/5',
       'set3': null,
       'status': 'FINISHED',
       'winner': 1,
@@ -185,8 +299,8 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'tournamentId': 'itf_bt400_cervia_2026',
       'draw': 'DD',
       'date': '2026-08-26',
-      'day': 'Aujourd\'hui',
-      'round': '1/8 Finale',
+      'day': 'Hier',
+      'round': '1/8 de Finale',
       'time': 'Terminé 🏆',
       'court': 'Court 2',
       'team1': '[1] G. Gasparri (ITA) / N. Valentini (ITA)',
@@ -200,16 +314,56 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'isFeatured': false,
     },
 
-    // 🇫🇷 FRANCE - PALAVAS BEACH TENNIS CUP BT 1000 FFT (Terminé le 23 Août)
+    // 🇫🇷 FRANCE - BT 1000 DIJON (19-20 Septembre 2026)
+    {
+      'id': 'dijon_dh_upcoming_qf',
+      'tournamentId': 'bt1000_dijon_2026',
+      'draw': 'DH',
+      'date': '2026-09-19',
+      'day': 'Ce Week-end',
+      'round': 'Quart de Finale',
+      'time': 'Samedi 14h00',
+      'court': 'Court Central Dijon',
+      'team1': '[1] N. Gianotti (FRA) / M. Guegano (FRA)',
+      'team2': '[8] T. Desaint-Denis (FRA) / P. Busseret (FRA)',
+      'set1': null,
+      'set2': null,
+      'set3': null,
+      'status': 'SCHEDULED',
+      'winner': null,
+      'serving': null,
+      'isFeatured': false,
+    },
+    {
+      'id': 'dijon_dh_upcoming_final',
+      'tournamentId': 'bt1000_dijon_2026',
+      'draw': 'DH',
+      'date': '2026-09-20',
+      'day': 'Ce Week-end',
+      'round': 'Finale 🏆',
+      'time': 'Dimanche 17h00',
+      'court': 'Court Central Dijon',
+      'team1': 'Tête de série 1',
+      'team2': 'Tête de série 2',
+      'set1': null,
+      'set2': null,
+      'set3': null,
+      'status': 'SCHEDULED',
+      'winner': null,
+      'serving': null,
+      'isFeatured': false,
+    },
+
+    // 🇫🇷 FRANCE - PALAVAS BEACH TENNIS CUP BT 1000
     {
       'id': 'palavas_dh_final',
       'tournamentId': 'bt1000_palavas_2026',
       'draw': 'DH',
       'date': '2026-08-23',
       'day': 'Hier',
-      'round': 'Grande Finale 🏆',
+      'round': 'Finale 🏆',
       'time': 'Terminé 🏆',
-      'court': 'Court Central',
+      'court': 'Court Central Arènes',
       'team1': '[1] N. Gianotti (FRA) / M. Guegano (FRA)',
       'team2': '[2] L. Godey (FRA) / A. Begue (FRA)',
       'set1': '6/4',
@@ -226,9 +380,9 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'draw': 'DD',
       'date': '2026-08-23',
       'day': 'Hier',
-      'round': 'Grande Finale 🏆',
+      'round': 'Finale 🏆',
       'time': 'Terminé 🏆',
-      'court': 'Court Central',
+      'court': 'Court Central Arènes',
       'team1': '[1] L. Jamel (FRA) / A. Hoarau (FRA)',
       'team2': '[2] M. Garnier (FRA) / C. Palen (FRA)',
       'set1': '6/2',
@@ -240,16 +394,16 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'isFeatured': false,
     },
 
-    // 🇪🇸 ESPAGNE - ITF BT 200 BARCELONE (Terminé le 19 Août)
+    // 🇪🇸 ESPAGNE - ITF BT 200 BARCELONE
     {
       'id': 'bcn_dh_final',
       'tournamentId': 'itf_bt200_barcelona_2026',
       'draw': 'DH',
       'date': '2026-08-19',
       'day': 'Hier',
-      'round': 'Grande Finale 🏆',
+      'round': 'Finale 🏆',
       'time': 'Terminé 🏆',
-      'court': 'Court Central',
+      'court': 'Court Central Bogatell',
       'team1': '[1] G. Dowsett (ESP) / B. Bailer (ESP)',
       'team2': '[2] J. Chaparro (ESP) / E. Polidori (ITA)',
       'set1': '6/4',
@@ -261,16 +415,16 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'isFeatured': false,
     },
 
-    // 🇷🇪 LA RÉUNION - BOURBON BEACH CUP BT 1000 (Terminé le 18 Août)
+    // 🇷🇪 LA RÉUNION - BOURBON BEACH CUP BT 1000
     {
       'id': 'reu_dh_final',
       'tournamentId': 'bt1000_saint_pierre_2026',
       'draw': 'DH',
       'date': '2026-08-18',
       'day': 'Hier',
-      'round': 'Grande Finale 🏆',
+      'round': 'Finale 🏆',
       'time': 'Terminé 🏆',
-      'court': 'Court Central',
+      'court': 'Court Central St-Pierre',
       'team1': '[1] L. Perrot (FRA) / G. Payet (FRA)',
       'team2': '[2] M. Hoarau (FRA) / J. Fontaine (FRA)',
       'set1': '6/4',
@@ -278,6 +432,27 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'set3': null,
       'status': 'FINISHED',
       'winner': 1,
+      'serving': null,
+      'isFeatured': false,
+    },
+
+    // 🇧🇷 BRÉSIL - SAND SERIES SÃO PAULO
+    {
+      'id': 'sp_dh_final',
+      'tournamentId': 'sand_series_saopaulo_2026',
+      'draw': 'DH',
+      'date': '2026-09-06',
+      'day': 'Hier',
+      'round': 'Finale 🏆',
+      'time': 'Terminé 🏆',
+      'court': 'Court Central Arena SP',
+      'team1': '[1] A. Ramos (ESP) / T. Burmakin (RUS)',
+      'team2': '[2] M. Spoto (ITA) / N. Gianotti (FRA)',
+      'set1': '6/4',
+      'set2': '7/6',
+      'set3': null,
+      'status': 'FINISHED',
+      'winner': 2,
       'serving': null,
       'isFeatured': false,
     },
@@ -428,11 +603,13 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
 
                 // Filtrage strict par Statut
                 if (_selectedFilter == '🔴 En Direct') {
-                  list = list.where((m) => m['status'] == 'LIVE').toList();
+                  list = list.where(isMatchLive).toList();
+                } else if (_selectedFilter == '⏳ À venir') {
+                  list = list.where(isMatchScheduled).toList();
                 } else if (_selectedFilter == '🏆 Finales') {
-                  list = list.where((m) => (m['round'] as String).toLowerCase().contains('final')).toList();
+                  list = list.where((m) => isTrueFinal(m['round'])).toList();
                 } else if (_selectedFilter == 'Terminés') {
-                  list = list.where((m) => m['status'] == 'FINISHED').toList();
+                  list = list.where(isMatchFinished).toList();
                 }
 
                 // Si le tournoi n'a aucun match pour ce filtre / jour, on ne pollue pas la page !
@@ -440,7 +617,7 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
                   matchesByTournament[tId] = list;
                   // Trouver le match vedette en direct s'il existe
                   for (final m in list) {
-                    if (m['status'] == 'LIVE' && liveFeaturedMatch == null) {
+                    if (isMatchLive(m) && liveFeaturedMatch == null) {
                       liveFeaturedMatch = m;
                       featuredTournament = t;
                     }
@@ -448,7 +625,7 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
                 }
               }
 
-              // Si aucun match n'est en direct mais qu'il y a des matchs aujourd'hui, prendre le premier match vedette du tournoi actif
+              // Si aucun match n'est en direct, prendre le premier match vedette du filtre sélectionné
               if (liveFeaturedMatch == null && filteredTournaments.isNotEmpty && matchesByTournament.isNotEmpty) {
                 for (final t in filteredTournaments) {
                   final list = matchesByTournament[t['id']];
@@ -667,7 +844,7 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
                   ),
 
                   // 🌟 CARTE HERO : RENCONTRE VEDETTE RÉELLE (SofaScore / FlashScore Style)
-                  if (liveFeaturedMatch != null && featuredTournament != null && (_selectedFilter == 'Tous' || _selectedFilter == '🔴 En Direct' || _selectedFilter == '🏆 Finales'))
+                  if (liveFeaturedMatch != null && featuredTournament != null)
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -830,8 +1007,9 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
 
   // 🌟 Carte Hero Match Vedette (100% Connectée sans faux score simulé)
   Widget _buildRealFeaturedMatchHero(Map<String, dynamic> tournament, Map<String, dynamic> match) {
-    final bool isLive = match['status'] == 'LIVE';
-    final bool isFinished = match['status'] == 'FINISHED';
+    final bool isLive = isMatchLive(match);
+    final bool isFinished = isMatchFinished(match);
+    final bool isScheduled = isMatchScheduled(match);
 
     return GestureDetector(
       onTap: () {
@@ -846,175 +1024,198 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF16253B), Color(0xFF1E3352)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isLive ? Colors.redAccent.withOpacity(0.8) : AppColors.gold.withOpacity(0.6),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.5),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF16253B), Color(0xFF1E3352)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Badge En-Tête
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFFE8604C), Color(0xFFF4A535)]),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(tournament['countryFlag'] ?? '🌍', style: const TextStyle(fontSize: 12)),
-                    const SizedBox(width: 4),
-                    const Text(
-                      "CHOC MAJEUR ITF",
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 10.5),
-                    ),
-                  ],
-                ),
-              ),
-              if (isLive)
-                Row(
-                  children: [
-                    ScaleTransition(
-                      scale: _pulseAnimation,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Text("EN DIRECT 🔴", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w900, fontSize: 11)),
-                  ],
-                )
-              else
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    isFinished ? "TERMINÉ 🏆" : (match['time'] ?? 'À venir'),
-                    style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 11),
-                  ),
-                ),
-            ],
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isLive ? Colors.redAccent.withOpacity(0.8) : AppColors.gold.withOpacity(0.6),
+            width: 1.5,
           ),
-          const SizedBox(height: 10),
-
-          Text(
-            "${tournament['name']} · ${match['court']}",
-            style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 13),
-          ),
-          Text(
-            "${match['round']} · ${match['draw'] == 'DD' ? 'Double Dames' : (match['draw'] == 'DX' ? 'Double Mixte' : 'Double Hommes')}",
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16.5),
-          ),
-          const SizedBox(height: 16),
-
-          // Matchup Face à Face
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.35),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.1)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.5),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
-            child: Column(
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Badge En-Tête
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    if (isLive && match['serving'] == 1)
-                      const Text("🎾 ", style: TextStyle(fontSize: 14))
-                    else
-                      const SizedBox(width: 20),
-                    Expanded(
-                      child: Text(
-                        match['team1'] ?? '',
-                        style: TextStyle(
-                          color: (isFinished && match['winner'] == 1) ? AppColors.gold : Colors.white,
-                          fontWeight: (isFinished && match['winner'] == 1) ? FontWeight.w900 : FontWeight.bold,
-                          fontSize: 14,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFFE8604C), Color(0xFFF4A535)]),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(tournament['countryFlag'] ?? '🌍', style: const TextStyle(fontSize: 12)),
+                      const SizedBox(width: 4),
+                      Text(
+                        isLive
+                            ? "CHOC EN DIRECT 🔴"
+                            : (isFinished ? "RÉSULTAT OFFICIEL 🏆" : "PROCHAIN CHOC ⏳"),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 10.5),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isLive)
+                  Row(
+                    children: [
+                      ScaleTransition(
+                        scale: _pulseAnimation,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
                         ),
                       ),
+                      const SizedBox(width: 6),
+                      const Text("EN DIRECT 🔴", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w900, fontSize: 11)),
+                    ],
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                    if (match['set1'] != null) ...[
-                      _buildScorePill(match['set1'].split('/')[0], isActive: isLive && match['set2'] == null),
-                      const SizedBox(width: 6),
-                    ],
-                    if (match['set2'] != null) ...[
-                      _buildScorePill(match['set2'].split('/')[0], isActive: isLive && match['set3'] == null),
-                      const SizedBox(width: 6),
-                    ],
-                    if (match['set3'] != null) ...[
-                      _buildScorePill(match['set3'].split('/')[0], isActive: isLive),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Divider(color: Colors.white.withOpacity(0.08), height: 1),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    if (isLive && match['serving'] == 2)
-                      const Text("🎾 ", style: TextStyle(fontSize: 14))
-                    else
-                      const SizedBox(width: 20),
-                    Expanded(
-                      child: Text(
-                        match['team2'] ?? '',
-                        style: TextStyle(
-                          color: (isFinished && match['winner'] == 2) ? AppColors.gold : Colors.white,
-                          fontWeight: (isFinished && match['winner'] == 2) ? FontWeight.w900 : FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
+                    child: Text(
+                      isFinished ? "TERMINÉ 🏆" : (match['time'] ?? 'À venir'),
+                      style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 11),
                     ),
-                    if (match['set1'] != null) ...[
-                      _buildScorePill(match['set1'].split('/')[1], isActive: isLive && match['set2'] == null),
-                      const SizedBox(width: 6),
-                    ],
-                    if (match['set2'] != null) ...[
-                      _buildScorePill(match['set2'].split('/')[1], isActive: isLive && match['set3'] == null),
-                      const SizedBox(width: 6),
-                    ],
-                    if (match['set3'] != null) ...[
-                      _buildScorePill(match['set3'].split('/')[1], isActive: isLive),
-                    ],
-                  ],
-                ),
+                  ),
               ],
             ),
-          ),
-        ],
-      ),
+            const SizedBox(height: 10),
+
+            Text(
+              "${tournament['name']} · ${match['court'] ?? 'Court Central'}",
+              style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            Text(
+              "${formatRound(match['round'])} · ${match['draw'] == 'DD' ? 'Double Dames' : (match['draw'] == 'DX' ? 'Double Mixte' : 'Double Hommes')}",
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16.5),
+            ),
+            const SizedBox(height: 16),
+
+            // Matchup Face à Face
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.35),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      if (isLive && match['serving'] == 1)
+                        const Text("🎾 ", style: TextStyle(fontSize: 14))
+                      else
+                        const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          match['team1'] ?? '',
+                          style: TextStyle(
+                            color: (isFinished && match['winner'] == 1) ? AppColors.gold : Colors.white,
+                            fontWeight: (isFinished && match['winner'] == 1) ? FontWeight.w900 : FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      if (isScheduled) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.gold.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            match['time'] ?? 'Programmé',
+                            style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 11),
+                          ),
+                        ),
+                      ] else ...[
+                        if (match['set1'] != null) ...[
+                          _buildScorePill(match['set1'].split('/')[0], isActive: isLive && match['set2'] == null),
+                          const SizedBox(width: 6),
+                        ],
+                        if (match['set2'] != null) ...[
+                          _buildScorePill(match['set2'].split('/')[0], isActive: isLive && match['set3'] == null),
+                          const SizedBox(width: 6),
+                        ],
+                        if (match['set3'] != null) ...[
+                          _buildScorePill(match['set3'].split('/')[0], isActive: isLive),
+                        ],
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Divider(color: Colors.white.withOpacity(0.08), height: 1),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      if (isLive && match['serving'] == 2)
+                        const Text("🎾 ", style: TextStyle(fontSize: 14))
+                      else
+                        const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          match['team2'] ?? '',
+                          style: TextStyle(
+                            color: (isFinished && match['winner'] == 2) ? AppColors.gold : Colors.white,
+                            fontWeight: (isFinished && match['winner'] == 2) ? FontWeight.w900 : FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      if (isScheduled) ...[
+                        const Text(
+                          "⏳ À venir",
+                          style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ] else ...[
+                        if (match['set1'] != null) ...[
+                          _buildScorePill(match['set1'].split('/')[1], isActive: isLive && match['set2'] == null),
+                          const SizedBox(width: 6),
+                        ],
+                        if (match['set2'] != null) ...[
+                          _buildScorePill(match['set2'].split('/')[1], isActive: isLive && match['set3'] == null),
+                          const SizedBox(width: 6),
+                        ],
+                        if (match['set3'] != null) ...[
+                          _buildScorePill(match['set3'].split('/')[1], isActive: isLive),
+                        ],
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   // 📋 Ligne de Rencontre Réelle
   Widget _buildScheduleMatchTile(Map<String, dynamic> tournament, Map<String, dynamic> match, bool canReferee) {
-    final isLive = match['status'] == 'LIVE';
-    final isFinished = match['status'] == 'FINISHED';
-    final isScheduled = match['status'] == 'SCHEDULED';
+    final isLive = isMatchLive(match);
+    final isFinished = isMatchFinished(match);
+    final isScheduled = isMatchScheduled(match);
     final draw = match['draw'] ?? 'DH';
 
     Color team1Color = Colors.white;
@@ -1060,180 +1261,194 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.06))),
         ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Heure + Badge Tableau (DH/DD/DX) + Tour + Court
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
-                    decoration: BoxDecoration(
-                      color: drawColor.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(5),
-                      border: Border.all(color: drawColor.withOpacity(0.5), width: 1),
-                    ),
-                    child: Text(
-                      draw,
-                      style: TextStyle(color: drawColor, fontSize: 10, fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: isLive
-                          ? Colors.redAccent
-                          : (isFinished ? Colors.white.withOpacity(0.08) : AppColors.gold.withOpacity(0.15)),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      isLive ? "🔴 EN DIRECT" : (isFinished ? "TERMINÉ" : (match['time'] ?? 'Programmé')),
-                      style: TextStyle(
-                        color: isLive ? Colors.white : (isFinished ? Colors.white70 : AppColors.gold),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Heure + Badge Tableau (DH/DD/DX) + Tour + Court
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: drawColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(5),
+                        border: Border.all(color: drawColor.withOpacity(0.5), width: 1),
+                      ),
+                      child: Text(
+                        draw,
+                        style: TextStyle(color: drawColor, fontSize: 10, fontWeight: FontWeight.w900),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    "${match['round']} · ${match['court']}",
-                    style: const TextStyle(color: Colors.white54, fontSize: 11.5, fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-
-              // Bouton d'Arbitrage (Uniquement visible pour arbitres certifiés)
-              if (canReferee && (isLive || isScheduled))
-                GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => RefereeLiveScoreScreen(
-                          tournament: TournamentModel(
-                            id: tournament['id'] ?? '',
-                            name: tournament['name'] ?? '',
-                            club: tournament['surface'] ?? '',
-                            location: tournament['city'] ?? '',
-                            country: tournament['countryName'] ?? '',
-                            category: tournament['category'] ?? '',
-                            dateString: tournament['dates'] ?? '',
-                            distance: 0.0,
-                          ),
-                          match: LiveMatchModel(
-                            id: match['id'] ?? '',
-                            tournamentId: tournament['id'] ?? '',
-                            courtName: match['court'] ?? '',
-                            category: draw == 'DD' ? 'Double Dames' : (draw == 'DX' ? 'Double Mixte' : 'Double Messieurs'),
-                            round: match['round'] ?? '',
-                            team1: match['team1'] ?? '',
-                            team2: match['team2'] ?? '',
-                            set1Team1: 0, set1Team2: 0,
-                          ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isLive
+                            ? Colors.redAccent
+                            : (isFinished ? Colors.white.withOpacity(0.08) : AppColors.gold.withOpacity(0.15)),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isLive ? "🔴 EN DIRECT" : (isFinished ? "TERMINÉ 🏆" : (match['time'] ?? 'Programmé')),
+                        style: TextStyle(
+                          color: isLive ? Colors.white : (isFinished ? Colors.white70 : AppColors.gold),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
-                    );
-                  },
-                  child: Container(
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "${formatRound(match['round'])} · ${match['court'] ?? 'Court Central'}",
+                      style: const TextStyle(color: Colors.white54, fontSize: 11.5, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+
+                // Bouton d'Arbitrage (Uniquement visible pour arbitres certifiés)
+                if (canReferee && (isLive || isScheduled))
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => RefereeLiveScoreScreen(
+                            tournament: TournamentModel(
+                              id: tournament['id'] ?? '',
+                              name: tournament['name'] ?? '',
+                              club: tournament['surface'] ?? '',
+                              location: tournament['city'] ?? '',
+                              country: tournament['countryName'] ?? '',
+                              category: tournament['category'] ?? '',
+                              dateString: tournament['dates'] ?? '',
+                              distance: 0.0,
+                            ),
+                            match: LiveMatchModel(
+                              id: match['id'] ?? '',
+                              tournamentId: tournament['id'] ?? '',
+                              courtName: match['court'] ?? '',
+                              category: draw == 'DD' ? 'Double Dames' : (draw == 'DX' ? 'Double Mixte' : 'Double Messieurs'),
+                              round: formatRound(match['round']),
+                              team1: match['team1'] ?? '',
+                              team2: match['team2'] ?? '',
+                              set1Team1: 0, set1Team2: 0,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.coral.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.coral.withOpacity(0.6)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.sports_tennis_rounded, color: AppColors.coral, size: 12),
+                          SizedBox(width: 3),
+                          Text("Arbitrer", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Équipe 1
+            Row(
+              children: [
+                if (isLive && match['serving'] == 1)
+                  const Text("🎾 ", style: TextStyle(fontSize: 12))
+                else
+                  const SizedBox(width: 18),
+                Expanded(
+                  child: Text(
+                    match['team1'] ?? '',
+                    style: TextStyle(
+                      color: team1Color,
+                      fontWeight: team1Weight,
+                      fontSize: 13.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (isScheduled) ...[
+                  Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: AppColors.coral.withOpacity(0.2),
+                      color: Colors.white.withOpacity(0.06),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.coral.withOpacity(0.6)),
                     ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.sports_tennis_rounded, color: AppColors.coral, size: 12),
-                        SizedBox(width: 3),
-                        Text("Arbitrer", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                      ],
+                    child: Text(
+                      match['time'] ?? "À venir",
+                      style: const TextStyle(color: AppColors.gold, fontSize: 11.5, fontWeight: FontWeight.bold),
                     ),
                   ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
+                ] else ...[
+                  if (match['set1'] != null) ...[
+                    Text(match['set1'].split('/')[0], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5)),
+                    const SizedBox(width: 10),
+                  ],
+                  if (match['set2'] != null) ...[
+                    Text(match['set2'].split('/')[0], style: TextStyle(color: isLive ? AppColors.gold : Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5)),
+                    const SizedBox(width: 10),
+                  ],
+                  if (match['set3'] != null) ...[
+                    Text(match['set3'].split('/')[0], style: TextStyle(color: isLive ? AppColors.gold : Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(width: 10),
+                  ],
+                ],
+              ],
+            ),
+            const SizedBox(height: 6),
 
-          // Équipe 1
-          Row(
-            children: [
-              if (isLive && match['serving'] == 1)
-                const Text("🎾 ", style: TextStyle(fontSize: 12))
-              else
-                const SizedBox(width: 18),
-              Expanded(
-                child: Text(
-                  match['team1'] ?? '',
-                  style: TextStyle(
-                    color: team1Color,
-                    fontWeight: team1Weight,
-                    fontSize: 13.5,
+            // Équipe 2
+            Row(
+              children: [
+                if (isLive && match['serving'] == 2)
+                  const Text("🎾 ", style: TextStyle(fontSize: 12))
+                else
+                  const SizedBox(width: 18),
+                Expanded(
+                  child: Text(
+                    match['team2'] ?? '',
+                    style: TextStyle(
+                      color: team2Color,
+                      fontWeight: team2Weight,
+                      fontSize: 13.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              if (match['set1'] != null) ...[
-                Text(match['set1'].split('/')[0], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5)),
-                const SizedBox(width: 10),
+                if (isScheduled) ...[
+                  const Text("⏳ À venir", style: TextStyle(color: Colors.white38, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                ] else ...[
+                  if (match['set1'] != null) ...[
+                    Text(match['set1'].split('/')[1], style: const TextStyle(color: Colors.white54, fontWeight: FontWeight.bold, fontSize: 13.5)),
+                    const SizedBox(width: 10),
+                  ],
+                  if (match['set2'] != null) ...[
+                    Text(match['set2'].split('/')[1], style: TextStyle(color: isLive ? AppColors.gold : Colors.white54, fontWeight: FontWeight.bold, fontSize: 13.5)),
+                    const SizedBox(width: 10),
+                  ],
+                  if (match['set3'] != null) ...[
+                    Text(match['set3'].split('/')[1], style: TextStyle(color: isLive ? AppColors.gold : Colors.white54, fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(width: 10),
+                  ],
+                ],
               ],
-              if (match['set2'] != null) ...[
-                Text(match['set2'].split('/')[0], style: TextStyle(color: isLive ? AppColors.gold : Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5)),
-                const SizedBox(width: 10),
-              ],
-              if (match['set3'] != null) ...[
-                Text(match['set3'].split('/')[0], style: TextStyle(color: isLive ? AppColors.gold : Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                const SizedBox(width: 10),
-              ],
-              if (isScheduled)
-                const Text("⏳ À venir", style: TextStyle(color: Colors.white38, fontSize: 11.5, fontWeight: FontWeight.w600)),
-            ],
-          ),
-          const SizedBox(height: 6),
-
-          // Équipe 2
-          Row(
-            children: [
-              if (isLive && match['serving'] == 2)
-                const Text("🎾 ", style: TextStyle(fontSize: 12))
-              else
-                const SizedBox(width: 18),
-              Expanded(
-                child: Text(
-                  match['team2'] ?? '',
-                  style: TextStyle(
-                    color: team2Color,
-                    fontWeight: team2Weight,
-                    fontSize: 13.5,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (match['set1'] != null) ...[
-                Text(match['set1'].split('/')[1], style: const TextStyle(color: Colors.white54, fontWeight: FontWeight.bold, fontSize: 13.5)),
-                const SizedBox(width: 10),
-              ],
-              if (match['set2'] != null) ...[
-                Text(match['set2'].split('/')[1], style: TextStyle(color: isLive ? AppColors.gold : Colors.white54, fontWeight: FontWeight.bold, fontSize: 13.5)),
-                const SizedBox(width: 10),
-              ],
-              if (match['set3'] != null) ...[
-                Text(match['set3'].split('/')[1], style: TextStyle(color: isLive ? AppColors.gold : Colors.white54, fontWeight: FontWeight.bold, fontSize: 12)),
-                const SizedBox(width: 10),
-              ],
-              if (isScheduled)
-                const SizedBox.shrink(),
-            ],
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
       ),
     );
   }
