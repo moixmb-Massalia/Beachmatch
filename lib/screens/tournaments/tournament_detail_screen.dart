@@ -10,10 +10,11 @@ import '../../providers/app_state.dart';
 import '../clubs/create_tournament_screen.dart';
 import 'dart:ui';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/colors.dart';
 import '../../widgets/tournament_live_scores_card.dart';
+import '../../models/partner_request.dart';
+import '../../services/whatsapp_share_service.dart';
 
 class TournamentDetailScreen extends StatefulWidget {
   final TournamentModel tournament;
@@ -72,14 +73,15 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   }
 
   void _shareTournament(TournamentModel tournament) {
-    final text = "🎾 *Tournoi Beach Tennis : ${tournament.name}* 🏆\n"
-        "📍 Lieu : ${tournament.location} (${tournament.club})\n"
-        "📅 Dates : ${tournament.dateString}\n"
-        "⭐ Catégorie : ${tournament.category}\n"
-        "${tournament.price != null && tournament.price!.isNotEmpty ? "💶 Tarif : ${tournament.price}\n" : ""}"
-        "${tournament.contactPhone != null && tournament.contactPhone!.isNotEmpty ? "📞 Inscriptions : ${tournament.contactPhone}\n" : ""}"
-        "\nRejoins-nous sur BeachMatch pour participer ! 🏖️📲";
-    Share.share(text);
+    WhatsAppShareService.shareTournamentInvite(
+      tournamentName: tournament.name,
+      dates: tournament.dateString,
+      location: "${tournament.location} (${tournament.club})",
+      category: tournament.category,
+      price: tournament.price,
+      phone: tournament.contactPhone,
+      tournamentId: tournament.id,
+    );
   }
 
   void _confirmDelete() {
@@ -262,6 +264,11 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                         tournament: widget.tournament,
                         isAuthorized: !_isCheckingAuth && _isAuthorized,
                       ),
+                      const SizedBox(height: 16),
+
+                      // 🤝 BOURSE AUX PARTENAIRES DE TOURNOI
+                      _buildPartnerMarketplace(context),
+                      const SizedBox(height: 24),
 
                       // Dates and Location Card
                       _buildGlassCard(
@@ -478,4 +485,700 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
       ],
     );
   }
+
+  // 🤝 =========================================================================
+  // 🤝 BOURSE AUX PARTENAIRES DE TOURNOI (MATCHMAKING DOUBLE)
+  // 🤝 =========================================================================
+  Widget _buildPartnerMarketplace(BuildContext context) {
+    final currentUser = context.read<AppState>().currentUser;
+    final currentUserId = currentUser?.id ?? FirebaseAuth.instance.currentUser?.uid;
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('tournament_partner_requests')
+          .where('tournamentId', isEqualTo: widget.tournament.id)
+          .snapshots(),
+      builder: (context, snapshot) {
+        List<PartnerRequestModel> requests = [];
+        if (snapshot.hasData) {
+          requests = snapshot.data!.docs
+              .map((doc) => PartnerRequestModel.fromFirestore(doc))
+              .where((r) => r.status == 'OPEN')
+              .toList();
+        }
+
+        PartnerRequestModel? myRequest;
+        if (currentUserId != null) {
+          for (final r in requests) {
+            if (r.userId == currentUserId) {
+              myRequest = r;
+              break;
+            }
+          }
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Row(
+                  children: [
+                    Text("🤝", style: TextStyle(fontSize: 20)),
+                    SizedBox(width: 8),
+                    Text(
+                      "Bourse aux Partenaires",
+                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: requests.isNotEmpty ? AppColors.gold.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: requests.isNotEmpty ? AppColors.gold : Colors.white24,
+                    ),
+                  ),
+                  child: Text(
+                    "${requests.length} en recherche",
+                    style: TextStyle(
+                      color: requests.isNotEmpty ? AppColors.gold : Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              "Vous cherchez un binôme pour ce tournoi ? Déposez votre annonce ou contactez un joueur disponible !",
+              style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 16),
+
+            // Bouton Action Dépôt Annonce
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 16),
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: myRequest != null ? const Color(0xFF1E293B) : AppColors.gold,
+                  foregroundColor: myRequest != null ? Colors.white : Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: myRequest != null ? const BorderSide(color: AppColors.gold, width: 1.5) : BorderSide.none,
+                  ),
+                  elevation: 4,
+                ),
+                icon: Icon(myRequest != null ? Icons.edit_note_rounded : Icons.person_add_alt_1_rounded, size: 20),
+                label: Text(
+                  myRequest != null ? "Modifier mon annonce de recherche" : "➕ Déposer mon annonce de recherche",
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+                ),
+                onPressed: () => _showCreatePartnerRequestSheet(myRequest),
+              ),
+            ),
+
+            if (requests.isEmpty)
+              _buildGlassCard(
+                child: const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Column(
+                      children: [
+                        Icon(Icons.sports_tennis_rounded, color: Colors.white38, size: 36),
+                        SizedBox(height: 8),
+                        Text(
+                          "Aucun joueur solo pour le moment",
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          "Soyez le premier à déposer votre annonce pour trouver un binôme rapidement !",
+                          style: TextStyle(color: Colors.white60, fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else
+              ...requests.map((r) => _buildPartnerRequestCard(r, r.userId == currentUserId)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPartnerRequestCard(PartnerRequestModel req, bool isMe) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            isMe ? const Color(0xFF1F3554) : const Color(0xFF162032),
+            const Color(0xFF121B2A),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isMe ? AppColors.gold.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.12),
+          width: isMe ? 1.5 : 1,
+        ),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: AppColors.coral,
+                child: Text(
+                  req.userName.isNotEmpty ? req.userName[0].toUpperCase() : '?',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            req.userName,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isMe) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.gold.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text("Moi", style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "🏅 Classement : ${req.fftRank}",
+                      style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Badges Côté + Tableau + Objectif
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _buildBadge(req.draw, const Color(0xFF3B82F6)),
+              _buildBadge(req.preferredSide, const Color(0xFF10B981)),
+              _buildBadge(req.goal, const Color(0xFFF59E0B)),
+            ],
+          ),
+
+          if (req.message != null && req.message!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              "« ${req.message} »",
+              style: const TextStyle(color: Colors.white70, fontSize: 13, fontStyle: FontStyle.italic),
+            ),
+          ],
+
+          const SizedBox(height: 12),
+          Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
+          const SizedBox(height: 10),
+
+          if (isMe)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.redAccent,
+                      side: const BorderSide(color: Colors.redAccent),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                    label: const Text("Supprimer", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    onPressed: () => _deletePartnerRequest(req.id),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF25D366),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.share_rounded, size: 16),
+                    label: const Text("Partager WhatsApp", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      WhatsAppShareService.shareTournamentPartnerRequest(
+                        tournamentName: widget.tournament.name,
+                        tournamentDates: widget.tournament.dateString,
+                        location: "${widget.tournament.location} (${widget.tournament.club})",
+                        category: widget.tournament.category,
+                        playerName: req.userName,
+                        fftRank: req.fftRank,
+                        preferredSide: req.preferredSide,
+                        draw: req.draw,
+                        goal: req.goal,
+                        tournamentId: widget.tournament.id,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.coral,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.handshake_rounded, size: 18),
+                    label: const Text("Proposer de faire équipe", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    onPressed: () => _proposeTeamUp(req),
+                  ),
+                ),
+                if (req.phone != null && req.phone!.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.2),
+                      side: const BorderSide(color: Color(0xFF25D366)),
+                    ),
+                    icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF25D366), size: 18),
+                    tooltip: "Contacter sur WhatsApp",
+                    onPressed: () {
+                      final cleanPhone = req.phone!.replaceAll(RegExp(r'\D'), '');
+                      final msg = Uri.encodeComponent("Salut ${req.userName}, j'ai vu ton annonce sur BeachMatch pour le tournoi ${widget.tournament.name} ! Es-tu toujours dispo pour faire la paire ?");
+                      _launchUrl("https://wa.me/$cleanPhone?text=$msg");
+                    },
+                  ),
+                ],
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBadge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildChoiceChip(String label, bool isSelected, VoidCallback onSelected) {
+    return GestureDetector(
+      onTap: onSelected,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? AppColors.gold : Colors.white24,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.black : Colors.white70,
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCreatePartnerRequestSheet([PartnerRequestModel? existing]) {
+    final appUser = context.read<AppState>().currentUser;
+    final currentUserId = appUser?.id ?? FirebaseAuth.instance.currentUser?.uid;
+
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Veuillez vous connecter pour déposer une annonce.")),
+      );
+      return;
+    }
+
+    String selectedDraw = existing?.draw ?? 'DH';
+    String selectedSide = existing?.preferredSide ?? 'Gauche ⬅️';
+    String selectedGoal = existing?.goal ?? 'Compétition & Podiums 🥈';
+    final messageCtrl = TextEditingController(text: existing?.message ?? '');
+    final phoneCtrl = TextEditingController(text: existing?.phone ?? '');
+    final fftRank = (appUser?.ranking != null && appUser!.ranking!.isNotEmpty)
+        ? appUser.ranking!
+        : (appUser?.level != null ? "Niveau ${appUser!.level}" : 'NC');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF141923),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                top: 20,
+                left: 20,
+                right: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        const Icon(Icons.group_add_rounded, color: AppColors.gold, size: 24),
+                        const SizedBox(width: 8),
+                        Text(
+                          existing != null ? "Modifier mon annonce" : "Déposer mon annonce de recherche",
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      "Pour ${widget.tournament.name}",
+                      style: const TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Tableau
+                    const Text("Tableau visé :", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _buildChoiceChip("DH · Messieurs", selectedDraw == 'DH', () => setModalState(() => selectedDraw = 'DH')),
+                        const SizedBox(width: 8),
+                        _buildChoiceChip("DD · Dames", selectedDraw == 'DD', () => setModalState(() => selectedDraw = 'DD')),
+                        const SizedBox(width: 8),
+                        _buildChoiceChip("DX · Mixte", selectedDraw == 'DX', () => setModalState(() => selectedDraw = 'DX')),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Côté préféré
+                    const Text("Côté de jeu préféré :", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        _buildChoiceChip("Gauche ⬅️", selectedSide == 'Gauche ⬅️', () => setModalState(() => selectedSide = 'Gauche ⬅️')),
+                        _buildChoiceChip("Droite ➡️", selectedSide == 'Droite ➡️', () => setModalState(() => selectedSide = 'Droite ➡️')),
+                        _buildChoiceChip("Polyvalent 🔄", selectedSide == 'Polyvalent 🔄', () => setModalState(() => selectedSide = 'Polyvalent 🔄')),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Objectif
+                    const Text("Objectif :", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildChoiceChip("Pour la gagne 🏆", selectedGoal == 'Pour la gagne 🏆', () => setModalState(() => selectedGoal = 'Pour la gagne 🏆')),
+                        _buildChoiceChip("Podiums 🥈", selectedGoal == 'Compétition & Podiums 🥈', () => setModalState(() => selectedGoal = 'Compétition & Podiums 🥈')),
+                        _buildChoiceChip("Plaisir 🏖️", selectedGoal == 'Plaisir & Progression 🏖️', () => setModalState(() => selectedGoal = 'Plaisir & Progression 🏖️')),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Message
+                    const Text("Précisions (disponibilité, style de jeu...) :", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: messageCtrl,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: "Ex: Dispo dès samedi matin, smash puissant...",
+                        hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.06),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Téléphone / WhatsApp
+                    const Text("Téléphone ou WhatsApp (optionnel) :", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: "Ex: 06 12 34 56 78",
+                        hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.06),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        prefixIcon: const Icon(Icons.phone_rounded, color: Colors.white54, size: 18),
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+
+                    // Bouton Valider
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.gold,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          final reqId = existing?.id ?? FirebaseFirestore.instance.collection('tournament_partner_requests').doc().id;
+                          final reqModel = PartnerRequestModel(
+                            id: reqId,
+                            tournamentId: widget.tournament.id,
+                            tournamentName: widget.tournament.name,
+                            userId: currentUserId,
+                            userName: appUser?.displayName ?? 'Joueur BeachMatch',
+                            userPhoto: appUser?.photoUrl,
+                            fftRank: fftRank,
+                            draw: selectedDraw,
+                            preferredSide: selectedSide,
+                            goal: selectedGoal,
+                            message: messageCtrl.text.trim().isNotEmpty ? messageCtrl.text.trim() : null,
+                            phone: phoneCtrl.text.trim().isNotEmpty ? phoneCtrl.text.trim() : null,
+                            createdAt: DateTime.now(),
+                            status: 'OPEN',
+                          );
+
+                          await FirebaseFirestore.instance
+                              .collection('tournament_partner_requests')
+                              .doc(reqId)
+                              .set(reqModel.toMap());
+
+                          if (mounted) {
+                            _showPartnerRequestCreatedDialog(reqModel);
+                          }
+                        },
+                        child: Text(
+                          existing != null ? "Enregistrer les modifications" : "Publier mon annonce",
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showPartnerRequestCreatedDialog(PartnerRequestModel req) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF16253B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 28),
+            SizedBox(width: 8),
+            Text("Annonce en ligne !", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Votre recherche de partenaire est visible par toute la communauté sur la fiche du tournoi.",
+              style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF25D366), // WhatsApp
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                minimumSize: const Size(double.infinity, 48),
+              ),
+              icon: const Icon(Icons.share_rounded, size: 20),
+              label: const Text("Partager sur WhatsApp", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              onPressed: () {
+                Navigator.pop(ctx);
+                WhatsAppShareService.shareTournamentPartnerRequest(
+                  tournamentName: widget.tournament.name,
+                  tournamentDates: widget.tournament.dateString,
+                  location: "${widget.tournament.location} (${widget.tournament.club})",
+                  category: widget.tournament.category,
+                  playerName: req.userName,
+                  fftRank: req.fftRank,
+                  preferredSide: req.preferredSide,
+                  draw: req.draw,
+                  goal: req.goal,
+                  tournamentId: widget.tournament.id,
+                );
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Plus tard", style: TextStyle(color: Colors.white60)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deletePartnerRequest(String id) async {
+    try {
+      await FirebaseFirestore.instance.collection('tournament_partner_requests').doc(id).delete();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Annonce retirée avec succès.")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur: $e")),
+        );
+      }
+    }
+  }
+
+  void _proposeTeamUp(PartnerRequestModel req) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF16253B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.handshake_rounded, color: AppColors.gold, size: 24),
+            const SizedBox(width: 8),
+            Expanded(child: Text("Faire équipe avec ${req.userName} ?", style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Tu souhaites proposer à ${req.userName} de former la paire pour ${widget.tournament.name} (${req.draw}) ?",
+              style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            if (req.phone != null && req.phone!.isNotEmpty) ...[
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF25D366),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 44),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                label: const Text("Lui écrire sur WhatsApp", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  final cleanPhone = req.phone!.replaceAll(RegExp(r'\D'), '');
+                  final msg = Uri.encodeComponent("Salut ${req.userName}, j'ai vu ton annonce sur BeachMatch pour le tournoi ${widget.tournament.name} ! Es-tu toujours dispo pour faire la paire ?");
+                  _launchUrl("https://wa.me/$cleanPhone?text=$msg");
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: AppColors.coral),
+                minimumSize: const Size(double.infinity, 44),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.send_rounded, color: AppColors.coral, size: 18),
+              label: const Text("Envoyer une proposition BeachMatch", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              onPressed: () {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text("Demande d'association envoyée à ${req.userName} !"),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Annuler", style: TextStyle(color: Colors.white60)),
+          ),
+        ],
+      ),
+    );
+  }
 }
+

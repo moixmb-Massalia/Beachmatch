@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/colors.dart';
+import '../services/whatsapp_share_service.dart';
 import '../providers/app_state.dart';
 import '../models/match.dart';
 import '../models/user.dart';
@@ -1287,13 +1288,21 @@ class _HomeScreenState extends State<HomeScreen> {
           if (!isFull)
             IconButton(
               onPressed: () {
-                final dateStr = DateFormat('dd MMM à HH:mm').format(match.scheduledTime);
-                final link = 'https://beachmatch.app/match/${match.id}';
-                final msg = AppLocalizations.of(context)!.homeMatchShareMessage(dateStr, match.targetLevel, match.id);
-                Share.share('$msg\n\nRejoindre le match directement dans l\'app : $link');
+                final dateStr = DateFormat('EEEE d MMMM à HH:mm', 'fr_FR').format(match.scheduledTime);
+                final courts = context.read<AppState>().courts;
+                final courtIdx = courts.indexWhere((c) => c.id == match.courtId);
+                final courtName = courtIdx != -1 ? courts[courtIdx].name : "Terrain Beach Tennis";
+                WhatsAppShareService.shareMatchSOS(
+                  matchDate: dateStr,
+                  courtName: courtName,
+                  targetLevel: match.targetLevel,
+                  currentPlayers: match.participantsIds.length,
+                  maxPlayers: match.maxPlayers,
+                  matchId: match.id,
+                );
               },
-              icon: const Icon(Icons.share, color: Colors.white, size: 22),
-              tooltip: AppLocalizations.of(context)!.homeMatchShareTooltip,
+              icon: const Icon(Icons.share_rounded, color: Color(0xFF25D366), size: 22),
+              tooltip: "Partager sur WhatsApp (SOS Joueur)",
             ),
           if (!isFull) const SizedBox(width: 8),
           ElevatedButton(
