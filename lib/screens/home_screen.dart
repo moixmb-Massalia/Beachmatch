@@ -268,10 +268,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(color: AppColors.gold, width: 2),
-                          image: user?.photoUrl != null ? DecorationImage(image: NetworkImage(user!.photoUrl!), fit: BoxFit.cover) : null,
+                          image: (user?.photoUrl != null && user!.photoUrl!.isNotEmpty) 
+                              ? DecorationImage(image: NetworkImage(user.photoUrl!), fit: BoxFit.cover) 
+                              : null,
                         ),
-                        child: user?.photoUrl == null 
-                            ? Center(child: Text(user?.displayName.isNotEmpty == true ? user!.displayName[0].toUpperCase() : "?", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)))
+                        child: (user?.photoUrl == null || user!.photoUrl!.isEmpty)
+                            ? Center(child: Text((user?.displayName != null && user!.displayName.isNotEmpty) ? user.displayName[0].toUpperCase() : "?", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)))
                             : null,
                       ),
                       Positioned(
@@ -290,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text("${AppLocalizations.of(context)!.homeHeaderGreeting} ${user?.displayName.split(' ').first ?? ''} 🎾", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text("${AppLocalizations.of(context)?.homeHeaderGreeting ?? 'Bonjour'} ${(user != null && user.displayName.isNotEmpty) ? user.displayName.split(' ').first : ''} 🎾", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
                         const SizedBox(height: 2),
                         Row(
                           children: [
@@ -371,11 +373,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     String locationLabel;
     bool showGpsAction = false;
-
+    final userLocation = user?.location;
     if (hasGps) {
       locationLabel = nearestCourt.city.isNotEmpty ? "Autour de moi (${nearestCourt.city})" : "Autour de moi (GPS)";
-    } else if (user?.location != null && user!.location.isNotEmpty && !isClubOrGeneric) {
-      locationLabel = user.location.split(',').first.trim();
+    } else if (userLocation != null && userLocation.isNotEmpty && !isClubOrGeneric) {
+      locationLabel = userLocation.split(',').first.trim();
     } else {
       locationLabel = "Activer le GPS 📍";
       showGpsAction = true;

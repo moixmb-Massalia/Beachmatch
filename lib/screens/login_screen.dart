@@ -241,11 +241,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                       context,
                                       MaterialPageRoute(builder: (context) => const OnboardingScreen()),
                                     );
-                                  } else {
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
-                                    );
+                                  } else if (Navigator.canPop(context)) {
+                                    Navigator.pop(context);
                                   }
                                 }
                               } catch (e) {
@@ -292,11 +289,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                       context,
                                       MaterialPageRoute(builder: (context) => const OnboardingScreen()),
                                     );
-                                  } else {
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
-                                    );
+                                  } else if (Navigator.canPop(context)) {
+                                    Navigator.pop(context);
                                   }
                                 }
                               } catch (e) {

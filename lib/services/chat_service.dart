@@ -85,7 +85,6 @@ class ChatService {
   Stream<int> getUnreadCount(String userId) {
     return _firestore
         .collection('chats')
-        .where('users', arrayContains: userId)
         .where('unreadBy', arrayContains: userId)
         .snapshots()
         .map((snapshot) => snapshot.docs.length);
