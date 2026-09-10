@@ -90,11 +90,21 @@ service cloud.firestore {
     }
 
     // CLASSEMENTS FFT
-    // Lecture par tout utilisateur connecté (pour la recherche de joueurs)
-    // Écriture : uniquement via les Cloud Functions (admin Firebase SDK)
+    // Lecture libre pour tous (pour la recherche de joueurs et classements)
+    // Écriture : uniquement via les scripts admin / SDK
     match /fft_rankings/{id} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if false;
+    }
+
+    // SOS PARTENAIRE TOURNOI (MATCHMAKING DOUBLE)
+    // Lecture libre pour tous
+    // Création par utilisateur connecté
+    // Modification / suppression par l'auteur ou admin
+    match /tournament_partner_requests/{requestId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // CLUBS

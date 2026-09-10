@@ -7,6 +7,7 @@ import '../models/user.dart';
 import 'chat_detail_screen.dart';
 import 'public_profile_screen.dart';
 import 'create_match_screen.dart';
+import 'package:share_plus/share_plus.dart';
 class PlayersScreen extends StatefulWidget {
   const PlayersScreen({super.key});
 
@@ -29,14 +30,30 @@ class _PlayersScreenState extends State<PlayersScreen> {
         ? allPlayers.where((p) => currentUser.friendsIds.contains(p.id)).toList()
         : [];
 
+    String norm(String s) {
+      return s.toLowerCase()
+          .replaceAll(RegExp(r'[éèêë]'), 'e')
+          .replaceAll(RegExp(r'[àâä]'), 'a')
+          .replaceAll(RegExp(r'[îï]'), 'i')
+          .replaceAll(RegExp(r'[ôö]'), 'o')
+          .replaceAll(RegExp(r'[ùûü]'), 'u')
+          .replaceAll(RegExp(r'[ç]'), 'c')
+          .trim();
+    }
+
     final filteredLocalPlayers = allPlayers.where((p) {
-      final q = query.toLowerCase();
-      // If there's no query, don't show friends in the general list to avoid duplication
-      if (q.isEmpty && currentUser != null && currentUser.friendsIds.contains(p.id)) {
-        return false;
+      final q = query.trim();
+      if (q.isEmpty) {
+        if (currentUser != null && currentUser.friendsIds.contains(p.id)) {
+          return false;
+        }
+        return true;
       }
-      return p.displayName.toLowerCase().contains(q) ||
-             (p.licenceNumber != null && p.licenceNumber!.toLowerCase().contains(q));
+      final nq = norm(q);
+      final nameMatches = norm(p.displayName).contains(nq);
+      final licMatches = p.licenceNumber != null && norm(p.licenceNumber!).contains(nq);
+      final locMatches = norm(p.location).contains(nq);
+      return nameMatches || licMatches || locMatches;
     }).toList();
 
     return Scaffold(
@@ -221,7 +238,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                                   padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
                                   child: Text(query.isEmpty ? "AUTRES JOUEURS" : "MEMBRES DE L'APPLICATION", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.gold, letterSpacing: 1.1)),
                                 ),
-                                ...filteredLocalPlayers.map((p) => _buildLocalPlayerCard(context, p, isFriend: false)),
+                                ...filteredLocalPlayers.map((p) => _buildLocalPlayerCard(context, p, isFriend: currentUser?.friendsIds.contains(p.id) ?? false)),
                                 const SizedBox(height: 16),
                               ],
 
@@ -302,10 +319,38 @@ class _PlayersScreenState extends State<PlayersScreen> {
                     Text(player.displayName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                     const SizedBox(height: 4),
                     Text("Niv. ${player.level} · ${player.location}", style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                    if (player.ranking != null && player.ranking!.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text("Classement: ${player.ranking}", style: const TextStyle(color: AppColors.coral, fontSize: 12, fontWeight: FontWeight.bold)),
-                    ]
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                          decoration: BoxDecoration(
+                            color: (player.ranking != null && player.ranking!.isNotEmpty && player.ranking != 'NC')
+                                ? AppColors.gold.withOpacity(0.2)
+                                : Colors.white.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: (player.ranking != null && player.ranking!.isNotEmpty && player.ranking != 'NC')
+                                  ? AppColors.gold
+                                  : Colors.white24,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            (player.ranking != null && player.ranking!.isNotEmpty && player.ranking != 'NC')
+                                ? "🏅 Clt Ten'Up : N° ${player.ranking}"
+                                : "🏅 Clt : Non classé (NC)",
+                            style: TextStyle(
+                              color: (player.ranking != null && player.ranking!.isNotEmpty && player.ranking != 'NC')
+                                  ? AppColors.gold
+                                  : Colors.white70,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -438,22 +483,60 @@ class _PlayersScreenState extends State<PlayersScreen> {
           ),
           const SizedBox(height: 12),
           // Actions
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              OutlinedButton.icon(
-                onPressed: null,
-                icon: const Icon(Icons.sports_tennis, size: 14),
-                label: const Text("Non inscrit"),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white30,
-                  side: const BorderSide(color: Colors.white30),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  disabledForegroundColor: Colors.white30,
-                ),
-              ),
-            ],
+          Builder(
+            builder: (context) {
+              final allAppPlayers = context.watch<AppState>().players;
+              UserModel? registeredMember;
+              for (final p in allAppPlayers) {
+                if ((p.licenceNumber != null && p.licenceNumber!.isNotEmpty && licence.isNotEmpty && p.licenceNumber!.contains(licence)) ||
+                    p.displayName.trim().toLowerCase() == fullName.toLowerCase()) {
+                  registeredMember = p;
+                  break;
+                }
+              }
+
+              if (registeredMember != null) {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(player: registeredMember!)));
+                      },
+                      icon: const Icon(Icons.person, size: 14),
+                      label: const Text("Membre actif · Voir profil", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Share.share(
+                        "Salut $fullName ! Viens me rejoindre sur l'application BeachMatch pour trouver des partenaires de Beach Tennis et participer aux tournois : https://beachmatch.app/download",
+                      );
+                    },
+                    icon: const Icon(Icons.share, size: 14),
+                    label: const Text("Inviter sur BeachMatch", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.coral,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),

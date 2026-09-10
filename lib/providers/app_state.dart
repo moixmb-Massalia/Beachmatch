@@ -491,6 +491,24 @@ class AppState extends ChangeNotifier {
       if (userDoc.exists) {
         _currentUser = UserModel.fromMap(userDoc.data()!, userDoc.id);
       }
+
+      // Auto-sync current user ranking with official FFT ranking
+      if (_currentUser!.licenceNumber != null && _currentUser!.licenceNumber!.isNotEmpty) {
+        final cleanLic = _currentUser!.licenceNumber!.replaceAll(RegExp(r'\D'), '');
+        if (cleanLic.isNotEmpty) {
+          try {
+            final fftDoc = await FirebaseFirestore.instance.collection('fft_rankings').doc(cleanLic).get();
+            if (fftDoc.exists) {
+              final fftData = fftDoc.data()!;
+              final officialRank = (fftData['level'] ?? fftData['ranking'] ?? fftData['rank'])?.toString();
+              if (officialRank != null && officialRank.isNotEmpty && officialRank != _currentUser!.ranking) {
+                _currentUser = _currentUser!.copyWith(ranking: officialRank);
+                await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).update({'ranking': officialRank});
+              }
+            }
+          } catch (_) {}
+        }
+      }
     }
     
     // Read courts from Firestore
@@ -896,8 +914,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> searchFFTPlayers(String query) async {
-    if (query.trim().length < 2) {
+    final cleanQuery = query.trim();
+    if (cleanQuery.length < 2) {
       _fftSearchResults = [];
+      _isSearchingFFT = false;
       notifyListeners();
       return;
     }
@@ -906,25 +926,85 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await http.post(
-        Uri.parse('https://europe-west1-beach-tennis-216f4.cloudfunctions.net/searchPlayers'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'data': {'query': query}
-        }),
-      );
+      final List<Map<String, dynamic>> results = [];
+      final digits = cleanQuery.replaceAll(RegExp(r'\D'), '');
 
-      if (response.statusCode == 200) {
-        final body = json.decode(response.body);
-        if (body.containsKey('result') && body['result'] != null) {
-          final results = body['result']['results'] as List<dynamic>?;
-          if (results != null) {
-            _fftSearchResults = results.map((e) => Map<String, dynamic>.from(e)).toList();
+      // 1. Recherche par numéro de licence si chiffres présents
+      if (digits.length >= 3) {
+        final licenceDoc = await FirebaseFirestore.instance.collection('fft_rankings').doc(digits).get();
+        if (licenceDoc.exists) {
+          results.add(Map<String, dynamic>.from(licenceDoc.data()!));
+        } else {
+          final snap = await FirebaseFirestore.instance
+              .collection('fft_rankings')
+              .where('licenceNumber', isGreaterThanOrEqualTo: digits)
+              .where('licenceNumber', isLessThanOrEqualTo: '$digits\uf8ff')
+              .limit(10)
+              .get();
+          for (var doc in snap.docs) {
+            results.add(Map<String, dynamic>.from(doc.data()));
           }
         }
       }
+
+      // 2. Recherche par Nom de famille (en majuscules, format officiel FFT)
+      final upperQ = cleanQuery.toUpperCase();
+      final snapUpper = await FirebaseFirestore.instance
+          .collection('fft_rankings')
+          .where('lastName', isGreaterThanOrEqualTo: upperQ)
+          .where('lastName', isLessThanOrEqualTo: '$upperQ\uf8ff')
+          .limit(20)
+          .get();
+      for (var doc in snapUpper.docs) {
+        final data = Map<String, dynamic>.from(doc.data());
+        if (!results.any((r) => r['licenceNumber'] == data['licenceNumber'])) {
+          results.add(data);
+        }
+      }
+
+      // 3. Recherche par Prénom ou Nom TitleCase
+      if (cleanQuery.length >= 2) {
+        final titleQ = cleanQuery[0].toUpperCase() + cleanQuery.substring(1).toLowerCase();
+        
+        // Nom TitleCase
+        final snapTitle = await FirebaseFirestore.instance
+            .collection('fft_rankings')
+            .where('lastName', isGreaterThanOrEqualTo: titleQ)
+            .where('lastName', isLessThanOrEqualTo: '$titleQ\uf8ff')
+            .limit(10)
+            .get();
+        for (var doc in snapTitle.docs) {
+          final data = Map<String, dynamic>.from(doc.data());
+          if (!results.any((r) => r['licenceNumber'] == data['licenceNumber'])) {
+            results.add(data);
+          }
+        }
+
+        // Prénom TitleCase
+        final snapFirst = await FirebaseFirestore.instance
+            .collection('fft_rankings')
+            .where('firstName', isGreaterThanOrEqualTo: titleQ)
+            .where('firstName', isLessThanOrEqualTo: '$titleQ\uf8ff')
+            .limit(15)
+            .get();
+        for (var doc in snapFirst.docs) {
+          final data = Map<String, dynamic>.from(doc.data());
+          if (!results.any((r) => r['licenceNumber'] == data['licenceNumber'])) {
+            results.add(data);
+          }
+        }
+      }
+
+      // Tri des résultats par classement FFT (du meilleur au moins bien classé)
+      results.sort((a, b) {
+        final rankA = int.tryParse((a['level'] ?? a['rank'] ?? '9999').toString()) ?? 9999;
+        final rankB = int.tryParse((b['level'] ?? b['rank'] ?? '9999').toString()) ?? 9999;
+        return rankA.compareTo(rankB);
+      });
+
+      _fftSearchResults = results.take(30).toList();
     } catch (e) {
-      print("Erreur de recherche FFT : $e");
+      debugPrint("Erreur recherche FFT : $e");
     } finally {
       _isSearchingFFT = false;
       notifyListeners();

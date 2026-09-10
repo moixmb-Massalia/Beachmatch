@@ -43,7 +43,7 @@ class WhatsAppShareService {
     required String goal,
     required String tournamentId,
   }) async {
-    final text = "🎾 *RECHERCHE PARTENAIRE BEACH TENNIS !* 🏖️\n\n"
+    final text = "🆘 *SOS PARTENAIRE BEACH TENNIS !* 🏖️\n\n"
         "🏆 *Tournoi :* $tournamentName ($category)\n"
         "📅 *Dates :* $tournamentDates\n"
         "📍 *Lieu :* $location\n\n"

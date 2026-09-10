@@ -266,7 +266,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // 🤝 BOURSE AUX PARTENAIRES DE TOURNOI
+                      // 🆘 SOS PARTENAIRE DE TOURNOI
                       _buildPartnerMarketplace(context),
                       const SizedBox(height: 24),
 
@@ -486,9 +486,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     );
   }
 
-  // 🤝 =========================================================================
-  // 🤝 BOURSE AUX PARTENAIRES DE TOURNOI (MATCHMAKING DOUBLE)
-  // 🤝 =========================================================================
+  // 🆘 =========================================================================
+  // 🆘 SOS PARTENAIRE DE TOURNOI (MATCHMAKING DOUBLE)
+  // 🆘 =========================================================================
   Widget _buildPartnerMarketplace(BuildContext context) {
     final currentUser = context.read<AppState>().currentUser;
     final currentUserId = currentUser?.id ?? FirebaseAuth.instance.currentUser?.uid;
@@ -503,8 +503,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
         if (snapshot.hasData) {
           requests = snapshot.data!.docs
               .map((doc) => PartnerRequestModel.fromFirestore(doc))
-              .where((r) => r.status == 'OPEN')
+              .where((r) => r.status.toUpperCase() == 'OPEN' || r.status.isEmpty)
               .toList();
+          requests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
         }
 
         PartnerRequestModel? myRequest;
@@ -525,10 +526,10 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
               children: [
                 const Row(
                   children: [
-                    Text("🤝", style: TextStyle(fontSize: 20)),
+                    Text("🆘", style: TextStyle(fontSize: 20)),
                     SizedBox(width: 8),
                     Text(
-                      "Bourse aux Partenaires",
+                      "SOS Partenaire",
                       style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -543,7 +544,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                     ),
                   ),
                   child: Text(
-                    "${requests.length} en recherche",
+                    "${requests.length} SOS en attente",
                     style: TextStyle(
                       color: requests.isNotEmpty ? AppColors.gold : Colors.white70,
                       fontSize: 11,
@@ -555,7 +556,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
             ),
             const SizedBox(height: 6),
             const Text(
-              "Vous cherchez un binôme pour ce tournoi ? Déposez votre annonce ou contactez un joueur disponible !",
+              "Vous cherchez un binôme pour ce tournoi ? Publiez votre SOS Partenaire ou contactez un joueur disponible !",
               style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
             ),
             const SizedBox(height: 16),
@@ -577,7 +578,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                 ),
                 icon: Icon(myRequest != null ? Icons.edit_note_rounded : Icons.person_add_alt_1_rounded, size: 20),
                 label: Text(
-                  myRequest != null ? "Modifier mon annonce de recherche" : "➕ Déposer mon annonce de recherche",
+                  myRequest != null ? "Modifier mon SOS Partenaire" : "➕ Publier mon SOS Partenaire",
                   style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
                 ),
                 onPressed: () => _showCreatePartnerRequestSheet(myRequest),
@@ -594,12 +595,12 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                         Icon(Icons.sports_tennis_rounded, color: Colors.white38, size: 36),
                         SizedBox(height: 8),
                         Text(
-                          "Aucun joueur solo pour le moment",
+                          "Aucun SOS Partenaire pour le moment",
                           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                         ),
                         SizedBox(height: 4),
                         Text(
-                          "Soyez le premier à déposer votre annonce pour trouver un binôme rapidement !",
+                          "Soyez le premier à publier un SOS Partenaire pour trouver votre binôme rapidement !",
                           style: TextStyle(color: Colors.white60, fontSize: 12),
                           textAlign: TextAlign.center,
                         ),
@@ -890,7 +891,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                         const Icon(Icons.group_add_rounded, color: AppColors.gold, size: 24),
                         const SizedBox(width: 8),
                         Text(
-                          existing != null ? "Modifier mon annonce" : "Déposer mon annonce de recherche",
+                          existing != null ? "Modifier mon SOS Partenaire" : "🆘 Déposer un SOS Partenaire",
                           style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                       ],
@@ -1008,17 +1009,25 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                             status: 'OPEN',
                           );
 
-                          await FirebaseFirestore.instance
-                              .collection('tournament_partner_requests')
-                              .doc(reqId)
-                              .set(reqModel.toMap());
+                          try {
+                            await FirebaseFirestore.instance
+                                .collection('tournament_partner_requests')
+                                .doc(reqId)
+                                .set(reqModel.toMap());
 
-                          if (mounted) {
-                            _showPartnerRequestCreatedDialog(reqModel);
+                            if (mounted) {
+                              _showPartnerRequestCreatedDialog(reqModel);
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("Erreur d'enregistrement : $e"), backgroundColor: Colors.redAccent),
+                              );
+                            }
                           }
                         },
                         child: Text(
-                          existing != null ? "Enregistrer les modifications" : "Publier mon annonce",
+                          existing != null ? "Enregistrer les modifications" : "Publier mon SOS Partenaire",
                           style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
                         ),
                       ),
@@ -1043,14 +1052,14 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
           children: [
             Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 28),
             SizedBox(width: 8),
-            Text("Annonce en ligne !", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+            Text("SOS Partenaire en ligne !", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              "Votre recherche de partenaire est visible par toute la communauté sur la fiche du tournoi.",
+              "Votre SOS Partenaire est immédiatement visible par toute la communauté sur la fiche du tournoi.",
               style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
             ),
             const SizedBox(height: 16),
@@ -1097,7 +1106,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
       await FirebaseFirestore.instance.collection('tournament_partner_requests').doc(id).delete();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Annonce retirée avec succès.")),
+          const SnackBar(content: Text("SOS Partenaire retiré avec succès.")),
         );
       }
     } catch (e) {
