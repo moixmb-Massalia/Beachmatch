@@ -13,7 +13,8 @@ import '../../l10n/app_localizations.dart';
 import 'package:geolocator/geolocator.dart';
 
 class TournamentListScreen extends StatefulWidget {
-  const TournamentListScreen({super.key});
+  final bool showHeader;
+  const TournamentListScreen({super.key, this.showHeader = true});
 
   @override
   State<TournamentListScreen> createState() => _TournamentListScreenState();
@@ -252,41 +253,42 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
           SafeArea(
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppColors.gold,
-                          borderRadius: BorderRadius.circular(16),
+                if (widget.showHeader)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.gold,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(Icons.emoji_events, color: Colors.white, size: 24),
                         ),
-                        child: const Icon(Icons.emoji_events, color: Colors.white, size: 24),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(AppLocalizations.of(context)!.tournamentListTitle, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)),
-                            Text(
-                              AppLocalizations.of(context)!.tournamentListCount(filteredTournaments.length), 
-                              style: const TextStyle(color: Colors.white70, fontSize: 13),
-                            ),
-                          ],
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(AppLocalizations.of(context)!.tournamentListTitle, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)),
+                              Text(
+                                AppLocalizations.of(context)!.tournamentListCount(filteredTournaments.length), 
+                                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.radar, color: AppColors.coral, size: 28),
-                        tooltip: "Radar des alertes",
-                        onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
-                        },
-                      ),
-                    ],
+                        IconButton(
+                          icon: const Icon(Icons.radar, color: AppColors.coral, size: 28),
+                          tooltip: "Radar des alertes",
+                          onPressed: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                ),
 
                 // 🔴 BANNIÈRE HERO INTERACTIVE BEACHSCORE LIVE (Option 1)
                 Padding(

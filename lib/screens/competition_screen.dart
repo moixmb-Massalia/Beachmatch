@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/colors.dart';
 import 'tournaments/tournament_list_screen.dart';
-import 'fft_rankings_screen.dart';
+import 'tournaments/tournament_radar_screen.dart';
 
 class CompetitionScreen extends StatelessWidget {
   final int initialTabIndex;
@@ -42,20 +42,20 @@ class CompetitionScreen extends StatelessWidget {
             unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
             tabs: [
               Tab(
-                icon: Icon(Icons.sports_tennis, size: 18),
-                text: "Tournois FFT / ITF",
+                icon: Icon(Icons.calendar_month, size: 18),
+                text: "Calendrier",
               ),
               Tab(
-                icon: Icon(Icons.leaderboard, size: 18),
-                text: "Classement Ten'Up",
+                icon: Icon(Icons.radar, size: 18),
+                text: "Radar 360°",
               ),
             ],
           ),
         ),
         body: const TabBarView(
           children: [
-            TournamentListScreen(),
-            FftRankingsScreen(),
+            TournamentListScreen(showHeader: false),
+            TournamentRadarScreen(),
           ],
         ),
       ),

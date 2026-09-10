@@ -6,7 +6,7 @@ import '../providers/app_state.dart';
 import '../theme/colors.dart';
 import 'home_screen.dart';
 import 'map_screen.dart';
-import 'tournaments/tournament_list_screen.dart';
+import 'competition_screen.dart';
 import 'community_screen.dart';
 import 'messages_screen.dart';
 import 'tutorial_screen.dart';
@@ -45,7 +45,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _screens = [
     const HomeScreen(),
     const MapScreen(),
-    const TournamentListScreen(),
+    const CompetitionScreen(),
     const CommunityScreen(),
     const MessagesScreen(),
   ];
@@ -91,7 +91,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     children: [
                       _buildNavItem(0, CupertinoIcons.home, CupertinoIcons.house_fill, AppLocalizations.of(context)!.navHome),
                       _buildNavItem(1, CupertinoIcons.map, CupertinoIcons.map_fill, AppLocalizations.of(context)!.navCourts),
-                      _buildNavItem(2, Icons.emoji_events_outlined, Icons.emoji_events, AppLocalizations.of(context)!.navTournaments),
+                      _buildNavItem(2, Icons.emoji_events_outlined, Icons.emoji_events, "Compétition"),
                       _buildNavItem(3, CupertinoIcons.person_3, CupertinoIcons.person_3_fill, "Communauté"),
                       StreamBuilder<int>(
                         stream: _unreadCountStream ?? const Stream.empty(),

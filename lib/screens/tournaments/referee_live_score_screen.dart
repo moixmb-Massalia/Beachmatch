@@ -48,7 +48,6 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
   late String _status; // 'LIVE', 'FINISHED', 'PAUSED'
   int? _winner; // 1 or 2
   String? _matchId;
-  bool _isInitialized = false;
 
   @override
   void initState() {
@@ -75,8 +74,6 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
 
     if (_matchId == null) {
       _createLiveMatchInFirestore();
-    } else {
-      _isInitialized = true;
     }
   }
 
@@ -89,9 +86,6 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
 
     _matchId = docRef.id;
     await _syncToFirestore();
-    if (mounted) {
-      setState(() => _isInitialized = true);
-    }
   }
 
   Future<void> _syncToFirestore() async {

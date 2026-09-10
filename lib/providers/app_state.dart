@@ -7,8 +7,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../models/user.dart';
 import '../models/court.dart';
 import '../models/match.dart';
@@ -39,8 +37,6 @@ String translateAuthError(String code) {
 }
 
 class AppState extends ChangeNotifier {
-  final MockDatabaseService _db = MockDatabaseService();
-  
   AppState() {
     _determinePosition();
     FirebaseAuth.instance.authStateChanges().listen((user) async {

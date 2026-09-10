@@ -158,7 +158,6 @@ class _ClubListScreenState extends State<ClubListScreen> {
     final displayLocation = (club.location.isEmpty || club.location.toLowerCase().contains('recherche'))
         ? 'France'
         : club.location;
-    final initial = club.name.isNotEmpty ? club.name[0].toUpperCase() : 'C';
 
     return GestureDetector(
       onTap: () {
