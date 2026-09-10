@@ -29,6 +29,26 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
   String _selectedCategoryFilter = 'ALL'; // 'ALL', 'MAJOR', 'CLUB'
   bool _soundEnabled = true;
 
+  // Recherche rapide HUD
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  // Centre de référence personnalisé (ou GPS)
+  String? _customCenterName;
+  double? _customCenterLat;
+  double? _customCenterLng;
+
+  static const List<Map<String, dynamic>> _presetCenters = [
+    {'name': 'Position GPS Actuelle 📡', 'lat': null, 'lng': null},
+    {'name': 'Marseille (13) 🏖️', 'lat': 43.2965, 'lng': 5.3698},
+    {'name': 'Toulon / Var (83) 🌴', 'lat': 43.1242, 'lng': 5.9280},
+    {'name': 'Nice / Côte d\'Azur (06) ☀️', 'lat': 43.7102, 'lng': 7.2620},
+    {'name': 'Montpellier / Hérault (34) 🌊', 'lat': 43.6108, 'lng': 3.8767},
+    {'name': 'Paris / Île-de-France (75) 🗼', 'lat': 48.8566, 'lng': 2.3522},
+    {'name': 'Bordeaux / Aquitaine (33) 🍷', 'lat': 44.8378, 'lng': -0.5792},
+    {'name': 'Saint-Pierre / La Réunion (974) 🌋', 'lat': -20.8821, 'lng': 55.4507},
+  ];
+
   TournamentModel? _selectedTournament;
   Map<String, Offset> _blipPositions = {};
 
@@ -60,6 +80,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
     _sweepController.dispose();
     _pulseController.dispose();
     _lockController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -103,14 +124,28 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
     final allTournaments = appState.tournaments;
     final userPos = appState.currentPosition;
 
-    // Coordonnées utilisateur ou fallback (Nice)
-    final double userLat = userPos?.latitude ?? 43.7102;
-    final double userLng = userPos?.longitude ?? 7.2620;
+    // Coordonnées de référence du Radar
+    // Si centre choisi manuellement -> priorité. Sinon GPS. Sinon Marseille (13) par défaut.
+    final double userLat = _customCenterLat ?? userPos?.latitude ?? 43.2965;
+    final double userLng = _customCenterLng ?? userPos?.longitude ?? 5.3698;
+    final String centerLabel = _customCenterName ?? (userPos != null ? "Position GPS" : "Marseille (13)");
 
     // Filtrage des tournois
     final validTournaments = allTournaments.where((t) {
       if (t.isPassed) return false;
       if (t.latitude == null || t.longitude == null) return false;
+
+      // Filtre de recherche textuelle
+      if (_searchQuery.isNotEmpty) {
+        final q = _searchQuery.toLowerCase();
+        final name = t.name.toLowerCase();
+        final club = t.club.toLowerCase();
+        final loc = t.location.toLowerCase();
+        final ref = (t.referee ?? '').toLowerCase();
+        final cat = t.category.toLowerCase();
+        final matches = name.contains(q) || club.contains(q) || loc.contains(q) || ref.contains(q) || cat.contains(q);
+        if (!matches) return false;
+      }
 
       // Filtre de catégorie
       if (_selectedCategoryFilter == 'MAJOR') {
@@ -128,8 +163,21 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
       // Calcul distance
       final distanceInMeters = Geolocator.distanceBetween(userLat, userLng, t.latitude!, t.longitude!);
       final distanceKm = distanceInMeters / 1000.0;
+
+      // Si recherche active, on étend jusqu'à la France entière pour trouver le tournoi
+      if (_searchQuery.isNotEmpty) {
+        return distanceKm <= math.max(_selectedRangeKm, 1500.0);
+      }
+
       return distanceKm <= _selectedRangeKm;
     }).toList();
+
+    // Tri par distance croissante
+    validTournaments.sort((a, b) {
+      final distA = Geolocator.distanceBetween(userLat, userLng, a.latitude!, a.longitude!);
+      final distB = Geolocator.distanceBetween(userLat, userLng, b.latitude!, b.longitude!);
+      return distA.compareTo(distB);
+    });
 
     return Scaffold(
       backgroundColor: const Color(0xFF030712),
@@ -155,8 +203,11 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
           SafeArea(
             child: Column(
               children: [
-                // En-tête HUD Tactique
-                _buildTacticalHeader(validTournaments.length),
+                // En-tête HUD Tactique avec sélecteur de ville
+                _buildTacticalHeader(validTournaments.length, centerLabel),
+
+                // Barre de recherche textuelle rapide
+                _buildSearchBar(),
 
                 // Sélecteurs de filtres (Portée + Catégorie)
                 _buildRangeSelector(),
@@ -215,18 +266,18 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                   ),
                 ),
 
-                // Carte rétractable du tournoi sélectionné (HUD Card)
+                // Carte rétractable du tournoi sélectionné OU Carousel des échos détectés
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
                   transitionBuilder: (child, animation) => SlideTransition(
-                    position: Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero).animate(animation),
+                    position: Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero).animate(animation),
                     child: FadeTransition(opacity: animation, child: child),
                   ),
                   child: _selectedTournament != null
                       ? _buildSelectedTournamentHUDCard(_selectedTournament!, userLat, userLng)
-                      : _buildRadarStatusFooter(validTournaments.length),
+                      : _buildDetectedTournamentsCarousel(validTournaments, userLat, userLng),
                 ),
-                const SizedBox(height: 84),
+                const SizedBox(height: 72),
               ],
             ),
           ),
@@ -235,9 +286,9 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
     );
   }
 
-  Widget _buildTacticalHeader(int count) {
+  Widget _buildTacticalHeader(int count, String centerLabel) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -282,9 +333,37 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                       ),
                     ],
                   ),
-                  Text(
-                    "$count tournois à portée",
-                    style: const TextStyle(color: Colors.white60, fontSize: 12),
+                  GestureDetector(
+                    onTap: () => _showCenterPicker(context),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "$count à portée · ",
+                          style: const TextStyle(color: Colors.white60, fontSize: 11),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppColors.gold.withOpacity(0.5), width: 0.8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.location_on, color: AppColors.gold, size: 10),
+                              const SizedBox(width: 2),
+                              Text(
+                                centerLabel,
+                                style: const TextStyle(color: AppColors.gold, fontSize: 10.5, fontWeight: FontWeight.bold),
+                              ),
+                              const Icon(Icons.arrow_drop_down, color: AppColors.gold, size: 14),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -310,6 +389,11 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
               IconButton(
                 onPressed: () {
                   HapticFeedback.mediumImpact();
+                  setState(() {
+                    _customCenterName = null;
+                    _customCenterLat = null;
+                    _customCenterLng = null;
+                  });
                   context.read<AppState>().refreshLocation();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("Radar recentré sur votre position GPS.")),
@@ -321,6 +405,127 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  void _showCenterPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0B132B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "Centrer le Radar sur :",
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _presetCenters.length,
+                    separatorBuilder: (_, __) => Divider(color: Colors.white.withOpacity(0.08), height: 1),
+                    itemBuilder: (ctx, i) {
+                      final item = _presetCenters[i];
+                      final isSelected = (_customCenterName == item['name']) ||
+                          (_customCenterName == null && item['lat'] == null);
+                      return ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                        title: Text(
+                          item['name'] as String,
+                          style: TextStyle(
+                            color: isSelected ? AppColors.gold : Colors.white,
+                            fontWeight: isSelected ? FontWeight.w900 : FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                        ),
+                        trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 18) : null,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            if (item['lat'] == null) {
+                              _customCenterName = null;
+                              _customCenterLat = null;
+                              _customCenterLng = null;
+                              context.read<AppState>().refreshLocation();
+                            } else {
+                              _customCenterName = item['name'] as String;
+                              _customCenterLat = item['lat'] as double;
+                              _customCenterLng = item['lng'] as double;
+                            }
+                            _selectedTournament = null;
+                          });
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+      height: 38,
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.55),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _searchQuery.isNotEmpty ? AppColors.gold : Colors.white.withOpacity(0.25),
+          width: 1.2,
+        ),
+      ),
+      child: TextField(
+        controller: _searchController,
+        style: const TextStyle(color: Colors.white, fontSize: 12.5),
+        decoration: InputDecoration(
+          hintText: "Rechercher (Duglos, Tennis Park, BT 500, Marseille...)",
+          hintStyle: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11.5),
+          prefixIcon: const Icon(Icons.search_rounded, color: AppColors.gold, size: 18),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear_rounded, color: Colors.white60, size: 16),
+                  onPressed: () {
+                    setState(() {
+                      _searchController.clear();
+                      _searchQuery = '';
+                    });
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 7),
+        ),
+        onChanged: (val) {
+          setState(() {
+            _searchQuery = val.trim();
+          });
+        },
       ),
     );
   }
@@ -625,32 +830,180 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
     );
   }
 
-  Widget _buildRadarStatusFooter(int count) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: const BoxDecoration(
-              color: Colors.greenAccent,
-              shape: BoxShape.circle,
+  Color _getCategoryColor(String category) {
+    final cat = category.toUpperCase();
+    if (cat.contains("2000")) return Colors.purpleAccent;
+    if (cat.contains("1000") || cat.contains("ITF")) return AppColors.gold;
+    if (cat.contains("500")) return Colors.cyanAccent;
+    if (cat.contains("250")) return AppColors.coral;
+    if (cat.contains("100")) return Colors.greenAccent;
+    return AppColors.gold;
+  }
+
+  Widget _buildDetectedTournamentsCarousel(List<TournamentModel> tournaments, double centerLat, double centerLng) {
+    if (tournaments.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                color: Colors.amberAccent,
+                shape: BoxShape.circle,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            "SCANNER ACTIF · Touchez un écho pour voir le tournoi",
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.8,
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                "0 tournoi détecté à cette portée · Augmentez le rayon (ex: 200 km, 500 km ou France 🇫🇷)",
+                style: TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
             ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: Colors.greenAccent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    "ÉCHOS DÉTECTÉS (${tournaments.length}) · Touchez pour verrouiller",
+                    style: TextStyle(
+                      color: Colors.cyanAccent.withOpacity(0.9),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                "Classés par distance",
+                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        SizedBox(
+          height: 98,
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            scrollDirection: Axis.horizontal,
+            itemCount: tournaments.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final t = tournaments[index];
+              final distMeters = (t.latitude != null && t.longitude != null)
+                  ? Geolocator.distanceBetween(centerLat, centerLng, t.latitude!, t.longitude!)
+                  : 0.0;
+              final km = (distMeters / 1000).round();
+              final isTarget = (t.referee ?? '').toLowerCase().contains('duglos') ||
+                  t.club.toLowerCase().contains('tennis park') ||
+                  _searchQuery.isNotEmpty;
+
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.heavyImpact();
+                  if (_soundEnabled) SoundService.playRacketPop();
+                  _lockController.forward(from: 0.0);
+                  setState(() => _selectedTournament = t);
+                },
+                child: Container(
+                  width: 255,
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: isTarget ? const Color(0xFF132238) : const Color(0xFF0F172A).withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: isTarget ? AppColors.gold : Colors.white.withOpacity(0.2),
+                      width: isTarget ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _getCategoryColor(t.category),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              t.category,
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              "📍 $km km",
+                              style: const TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        t.name,
+                        style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Row(
+                        children: [
+                          const Icon(Icons.person_rounded, color: AppColors.coral, size: 12),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              t.referee ?? t.club,
+                              style: const TextStyle(color: Colors.white70, fontSize: 10.5),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            t.dateString,
+                            style: const TextStyle(color: Colors.white54, fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
