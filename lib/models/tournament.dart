@@ -16,6 +16,7 @@ class TournamentModel {
   final String? contactPhone;
   final String? contactEmail;
   final String? registrationType;
+  final String? registrationUrl;
   final String? price;
   final String? scheduleDetails;
   
@@ -65,6 +66,7 @@ class TournamentModel {
     this.contactPhone,
     this.contactEmail,
     this.registrationType,
+    this.registrationUrl,
     this.price,
     this.scheduleDetails,
     this.country,
@@ -101,6 +103,7 @@ class TournamentModel {
       contactPhone: data['contactPhone'],
       contactEmail: data['contactEmail'],
       registrationType: data['registrationType'],
+      registrationUrl: data['registrationUrl'],
       price: data['price'],
       scheduleDetails: data['scheduleDetails'],
       country: data['country'],
@@ -123,6 +126,7 @@ class TournamentModel {
       if (contactPhone != null) 'contactPhone': contactPhone,
       if (contactEmail != null) 'contactEmail': contactEmail,
       if (registrationType != null) 'registrationType': registrationType,
+      if (registrationUrl != null) 'registrationUrl': registrationUrl,
       if (price != null) 'price': price,
       if (scheduleDetails != null) 'scheduleDetails': scheduleDetails,
       if (country != null) 'country': country,

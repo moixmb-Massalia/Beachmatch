@@ -759,6 +759,20 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                         ),
                       ],
                     ),
+                    if (tournament.contactPhone != null && tournament.contactPhone!.isNotEmpty && !tournament.isPassed)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.how_to_reg_rounded, color: AppColors.gold, size: 12),
+                            const SizedBox(width: 4),
+                            Text(
+                              "Inscriptions & Contact JAT dispos",
+                              style: TextStyle(color: AppColors.gold.withOpacity(0.9), fontSize: 10.5, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -284,6 +285,10 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                           ],
                         ),
                       ),
+                      const SizedBox(height: 20),
+
+                      // 🎾 INSTRUCTIONS & COORDONNÉES OFFICIELLES (ULTRA VISIBLE)
+                      _buildRegistrationAndContactCard(context),
                       const SizedBox(height: 24),
 
                       // Event Details
@@ -306,47 +311,6 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 24),
-
-                      // Inscription Details
-                      if (widget.tournament.registrationType != null || widget.tournament.referee != null || widget.tournament.contactEmail != null || widget.tournament.contactPhone != null) ...[
-                        Text(AppLocalizations.of(context)!.tournamentDetailRegistration, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 16),
-                        _buildGlassCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (widget.tournament.registrationType != null) ...[
-                                Text(AppLocalizations.of(context)!.tournamentDetailRegistrationType, style: const TextStyle(color: Colors.white70, fontSize: 14)),
-                                const SizedBox(height: 4),
-                                Text(widget.tournament.registrationType!, style: const TextStyle(color: Colors.white, fontSize: 16)),
-                                const Divider(color: Colors.white12, height: 24),
-                              ],
-                              if (widget.tournament.referee != null) ...[
-                                _buildInfoRow(CupertinoIcons.person_solid, AppLocalizations.of(context)!.tournamentDetailReferee, widget.tournament.referee!),
-                                const Divider(color: Colors.white12, height: 24),
-                              ],
-                              if (widget.tournament.contactPhone != null)
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(CupertinoIcons.phone_fill, color: Colors.greenAccent),
-                                  title: Text(widget.tournament.contactPhone!, style: const TextStyle(color: Colors.white)),
-                                  onTap: () {
-                                    final phone = widget.tournament.contactPhone!.replaceAll(' ', '');
-                                    _launchUrl('tel:$phone');
-                                  },
-                                ),
-                              if (widget.tournament.contactEmail != null)
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(CupertinoIcons.mail_solid, color: Colors.blueAccent),
-                                  title: Text(widget.tournament.contactEmail!, style: const TextStyle(color: Colors.white)),
-                                  onTap: () => _launchUrl('mailto:${widget.tournament.contactEmail}'),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
 
                       // 📤 BOUTON PARTAGE WHATSAPP / AMIS
                       const SizedBox(height: 20),
@@ -438,6 +402,258 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRegistrationAndContactCard(BuildContext context) {
+    final tournament = widget.tournament;
+    final referee = (tournament.referee != null && tournament.referee!.trim().isNotEmpty)
+        ? tournament.referee!.trim()
+        : "Direction du Tournoi (JAT)";
+    final rawPhone = tournament.contactPhone?.trim();
+    final hasPhone = rawPhone != null && rawPhone.isNotEmpty;
+    final rawEmail = tournament.contactEmail?.trim();
+    final hasEmail = rawEmail != null && rawEmail.isNotEmpty;
+    final rawUrl = tournament.registrationUrl?.trim();
+    final regUrl = (rawUrl != null && rawUrl.isNotEmpty) ? rawUrl : "https://tenup.fft.fr";
+    final regType = (tournament.registrationType != null && tournament.registrationType!.trim().isNotEmpty)
+        ? tournament.registrationType!.trim()
+        : "Inscription par Téléphone, Email ou Ten'Up";
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF131F33), Color(0xFF1A2B46)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.6), width: 1.8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // En-tête avec badge Officiel
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.how_to_reg_rounded, color: AppColors.gold, size: 24),
+                        SizedBox(width: 8),
+                        Text(
+                          "Inscriptions & Contact",
+                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.gold.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.gold, width: 1),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.verified_rounded, color: AppColors.gold, size: 14),
+                          SizedBox(width: 4),
+                          Text(
+                            "Officiel",
+                            style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Carte Juge-Arbitre (JAT)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.sports_tennis_rounded, color: AppColors.gold, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "JUGE-ARBITRE DU TOURNOI (JAT)",
+                              style: TextStyle(color: AppColors.gold, fontSize: 10.5, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              referee,
+                              style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Modalités d'inscription
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline_rounded, color: Colors.white60, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          regType,
+                          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Boutons d'Action Rapide pour Contacter / S'inscrire
+                if (hasPhone) ...[
+                  Row(
+                    children: [
+                      // Bouton Appel
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0E7A3E),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            elevation: 2,
+                          ),
+                          icon: const Icon(Icons.phone_in_talk_rounded, size: 19),
+                          label: Text(
+                            rawPhone,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            final phone = rawPhone.replaceAll(' ', '');
+                            _launchUrl('tel:$phone');
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Bouton WhatsApp
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF25D366),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          elevation: 2,
+                        ),
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          var clean = rawPhone.replaceAll(RegExp(r'\D'), '');
+                          if (clean.startsWith('0') && clean.length == 10) {
+                            clean = '33${clean.substring(1)}';
+                          }
+                          final msg = Uri.encodeComponent("Bonjour, je souhaite m'inscrire au tournoi ${tournament.name} (${tournament.category}) !");
+                          _launchUrl("https://wa.me/$clean?text=$msg");
+                        },
+                        child: const Icon(Icons.chat_rounded, size: 20),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
+                if (hasEmail) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1E3A5F),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: BorderSide(color: Colors.blueAccent.withValues(alpha: 0.5)),
+                        ),
+                        elevation: 1,
+                      ),
+                      icon: const Icon(Icons.mail_rounded, size: 19, color: Colors.lightBlueAccent),
+                      label: Text(
+                        rawEmail,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        final subject = Uri.encodeComponent("Inscription Beach Tennis - ${tournament.name}");
+                        _launchUrl('mailto:$rawEmail?subject=$subject');
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
+                // Bouton Portail Officiel Ten'Up / ITF
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.gold,
+                      side: const BorderSide(color: AppColors.gold, width: 1.5),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 17),
+                    label: Text(
+                      regUrl.contains('itf') ? "Fiche Officielle ITF Beach Tennis" : "Fiche Officielle Ten'Up FFT",
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                    ),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _launchUrl(regUrl);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

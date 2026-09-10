@@ -24,8 +24,8 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
   late AnimationController _pulseController;
   late AnimationController _lockController;
 
-  // Portée sélectionnée en kilomètres (50, 100, 250, 500, 1200)
-  double _selectedRangeKm = 150.0;
+  // Portée sélectionnée en kilomètres (10, 200, 500, France, Monde)
+  double _selectedRangeKm = 200.0;
   String _selectedCategoryFilter = 'ALL'; // 'ALL', 'MAJOR', 'CLUB'
   bool _soundEnabled = true;
 
@@ -327,15 +327,15 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
 
   Widget _buildRangeSelector() {
     final ranges = [
-      {'label': '50 km', 'val': 50.0},
-      {'label': '100 km', 'val': 100.0},
-      {'label': '250 km', 'val': 250.0},
+      {'label': '10 km', 'val': 10.0},
+      {'label': '200 km', 'val': 200.0},
       {'label': '500 km', 'val': 500.0},
-      {'label': 'France', 'val': 1200.0},
+      {'label': 'France 🇫🇷', 'val': 1200.0},
+      {'label': 'Monde 🌍', 'val': 30000.0},
     ];
 
     return SizedBox(
-      height: 36,
+      height: 38,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
@@ -348,18 +348,19 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
             label: Text(
               r['label'] as String,
               style: TextStyle(
-                color: isSelected ? Colors.black : Colors.white70,
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                color: isSelected ? Colors.black : Colors.white,
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
               ),
             ),
             selected: isSelected,
-            selectedColor: Colors.cyanAccent,
-            backgroundColor: Colors.white.withOpacity(0.06),
+            selectedColor: AppColors.gold,
+            backgroundColor: Colors.black.withOpacity(0.65),
             side: BorderSide(
-              color: isSelected ? Colors.cyanAccent : Colors.white.withOpacity(0.15),
+              color: isSelected ? AppColors.gold : Colors.white.withOpacity(0.35),
+              width: isSelected ? 1.5 : 1,
             ),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
             onSelected: (selected) {
               if (selected) {
                 HapticFeedback.selectionClick();
@@ -376,48 +377,50 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
   }
 
   Widget _buildCategorySelector() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Row(
-        children: [
-          _buildSmallFilterChip("Tous", 'ALL'),
-          const SizedBox(width: 8),
-          _buildSmallFilterChip("🏆 Circuits Majeurs", 'MAJOR'),
-          const SizedBox(width: 8),
-          _buildSmallFilterChip("🏖️ Conviviaux", 'CLUB'),
-        ],
-      ),
-    );
-  }
+    final categories = [
+      {'label': 'Tous 🏆', 'id': 'ALL'},
+      {'label': 'Circuits Majeurs 🌟', 'id': 'MAJOR'},
+      {'label': 'Conviviaux 🏖️', 'id': 'CLUB'},
+    ];
 
-  Widget _buildSmallFilterChip(String label, String code) {
-    final isSelected = _selectedCategoryFilter == code;
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        setState(() {
-          _selectedCategoryFilter = code;
-          _selectedTournament = null;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.gold.withOpacity(0.2) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? AppColors.gold : Colors.white24,
-            width: 1,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? AppColors.gold : Colors.white60,
-            fontSize: 10.5,
-            fontWeight: isSelected ? FontWeight.w900 : FontWeight.w500,
-          ),
-        ),
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        scrollDirection: Axis.horizontal,
+        itemCount: categories.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final cat = categories[i];
+          final isSelected = _selectedCategoryFilter == cat['id'];
+          return ChoiceChip(
+            label: Text(
+              cat['label']!,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11.5,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+            selected: isSelected,
+            selectedColor: AppColors.coral,
+            backgroundColor: Colors.black.withOpacity(0.5),
+            side: BorderSide(
+              color: isSelected ? AppColors.coral : Colors.white.withOpacity(0.25),
+              width: isSelected ? 1.5 : 1,
+            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            onSelected: (selected) {
+              if (selected) {
+                HapticFeedback.selectionClick();
+                setState(() {
+                  _selectedCategoryFilter = cat['id']!;
+                  _selectedTournament = null;
+                });
+              }
+            },
+          );
+        },
       ),
     );
   }

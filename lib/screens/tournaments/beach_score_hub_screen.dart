@@ -221,21 +221,21 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'tournamentId': 'itf_bt400_cervia_2026',
       'draw': 'DH',
       'date': '2026-09-09',
-      'day': 'Aujourd\'hui',
+      'day': 'Hier',
       'round': 'Demi-Finale',
-      'time': '17h30 · En Direct 🔴',
+      'time': 'Terminé 🏆',
       'court': 'Court Central Fantini',
       'team1': '[1] M. Cappelletti (ITA) / R. Alessi (ITA)',
       'team2': '[4] F. Beccaccioli (ITA) / L. Cramarossa (ITA)',
       'set1': '6/4',
-      'set2': '3/3',
+      'set2': '6/4',
       'set3': null,
-      'points1': '30',
-      'points2': '15',
-      'status': 'LIVE',
-      'winner': null,
-      'serving': 1,
-      'isFeatured': true,
+      'points1': null,
+      'points2': null,
+      'status': 'FINISHED',
+      'winner': 1,
+      'serving': null,
+      'isFeatured': false,
     },
     {
       'id': 'cervia_dh_upcoming_final',
@@ -246,15 +246,15 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
       'round': 'Finale 🏆',
       'time': 'Dimanche 18h00',
       'court': 'Court Central Fantini',
-      'team1': '[2] N. Gianotti (FRA) / M. Spoto (ITA)',
-      'team2': 'Vainqueur Demi-Finale 1',
+      'team1': '[1] M. Cappelletti (ITA) / R. Alessi (ITA)',
+      'team2': '[2] N. Gianotti (FRA) / M. Spoto (ITA)',
       'set1': null,
       'set2': null,
       'set3': null,
       'status': 'SCHEDULED',
       'winner': null,
       'serving': null,
-      'isFeatured': false,
+      'isFeatured': true,
     },
     {
       'id': 'cervia_dd_upcoming_sf',
@@ -890,18 +890,34 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
                             const SizedBox(height: 12),
                             Text(
                               _selectedFilter == '🔴 En Direct'
-                                  ? "Aucun match en direct sur cette sélection"
+                                  ? "Aucun match en direct actuellement"
                                   : "Aucun match programmé pour ce filtre",
                               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                             ),
                             const SizedBox(height: 6),
                             Text(
                               _selectedFilter == '🔴 En Direct'
-                                  ? "Les rencontres en cours sur les courts centraux apparaîtront ici dès leur coup d'envoi."
+                                  ? "Les rencontres en direct apparaîtront automatiquement dès le coup d'envoi. Retrouvez les chocs à venir et les résultats officiels ci-dessous."
                                   : "Sélectionnez un autre jour ou un autre pays pour consulter les résultats et le programme.",
                               style: const TextStyle(color: Colors.white60, fontSize: 12),
                               textAlign: TextAlign.center,
                             ),
+                            if (_selectedFilter == '🔴 En Direct') ...[
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  HapticFeedback.lightImpact();
+                                  setState(() => _selectedFilter = 'Tous');
+                                },
+                                icon: const Icon(Icons.sports_tennis_rounded, size: 16, color: Colors.black),
+                                label: const Text("Voir le programme & les résultats", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.gold,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
