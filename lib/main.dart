@@ -17,6 +17,7 @@ import 'dart:async';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:app_links/app_links.dart';
 import 'l10n/app_localizations.dart';
+import 'package:flutter/foundation.dart';
 import 'providers/app_state.dart';
 
 void main() async {
@@ -37,13 +38,19 @@ void main() async {
       }
     }
 
-    // Request notification permissions
-    final messaging = FirebaseMessaging.instance;
-    await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    // Request notification permissions on mobile only
+    if (!kIsWeb) {
+      try {
+        final messaging = FirebaseMessaging.instance;
+        await messaging.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      } catch (e) {
+        print("Notification init error: $e");
+      }
+    }
 
     runApp(
       ChangeNotifierProvider(
@@ -84,35 +91,41 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
   @override
   void initState() {
     super.initState();
-    // Listen to foreground messages
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      if (message.notification != null) {
-        print('Message en premier plan: ${message.notification?.title}');
-        final context = navigatorKey.currentContext;
-        if (context != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("${message.notification?.title} : ${message.notification?.body}"),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: AppColors.gold,
-              action: SnackBarAction(
-                label: "Voir",
-                textColor: Colors.black,
-                onPressed: () => _handleMessageRoute(message),
-              ),
-            ),
-          );
-        }
+    if (!kIsWeb) {
+      try {
+        // Listen to foreground messages
+        FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+          if (message.notification != null) {
+            print('Message en premier plan: ${message.notification?.title}');
+            final context = navigatorKey.currentContext;
+            if (context != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("${message.notification?.title} : ${message.notification?.body}"),
+                  behavior: SnackBarBehavior.floating,
+                  backgroundColor: AppColors.gold,
+                  action: SnackBarAction(
+                    label: "Voir",
+                    textColor: Colors.black,
+                    onPressed: () => _handleMessageRoute(message),
+                  ),
+                ),
+              );
+            }
+          }
+        });
+
+        // Handle background / terminated messages clicks
+        FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+          _handleMessageRoute(message);
+        });
+
+        _checkInitialMessage();
+        _initDeepLinks();
+      } catch (e) {
+        print("Messaging listeners error: $e");
       }
-    });
-
-    // Handle background / terminated messages clicks
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      _handleMessageRoute(message);
-    });
-
-    _checkInitialMessage();
-    _initDeepLinks();
+    }
   }
 
   late AppLinks _appLinks;
@@ -204,6 +217,7 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
       navigatorKey: navigatorKey,
       title: 'BeachMatch',
       debugShowCheckedModeBanner: false,
+      locale: const Locale('fr'),
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -217,6 +231,16 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
         Locale('it'),
         Locale('pt'),
       ],
+      localeResolutionCallback: (locale, supportedLocales) {
+        if (locale != null) {
+          for (var supportedLocale in supportedLocales) {
+            if (supportedLocale.languageCode == locale.languageCode) {
+              return supportedLocale;
+            }
+          }
+        }
+        return const Locale('fr');
+      },
       theme: ThemeData(
         scaffoldBackgroundColor: AppColors.background,
         primaryColor: AppColors.primary,

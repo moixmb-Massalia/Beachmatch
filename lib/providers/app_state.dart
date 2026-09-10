@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -40,45 +41,52 @@ class AppState extends ChangeNotifier {
   AppState() {
     _determinePosition();
     FirebaseAuth.instance.authStateChanges().listen((user) async {
-      if (user != null) {
-        final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-        if (userDoc.exists) {
-          _currentUser = UserModel.fromMap(userDoc.data()!, userDoc.id);
-          if (_currentUser!.isBanned) {
-            await FirebaseAuth.instance.signOut();
-            _currentUser = null;
-            _isLoading = false;
-            notifyListeners();
-            return;
+      try {
+        if (user != null) {
+          final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+          if (userDoc.exists && userDoc.data() != null) {
+            _currentUser = UserModel.fromMap(userDoc.data()!, userDoc.id);
+            if (_currentUser != null && _currentUser!.isBanned) {
+              await FirebaseAuth.instance.signOut();
+              _currentUser = null;
+              _isLoading = false;
+              notifyListeners();
+              return;
+            }
+            if (!kIsWeb) {
+              await _updateFCMToken();
+            }
           }
-          await _updateFCMToken();
+          await loadData();
+        } else {
+          _currentUser = null;
+          _isLoading = false;
+          notifyListeners();
         }
-        await loadData();
-      } else {
-        _currentUser = null;
-        _isLoading = false;
-        notifyListeners();
+      } catch (e) {
+        print("Erreur authStateChanges: $e");
       }
     });
   }
 
   Future<void> _determinePosition() async {
-    bool serviceEnabled;
-    LocationPermission permission;
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
 
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) return;
+      }
+      
+      if (permission == LocationPermission.deniedForever) return;
 
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return;
+      _currentPosition = await Geolocator.getCurrentPosition();
+      notifyListeners();
+    } catch (e) {
+      print("Erreur geolocator: $e");
     }
-    
-    if (permission == LocationPermission.deniedForever) return;
-
-    _currentPosition = await Geolocator.getCurrentPosition();
-    notifyListeners();
   }
 
   Future<void> refreshLocation() async {
@@ -242,36 +250,39 @@ class AppState extends ChangeNotifier {
       );
       
       if (userCredential.user != null) {
-        final userRef = FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid);
+        final user = userCredential.user!;
+        final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
         final userDoc = await userRef.get();
         
-        if (!userDoc.exists) {
+        if (!userDoc.exists || userDoc.data() == null) {
           isNewUser = true;
           _currentUser = UserModel(
-            id: userCredential.user!.uid,
-            displayName: userCredential.user!.displayName ?? "Nouveau Joueur",
+            id: user.uid,
+            displayName: user.displayName ?? "Nouveau Joueur",
             level: 1,
             eloScore: 0,
             location: _currentPosition != null ? "Ma Position" : "Non définie",
             isPremium: false,
             createdAt: DateTime.now(),
-            isAdmin: userCredential.user!.email == 'moixmb@gmail.com',
+            isAdmin: user.email == 'moixmb@gmail.com',
           );
         } else {
           _currentUser = UserModel.fromMap(userDoc.data()!, userDoc.id);
-          if (_currentUser!.isBanned) {
+          if (_currentUser != null && _currentUser!.isBanned) {
             await FirebaseAuth.instance.signOut();
             _currentUser = null;
             throw "Votre compte a été banni.";
           }
           // Override if this is the admin account, in case it was created before this feature
-          if (userCredential.user!.email == 'moixmb@gmail.com') {
+          if (user.email == 'moixmb@gmail.com' && _currentUser != null) {
             _currentUser = _currentUser!.copyWith(isAdmin: true);
             // Save it back silently
-            FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).update({'isAdmin': true});
+            FirebaseFirestore.instance.collection('users').doc(user.uid).update({'isAdmin': true});
           }
         }
-        await _updateFCMToken();
+        if (!kIsWeb) {
+          await _updateFCMToken();
+        }
         await loadData();
       }
     } on FirebaseAuthException catch (e) {
@@ -279,6 +290,7 @@ class AppState extends ChangeNotifier {
       throw translateAuthError(e.code);
     } catch (e) {
       print("Erreur de connexion par email : $e");
+      if (e is String) rethrow;
       throw "Une erreur est survenue lors de la connexion.";
     } finally {
       _isLoading = false;
@@ -310,7 +322,7 @@ class AppState extends ChangeNotifier {
   }
   
   Future<void> _updateFCMToken() async {
-    if (_currentUser == null) return;
+    if (kIsWeb || _currentUser == null) return;
     try {
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null && token != _currentUser!.fcmToken) {
@@ -483,18 +495,22 @@ class AppState extends ChangeNotifier {
     
     // Refresh _currentUser in memory so eloScore reset (0 pts) reflects immediately
     if (_currentUser != null) {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).get();
-      if (userDoc.exists) {
-        _currentUser = UserModel.fromMap(userDoc.data()!, userDoc.id);
+      try {
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).get();
+        if (userDoc.exists && userDoc.data() != null) {
+          _currentUser = UserModel.fromMap(userDoc.data()!, userDoc.id);
+        }
+      } catch (e) {
+        print("Erreur refresh current user: $e");
       }
 
       // Auto-sync current user ranking with official FFT ranking
-      if (_currentUser!.licenceNumber != null && _currentUser!.licenceNumber!.isNotEmpty) {
+      if (_currentUser != null && _currentUser!.licenceNumber != null && _currentUser!.licenceNumber!.isNotEmpty) {
         final cleanLic = _currentUser!.licenceNumber!.replaceAll(RegExp(r'\D'), '');
         if (cleanLic.isNotEmpty) {
           try {
             final fftDoc = await FirebaseFirestore.instance.collection('fft_rankings').doc(cleanLic).get();
-            if (fftDoc.exists) {
+            if (fftDoc.exists && fftDoc.data() != null) {
               final fftData = fftDoc.data()!;
               final officialRank = (fftData['level'] ?? fftData['ranking'] ?? fftData['rank'])?.toString();
               if (officialRank != null && officialRank.isNotEmpty && officialRank != _currentUser!.ranking) {

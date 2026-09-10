@@ -89,8 +89,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _buildNavItem(0, CupertinoIcons.home, CupertinoIcons.house_fill, AppLocalizations.of(context)!.navHome),
-                      _buildNavItem(1, CupertinoIcons.map, CupertinoIcons.map_fill, AppLocalizations.of(context)!.navCourts),
+                      _buildNavItem(0, CupertinoIcons.home, CupertinoIcons.house_fill, AppLocalizations.of(context)?.navHome ?? "Accueil"),
+                      _buildNavItem(1, CupertinoIcons.map, CupertinoIcons.map_fill, AppLocalizations.of(context)?.navCourts ?? "Terrains"),
                       _buildNavItem(2, Icons.emoji_events_outlined, Icons.emoji_events, "Compétition"),
                       _buildNavItem(3, CupertinoIcons.person_3, CupertinoIcons.person_3_fill, "Communauté"),
                       StreamBuilder<int>(
@@ -101,7 +101,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                             4,
                             CupertinoIcons.chat_bubble_2,
                             CupertinoIcons.chat_bubble_2_fill,
-                            AppLocalizations.of(context)!.navChat,
+                            AppLocalizations.of(context)?.navChat ?? "Chat",
                             badgeCount: unreadCount,
                           );
                         },
