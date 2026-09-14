@@ -171,6 +171,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
     if (text.contains('nantes') || text.contains('baule')) return (47.2184, -1.5536);
     if (text.contains('lyon')) return (45.7640, 4.8357);
     if (text.contains('toulouse')) return (43.6047, 1.4442);
+    if (text.contains('frontignan') || text.contains('sète') || text.contains('sete')) return (43.4494, 3.7546);
     return (43.2965, 5.3698); // Défaut Méditerranée
   }
 

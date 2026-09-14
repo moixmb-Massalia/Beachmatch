@@ -83,20 +83,37 @@ class TournamentModel {
     double? lat;
     double? lng;
     if (data['latitude'] != null) {
-      lat = (data['latitude'] as num).toDouble();
+      if (data['latitude'] is num) {
+        lat = (data['latitude'] as num).toDouble();
+      } else {
+        lat = double.tryParse(data['latitude'].toString());
+      }
     }
     if (data['longitude'] != null) {
-      lng = (data['longitude'] as num).toDouble();
+      if (data['longitude'] is num) {
+        lng = (data['longitude'] as num).toDouble();
+      } else {
+        lng = double.tryParse(data['longitude'].toString());
+      }
+    }
+
+    double distance = 0.0;
+    if (data['distance'] != null) {
+      if (data['distance'] is num) {
+        distance = (data['distance'] as num).toDouble();
+      } else {
+        distance = double.tryParse(data['distance'].toString()) ?? 0.0;
+      }
     }
 
     return TournamentModel(
       id: id,
-      name: data['name'] ?? '',
-      club: data['club'] ?? '',
-      location: data['location'] ?? '',
-      dateString: data['dateString'] ?? '',
-      distance: (data['distance'] ?? 0.0).toDouble(),
-      category: data['category'] ?? '',
+      name: data['name'] ?? data['title'] ?? '',
+      club: data['club'] ?? data['clubName'] ?? '',
+      location: data['location'] ?? data['city'] ?? '',
+      dateString: data['dateString'] ?? (data['startDate'] != null ? '${data['startDate']}' : ''),
+      distance: distance,
+      category: data['category'] ?? data['level'] ?? '',
       address: data['address'],
       balls: data['balls'],
       referee: data['referee'],
@@ -104,7 +121,7 @@ class TournamentModel {
       contactEmail: data['contactEmail'],
       registrationType: data['registrationType'],
       registrationUrl: data['registrationUrl'],
-      price: data['price'],
+      price: data['price'] != null ? data['price'].toString() : null,
       scheduleDetails: data['scheduleDetails'],
       country: data['country'],
       latitude: lat,

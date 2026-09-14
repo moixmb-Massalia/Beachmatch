@@ -58,6 +58,12 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
         _searchQuery = _searchController.text.trim().toLowerCase();
       });
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final appState = context.read<AppState>();
+      if (appState.tournaments.isEmpty) {
+        appState.loadTournaments();
+      }
+    });
   }
 
   @override
@@ -541,7 +547,7 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                       HapticFeedback.mediumImpact();
                       SoundService.playRacketPop();
                       _initUserLocation();
-                      await Future.delayed(const Duration(milliseconds: 500));
+                      await context.read<AppState>().loadTournaments();
                       if (mounted) setState(() {});
                     },
                     child: filteredTournaments.isEmpty 
@@ -549,9 +555,55 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                           physics: const AlwaysScrollableScrollPhysics(),
                           children: [
                             const SizedBox(height: 80),
-                            Center(
-                              child: Text(AppLocalizations.of(context)!.tournamentListEmpty, style: const TextStyle(color: Colors.white70)),
-                            ),
+                            if (context.watch<AppState>().isLoadingTournaments)
+                              Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const CircularProgressIndicator(color: AppColors.gold),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      "Chargement des tournois officiels...",
+                                      style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.emoji_events_outlined, size: 48, color: Colors.white.withOpacity(0.4)),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        AppLocalizations.of(context)!.tournamentListEmpty,
+                                        style: const TextStyle(color: Colors.white70, fontSize: 15),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      ElevatedButton.icon(
+                                        onPressed: () {
+                                          setState(() {
+                                            _selectedCountryFilter = 'ALL';
+                                            _selectedCategoryFilter = 'Toutes 🏆';
+                                            _searchController.clear();
+                                          });
+                                          context.read<AppState>().loadTournaments();
+                                        },
+                                        icon: const Icon(Icons.refresh, size: 18, color: Colors.black),
+                                        label: const Text("Réinitialiser / Actualiser", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppColors.gold,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                           ],
                         )
                       : ListView.builder(

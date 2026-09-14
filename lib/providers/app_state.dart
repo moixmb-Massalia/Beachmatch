@@ -40,6 +40,10 @@ String translateAuthError(String code) {
 class AppState extends ChangeNotifier {
   AppState() {
     _determinePosition();
+    // Chargement immédiat et résilient des tournois et terrains dès l'instanciation
+    loadTournaments(notify: false);
+    _loadCourtsInternal();
+
     FirebaseAuth.instance.authStateChanges().listen((user) async {
       try {
         if (user != null) {
@@ -119,6 +123,8 @@ class AppState extends ChangeNotifier {
 
   List<TournamentModel> _tournaments = [];
   List<TournamentModel> get tournaments => _tournaments;
+  bool _isLoadingTournaments = false;
+  bool get isLoadingTournaments => _isLoadingTournaments;
 
   // Filtres
   bool _filterFree = false;
@@ -485,63 +491,123 @@ class AppState extends ChangeNotifier {
   }
 
   // --- Data Loading ---
-  Future<void> loadData() async {
-    // Inject demo courts if none exist
-    await _seedCourtsIfEmpty();
-    // Inject tournaments if none exist
-    await _seedTournamentsIfEmpty();
-    // Run database cleanup (desautel deletion, accate deduplication, elo reset)
-    await _cleanDatabase();
-    
-    // Refresh _currentUser in memory so eloScore reset (0 pts) reflects immediately
-    if (_currentUser != null) {
-      try {
-        final userDoc = await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).get();
-        if (userDoc.exists && userDoc.data() != null) {
-          _currentUser = UserModel.fromMap(userDoc.data()!, userDoc.id);
-        }
-      } catch (e) {
-        print("Erreur refresh current user: $e");
-      }
+  Future<void> loadTournaments({bool notify = true}) async {
+    _isLoadingTournaments = true;
+    if (notify) notifyListeners();
 
-      // Auto-sync current user ranking with official FFT ranking
-      if (_currentUser != null && _currentUser!.licenceNumber != null && _currentUser!.licenceNumber!.isNotEmpty) {
-        final cleanLic = _currentUser!.licenceNumber!.replaceAll(RegExp(r'\D'), '');
-        if (cleanLic.isNotEmpty) {
-          try {
-            final fftDoc = await FirebaseFirestore.instance.collection('fft_rankings').doc(cleanLic).get();
-            if (fftDoc.exists && fftDoc.data() != null) {
-              final fftData = fftDoc.data()!;
-              final officialRank = (fftData['level'] ?? fftData['ranking'] ?? fftData['rank'])?.toString();
-              if (officialRank != null && officialRank.isNotEmpty && officialRank != _currentUser!.ranking) {
-                _currentUser = _currentUser!.copyWith(ranking: officialRank);
-                await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).update({'ranking': officialRank});
-              }
-            }
-          } catch (_) {}
+    try {
+      final tournamentsSnapshot = await FirebaseFirestore.instance
+          .collection('tournaments')
+          .get()
+          .timeout(const Duration(seconds: 12));
+
+      final List<TournamentModel> list = [];
+      for (var doc in tournamentsSnapshot.docs) {
+        try {
+          list.add(TournamentModel.fromMap(doc.data(), doc.id));
+        } catch (e) {
+          print("Erreur parsing tournoi ${doc.id}: $e");
         }
       }
+      if (list.isNotEmpty) {
+        _tournaments = list;
+      }
+    } catch (e) {
+      print("Erreur chargement tournois: $e");
+      // Fallback offline cache
+      try {
+        final cacheSnapshot = await FirebaseFirestore.instance
+            .collection('tournaments')
+            .get(const GetOptions(source: Source.cache));
+        if (cacheSnapshot.docs.isNotEmpty) {
+          final List<TournamentModel> cacheList = [];
+          for (var doc in cacheSnapshot.docs) {
+            try {
+              cacheList.add(TournamentModel.fromMap(doc.data(), doc.id));
+            } catch (_) {}
+          }
+          if (cacheList.isNotEmpty) {
+            _tournaments = cacheList;
+          }
+        }
+      } catch (_) {}
+    } finally {
+      _isLoadingTournaments = false;
+      notifyListeners();
     }
-    
-    // Read courts from Firestore
-    final courtSnapshot = await FirebaseFirestore.instance.collection('courts').get();
-    _courts = courtSnapshot.docs.map((doc) => CourtModel.fromMap(doc.data(), doc.id)).toList();
-    
-    // Read players from Firestore
-    final usersSnapshot = await FirebaseFirestore.instance.collection('users').get();
-    _players = usersSnapshot.docs
-        .where((doc) => doc.id != _currentUser?.id) // Exclude current user
-        .map((doc) => UserModel.fromMap(doc.data(), doc.id)).toList();
-    
-    // Read matches from Firestore
-    final matchesSnapshot = await FirebaseFirestore.instance.collection('matches').get();
-    _matches = matchesSnapshot.docs.map((doc) => MatchModel.fromMap(doc.data(), doc.id)).toList();
-    
-    // Read tournaments from Firestore
-    final tournamentsSnapshot = await FirebaseFirestore.instance.collection('tournaments').get();
-    _tournaments = tournamentsSnapshot.docs.map((doc) => TournamentModel.fromMap(doc.data(), doc.id)).toList();
-    
+  }
+
+  Future<void> _loadCourtsInternal() async {
+    try {
+      final courtSnapshot = await FirebaseFirestore.instance
+          .collection('courts')
+          .get()
+          .timeout(const Duration(seconds: 10));
+      _courts = courtSnapshot.docs.map((doc) => CourtModel.fromMap(doc.data(), doc.id)).toList();
+    } catch (e) {
+      print("Erreur chargement terrains: $e");
+    }
+  }
+
+  Future<void> _loadPlayersInternal() async {
+    try {
+      final usersSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .get()
+          .timeout(const Duration(seconds: 10));
+      _players = usersSnapshot.docs
+          .where((doc) => doc.id != _currentUser?.id)
+          .map((doc) => UserModel.fromMap(doc.data(), doc.id))
+          .toList();
+    } catch (e) {
+      print("Erreur chargement joueurs: $e");
+    }
+  }
+
+  Future<void> _loadMatchesInternal() async {
+    try {
+      final matchesSnapshot = await FirebaseFirestore.instance
+          .collection('matches')
+          .get()
+          .timeout(const Duration(seconds: 10));
+      _matches = matchesSnapshot.docs.map((doc) => MatchModel.fromMap(doc.data(), doc.id)).toList();
+    } catch (e) {
+      print("Erreur chargement matchs: $e");
+    }
+  }
+
+  void _syncUserRankingWithFFT() async {
+    if (_currentUser == null || _currentUser!.licenceNumber == null || _currentUser!.licenceNumber!.isEmpty) return;
+    final cleanLic = _currentUser!.licenceNumber!.replaceAll(RegExp(r'\D'), '');
+    if (cleanLic.isEmpty) return;
+    try {
+      final fftDoc = await FirebaseFirestore.instance.collection('fft_rankings').doc(cleanLic).get();
+      if (fftDoc.exists && fftDoc.data() != null) {
+        final fftData = fftDoc.data()!;
+        final officialRank = (fftData['level'] ?? fftData['ranking'] ?? fftData['rank'])?.toString();
+        if (officialRank != null && officialRank.isNotEmpty && officialRank != _currentUser!.ranking) {
+          _currentUser = _currentUser!.copyWith(ranking: officialRank);
+          await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).update({'ranking': officialRank});
+          notifyListeners();
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> loadData() async {
+    // 1. Chargement parallèle ultra-rapide et résilient
+    await Future.wait([
+      loadTournaments(notify: false),
+      _loadCourtsInternal(),
+      _loadPlayersInternal(),
+      _loadMatchesInternal(),
+    ]);
     notifyListeners();
+
+    // 2. Synchronisation profil & FFT en arrière-plan sans bloquer l'UI
+    if (_currentUser != null) {
+      _syncUserRankingWithFFT();
+    }
   }
 
   Future<void> markTutorialAsSeen() async {

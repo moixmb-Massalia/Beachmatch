@@ -73,6 +73,13 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final appState = context.read<AppState>();
+      if (appState.tournaments.isEmpty) {
+        appState.loadTournaments();
+      }
+    });
   }
 
   @override
@@ -395,8 +402,9 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                     _customCenterLng = null;
                   });
                   context.read<AppState>().refreshLocation();
+                  context.read<AppState>().loadTournaments();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Radar recentré sur votre position GPS.")),
+                    const SnackBar(content: Text("Radar recentré et tournois synchronisés.")),
                   );
                 },
                 icon: const Icon(Icons.my_location_rounded, color: Colors.cyanAccent, size: 20),
