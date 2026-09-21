@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 import '../theme/colors.dart';
 import '../providers/app_state.dart';
 import 'signup_screen.dart';
-import 'main_navigation.dart';
 import 'onboarding_screen.dart';
+import 'main_navigation.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -47,6 +47,22 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  void _onLoginSuccess(bool isNewUser) {
+    if (!mounted) return;
+    if (isNewUser) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+      );
+    } else {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
+        (route) => false,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -62,7 +78,7 @@ class _LoginScreenState extends State<LoginScreen> {
           // Dark Overlay for readability
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
             ),
           ),
           // Content
@@ -79,15 +95,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       curve: Curves.easeOutCubic,
                       padding: const EdgeInsets.all(32.0),
                       decoration: BoxDecoration(
-                        color: _isFocused ? Colors.white.withOpacity(0.95) : Colors.white.withOpacity(0.35),
+                        color: _isFocused ? Colors.white.withValues(alpha: 0.95) : Colors.white.withValues(alpha: 0.35),
                         borderRadius: BorderRadius.circular(32),
                         border: Border.all(
-                          color: _isFocused ? AppColors.gold : Colors.white.withOpacity(0.5),
+                          color: _isFocused ? AppColors.gold : Colors.white.withValues(alpha: 0.5),
                           width: _isFocused ? 2.0 : 1.5,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(_isFocused ? 0.25 : 0.1),
+                            color: Colors.black.withValues(alpha: _isFocused ? 0.25 : 0.1),
                             blurRadius: 30,
                             spreadRadius: -5,
                           )
@@ -107,7 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 borderRadius: BorderRadius.circular(24),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: AppColors.primary.withOpacity(0.4),
+                                    color: AppColors.primary.withValues(alpha: 0.4),
                                     blurRadius: 15,
                                     offset: const Offset(0, 8),
                                   )
@@ -149,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 borderSide: BorderSide.none,
                               ),
                               filled: true,
-                              fillColor: _isFocused ? Colors.white : Colors.white.withOpacity(0.8),
+                              fillColor: _isFocused ? Colors.white : Colors.white.withValues(alpha: 0.8),
                               contentPadding: const EdgeInsets.symmetric(vertical: 16),
                             ),
                           ),
@@ -179,7 +195,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 borderSide: BorderSide.none,
                               ),
                               filled: true,
-                              fillColor: _isFocused ? Colors.white : Colors.white.withOpacity(0.8),
+                              fillColor: _isFocused ? Colors.white : Colors.white.withValues(alpha: 0.8),
                               contentPadding: const EdgeInsets.symmetric(vertical: 16),
                             ),
                           ),
@@ -235,16 +251,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               
                               try {
                                 bool isNewUser = await context.read<AppState>().loginWithEmail(email, password);
-                                if (context.mounted) {
-                                  if (isNewUser) {
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(builder: (context) => const OnboardingScreen()),
-                                    );
-                                  } else if (Navigator.canPop(context)) {
-                                    Navigator.pop(context);
-                                  }
-                                }
+                                _onLoginSuccess(isNewUser);
                               } catch (e) {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -257,7 +264,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 18),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               elevation: 8,
-                              shadowColor: AppColors.primary.withOpacity(0.5),
+                              shadowColor: AppColors.primary.withValues(alpha: 0.5),
                             ),
                             child: context.watch<AppState>().isLoading 
                                 ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
@@ -283,16 +290,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: () async {
                               try {
                                 bool isNewUser = await context.read<AppState>().loginWithGoogle();
-                                if (context.mounted) {
-                                  if (isNewUser) {
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(builder: (context) => const OnboardingScreen()),
-                                    );
-                                  } else if (Navigator.canPop(context)) {
-                                    Navigator.pop(context);
-                                  }
-                                }
+                                _onLoginSuccess(isNewUser);
                               } catch (e) {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -308,7 +306,41 @@ class _LoginScreenState extends State<LoginScreen> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             ),
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 12),
+
+                          // Apple Button (Apple App Store Guideline 4.8)
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              try {
+                                bool isNewUser = await context.read<AppState>().loginWithApple();
+                                _onLoginSuccess(isNewUser);
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                                }
+                              }
+                            },
+                            icon: const Icon(Icons.apple, size: 28, color: Colors.white),
+                            label: const Text("Continuer avec Apple", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              side: const BorderSide(color: Colors.black),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          // EULA / CGU Notice (Apple Guideline 1.2)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                            child: Text(
+                              "En vous connectant, vous acceptez les Conditions Générales d'Utilisation (CGU / EULA) et la Politique de Confidentialité de BeachMatch.",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: AppColors.textMuted.withValues(alpha: 0.8), fontSize: 10, height: 1.3),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
 
                           // Sign Up link
                           Row(

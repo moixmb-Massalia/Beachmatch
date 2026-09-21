@@ -67,13 +67,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     SwitchListTile(
                       title: const Text("C'est un LIVE 🔴", style: TextStyle(color: Colors.white)),
                       value: isLive,
-                      activeColor: AppColors.coral,
+                      activeThumbColor: AppColors.coral,
                       onChanged: (val) => setStateDialog(() => isLive = val),
                     ),
                     SwitchListTile(
                       title: const Text("Format Short Vertical 📱", style: TextStyle(color: Colors.white)),
                       value: isShort,
-                      activeColor: AppColors.gold,
+                      activeThumbColor: AppColors.gold,
                       onChanged: (val) => setStateDialog(() => isShort = val),
                     ),
                   ],
@@ -133,7 +133,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         backgroundColor: const Color(0xFF0F121A),
         appBar: AppBar(
@@ -157,6 +157,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               Tab(text: "Signalements"),
               Tab(icon: Icon(Icons.shield_rounded, size: 16), text: "Modération"),
               Tab(icon: Icon(Icons.star, size: 16), text: "Présidents"),
+              Tab(icon: Icon(Icons.sports_tennis, size: 16), text: "BeachScore"),
             ],
           ),
         ),
@@ -170,6 +171,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             _buildModerationTab(),
             // Tab 4: Présidents des clubs
             _buildPresidentsTab(),
+            // Tab 5: BeachScore World Tour
+            _buildBeachScoreTab(),
           ],
         ),
       ),
@@ -198,7 +201,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           itemBuilder: (context, index) {
             final item = news[index];
             return Card(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               margin: const EdgeInsets.only(bottom: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: ListTile(
@@ -255,7 +258,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             final date = (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
 
             return Card(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               margin: const EdgeInsets.only(bottom: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Padding(
@@ -326,9 +329,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: _moderationSection == 'courts' ? AppColors.coral : Colors.white.withOpacity(0.08),
+                      color: _moderationSection == 'courts' ? AppColors.coral : Colors.white.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _moderationSection == 'courts' ? AppColors.coral : Colors.white.withOpacity(0.15)),
+                      border: Border.all(color: _moderationSection == 'courts' ? AppColors.coral : Colors.white.withValues(alpha: 0.15)),
                     ),
                     alignment: Alignment.center,
                     child: const Text(
@@ -343,9 +346,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: _moderationSection == 'tournaments' ? AppColors.gold : Colors.white.withOpacity(0.08),
+                      color: _moderationSection == 'tournaments' ? AppColors.gold : Colors.white.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _moderationSection == 'tournaments' ? AppColors.gold : Colors.white.withOpacity(0.15)),
+                      border: Border.all(color: _moderationSection == 'tournaments' ? AppColors.gold : Colors.white.withValues(alpha: 0.15)),
                     ),
                     alignment: Alignment.center,
                     child: const Text(
@@ -360,9 +363,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: _moderationSection == 'suggestions' ? Colors.cyan : Colors.white.withOpacity(0.08),
+                      color: _moderationSection == 'suggestions' ? Colors.cyan : Colors.white.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _moderationSection == 'suggestions' ? Colors.cyan : Colors.white.withOpacity(0.15)),
+                      border: Border.all(color: _moderationSection == 'suggestions' ? Colors.cyan : Colors.white.withValues(alpha: 0.15)),
                     ),
                     alignment: Alignment.center,
                     child: const Text(
@@ -382,9 +385,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.08),
+                color: Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withOpacity(0.15)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
               ),
               child: TextField(
                 controller: _moderationSearchCtrl,
@@ -453,13 +456,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           itemBuilder: (context, index) {
             final court = filtered[index];
             return Card(
-              color: Colors.white.withOpacity(0.08),
+              color: Colors.white.withValues(alpha: 0.08),
               margin: const EdgeInsets.only(bottom: 10),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 leading: CircleAvatar(
-                  backgroundColor: AppColors.coral.withOpacity(0.2),
+                  backgroundColor: AppColors.coral.withValues(alpha: 0.2),
                   child: const Icon(Icons.beach_access_rounded, color: AppColors.coral, size: 20),
                 ),
                 title: Text(court.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
@@ -574,13 +577,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           itemBuilder: (context, index) {
             final tourn = filtered[index];
             return Card(
-              color: Colors.white.withOpacity(0.08),
+              color: Colors.white.withValues(alpha: 0.08),
               margin: const EdgeInsets.only(bottom: 10),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 leading: CircleAvatar(
-                  backgroundColor: AppColors.gold.withOpacity(0.2),
+                  backgroundColor: AppColors.gold.withValues(alpha: 0.2),
                   child: Text(
                     tourn.category.isNotEmpty ? tourn.category : 'BT',
                     style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 11),
@@ -672,7 +675,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.mark_email_read_rounded, size: 54, color: Colors.white.withOpacity(0.2)),
+                Icon(Icons.mark_email_read_rounded, size: 54, color: Colors.white.withValues(alpha: 0.2)),
                 const SizedBox(height: 12),
                 const Text("Aucune suggestion en attente", style: TextStyle(color: Colors.white54, fontSize: 15)),
                 const SizedBox(height: 4),
@@ -695,7 +698,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             final userName = data['userName'] ?? 'Joueur';
 
             return Card(
-              color: Colors.white.withOpacity(0.08),
+              color: Colors.white.withValues(alpha: 0.08),
               margin: const EdgeInsets.only(bottom: 10),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Padding(
@@ -731,7 +734,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.cyan.withOpacity(0.15),
+                        color: Colors.cyan.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -771,9 +774,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
+              color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.15)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
             ),
             child: TextField(
               controller: _presidentSearchCtrl,
@@ -830,7 +833,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.search_off_rounded, color: Colors.white.withOpacity(0.3), size: 48),
+                        Icon(Icons.search_off_rounded, color: Colors.white.withValues(alpha: 0.3), size: 48),
                         const SizedBox(height: 12),
                         Text(
                           _presidentSearchQuery.isNotEmpty
@@ -851,13 +854,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 itemBuilder: (context, index) {
                   final club = clubs[index];
                   return Card(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                     margin: const EdgeInsets.only(bottom: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       leading: CircleAvatar(
-                        backgroundColor: AppColors.gold.withOpacity(0.2),
+                        backgroundColor: AppColors.gold.withValues(alpha: 0.2),
                         child: Text(
                           club.name.isNotEmpty ? club.name[0].toUpperCase() : '?',
                           style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold),
@@ -913,7 +916,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 children: [
                   Text(club.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
                   const SizedBox(height: 4),
-                  Text("Gérer les accès Président", style: TextStyle(color: AppColors.gold.withOpacity(0.9), fontSize: 13)),
+                  Text("Gérer les accès Président", style: TextStyle(color: AppColors.gold.withValues(alpha: 0.9), fontSize: 13)),
                 ],
               ),
               content: SizedBox(
@@ -938,7 +941,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               margin: const EdgeInsets.only(bottom: 6),
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.06),
+                                color: Colors.white.withValues(alpha: 0.06),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Row(
@@ -1023,6 +1026,217 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           },
         );
       },
+    );
+  }
+
+  // ─── BEACHSCORE ADMIN TAB ────────────────────────────────────────────────
+
+  Widget _buildBeachScoreTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore.collection('pro_matches').orderBy('date', descending: true).snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+        }
+        final docs = snapshot.data!.docs;
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final docId = docs[i].id;
+            final status = d['status'] as String? ?? 'SCHEDULED';
+            final team1  = d['team1']  as String? ?? '—';
+            final team2  = d['team2']  as String? ?? '—';
+            final date   = d['date']   as String? ?? '—';
+
+            Color statusColor = Colors.white38;
+            if (status == 'LIVE')     statusColor = Colors.red;
+            if (status == 'FINISHED') statusColor = AppColors.gold;
+
+            return Card(
+              color: Colors.white.withValues(alpha: 0.08),
+              margin: const EdgeInsets.only(bottom: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Date + statut
+                    Row(
+                      children: [
+                        Text(date, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(status, style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    // Équipes
+                    Text(team1, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text('vs', style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                    Text(team2, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 10),
+                    // Boutons actions
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        if (status != 'LIVE')
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              backgroundColor: Colors.red.withValues(alpha: 0.15),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.circle, color: Colors.red, size: 10),
+                            label: const Text('Passer en LIVE', style: TextStyle(color: Colors.red, fontSize: 12)),
+                            onPressed: () => _firestore.collection('pro_matches').doc(docId).update({'status': 'LIVE'}),
+                          ),
+                        if (status == 'LIVE')
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              backgroundColor: AppColors.gold.withValues(alpha: 0.15),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.emoji_events, color: AppColors.gold, size: 14),
+                            label: const Text('Terminer', style: TextStyle(color: AppColors.gold, fontSize: 12)),
+                            onPressed: () => _showFinishMatchDialog(docId, d),
+                          ),
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.white.withValues(alpha: 0.08),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          icon: const Icon(Icons.edit, color: Colors.white70, size: 14),
+                          label: const Text('Score', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                          onPressed: () => _showFinishMatchDialog(docId, d),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showFinishMatchDialog(String docId, Map<String, dynamic> d) {
+    final s1Ctrl = TextEditingController(text: d['set1'] as String? ?? '');
+    final s2Ctrl = TextEditingController(text: d['set2'] as String? ?? '');
+    final s3Ctrl = TextEditingController(text: d['set3'] as String? ?? '');
+    int winner = (d['winner'] as int?) ?? 0;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          backgroundColor: const Color(0xFF141923),
+          title: const Text('Entrer les scores', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Format : score1/score2  (ex: 6/4)', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 12),
+                _scoreField('Set 1 *', s1Ctrl),
+                const SizedBox(height: 8),
+                _scoreField('Set 2', s2Ctrl),
+                const SizedBox(height: 8),
+                _scoreField('Super TB', s3Ctrl),
+                const SizedBox(height: 16),
+                const Text('Vainqueur :', style: TextStyle(color: Colors.white70)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    _winnerBtn(1, winner, (v) => setStateDialog(() => winner = v)),
+                    const SizedBox(width: 10),
+                    _winnerBtn(2, winner, (v) => setStateDialog(() => winner = v)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler', style: TextStyle(color: Colors.white54)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold),
+              onPressed: () {
+                final update = <String, dynamic>{
+                  'status': 'FINISHED',
+                  'winner': winner,
+                  if (s1Ctrl.text.trim().isNotEmpty) 'set1': s1Ctrl.text.trim(),
+                  if (s2Ctrl.text.trim().isNotEmpty) 'set2': s2Ctrl.text.trim(),
+                  if (s3Ctrl.text.trim().isNotEmpty) 'set3': s3Ctrl.text.trim(),
+                };
+                 _firestore.collection('pro_matches').doc(docId).update(update);
+                final nav = Navigator.of(context);
+                final msg = ScaffoldMessenger.of(context);
+                nav.pop();
+                msg.showSnackBar(
+                  const SnackBar(content: Text('✅ Match mis à jour !')),
+                );
+              },
+              child: const Text('Valider', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _scoreField(String label, TextEditingController ctrl) {
+    return TextField(
+      controller: ctrl,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white54),
+        hintText: 'ex: 6/4',
+        hintStyle: const TextStyle(color: Colors.white24),
+        enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+        focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: AppColors.gold)),
+      ),
+    );
+  }
+
+  Widget _winnerBtn(int value, int current, void Function(int) onTap) {
+    final selected = value == current;
+    return GestureDetector(
+      onTap: () => onTap(value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.gold.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: selected ? AppColors.gold : Colors.white24),
+        ),
+        child: Text(
+          'Équipe $value',
+          style: TextStyle(
+            color: selected ? AppColors.gold : Colors.white70,
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
     );
   }
 }

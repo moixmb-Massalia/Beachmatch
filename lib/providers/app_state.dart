@@ -8,11 +8,11 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../models/user.dart';
 import '../models/court.dart';
 import '../models/match.dart';
 import '../models/tournament.dart';
-import '../services/mock_database.dart';
 
 String translateAuthError(String code) {
   switch (code) {
@@ -68,7 +68,7 @@ class AppState extends ChangeNotifier {
           notifyListeners();
         }
       } catch (e) {
-        print("Erreur authStateChanges: $e");
+        debugPrint("Erreur authStateChanges: $e");
       }
     });
   }
@@ -89,7 +89,7 @@ class AppState extends ChangeNotifier {
       _currentPosition = await Geolocator.getCurrentPosition();
       notifyListeners();
     } catch (e) {
-      print("Erreur geolocator: $e");
+      debugPrint("Erreur geolocator: $e");
     }
   }
 
@@ -141,7 +141,7 @@ class AppState extends ChangeNotifier {
     
     try {
       final googleSignIn = GoogleSignIn();
-      await googleSignIn.signOut(); // Force account picker
+      await googleSignIn.signOut().catchError((_) => null); // Force account picker safely
       
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
@@ -195,13 +195,81 @@ class AppState extends ChangeNotifier {
         await loadData();
       }
     } catch (e) {
-      print("Erreur de connexion : $e");
+      debugPrint("Erreur de connexion : $e");
       throw e; // Rethrow to let the UI know it failed
     } finally {
       _isLoading = false;
       notifyListeners();
     }
     return isNewUser;
+  }
+
+  Future<bool> loginWithApple() async {
+    _isLoading = true;
+    notifyListeners();
+    bool isNewUser = false;
+
+    try {
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+
+      final OAuthProvider oAuthProvider = OAuthProvider('apple.com');
+      final AuthCredential credential = oAuthProvider.credential(
+        idToken: appleCredential.identityToken,
+        accessToken: appleCredential.authorizationCode,
+      );
+
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+
+      if (userCredential.user != null) {
+        final userRef = FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid);
+        final userDoc = await userRef.get();
+
+        if (!userDoc.exists) {
+          isNewUser = true;
+          String displayName = "Joueur Apple";
+          if (appleCredential.givenName != null || appleCredential.familyName != null) {
+            displayName = "${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}".trim();
+            if (displayName.isEmpty) displayName = "Joueur Apple";
+          }
+          _currentUser = UserModel(
+            id: userCredential.user!.uid,
+            displayName: displayName,
+            level: 1,
+            eloScore: 0,
+            location: _currentPosition != null ? "Ma Position" : "Non définie",
+            isPremium: false,
+            createdAt: DateTime.now(),
+            isAdmin: userCredential.user!.email == 'moixmb@gmail.com',
+          );
+        } else {
+          _currentUser = UserModel.fromMap(userDoc.data()!, userDoc.id);
+          if (_currentUser!.isBanned) {
+            await FirebaseAuth.instance.signOut();
+            _currentUser = null;
+            throw "Votre compte a été banni.";
+          }
+          if (userCredential.user!.email == 'moixmb@gmail.com') {
+            _currentUser = _currentUser!.copyWith(isAdmin: true);
+            FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).update({'isAdmin': true});
+          }
+        }
+
+        await _updateFCMToken();
+        await loadData();
+      }
+      return isNewUser;
+    } catch (e) {
+      debugPrint("Erreur de connexion Apple : $e");
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<bool> signUpWithEmail(String name, String email, String password) async {
@@ -232,10 +300,10 @@ class AppState extends ChangeNotifier {
         success = true;
       }
     } on FirebaseAuthException catch (e) {
-      print("Erreur d'inscription : ${e.code}");
+      debugPrint("Erreur d'inscription : ${e.code}");
       throw translateAuthError(e.code);
     } catch (e) {
-      print("Erreur d'inscription : $e");
+      debugPrint("Erreur d'inscription : $e");
       throw "Une erreur est survenue lors de l'inscription.";
     } finally {
       _isLoading = false;
@@ -292,10 +360,10 @@ class AppState extends ChangeNotifier {
         await loadData();
       }
     } on FirebaseAuthException catch (e) {
-      print("Erreur de connexion par email : ${e.code}");
+      debugPrint("Erreur de connexion par email : ${e.code}");
       throw translateAuthError(e.code);
     } catch (e) {
-      print("Erreur de connexion par email : $e");
+      debugPrint("Erreur de connexion par email : $e");
       if (e is String) rethrow;
       throw "Une erreur est survenue lors de la connexion.";
     } finally {
@@ -343,7 +411,7 @@ class AppState extends ChangeNotifier {
         }
       }
     } catch (e) {
-      print("Erreur FCM Token: $e");
+      debugPrint("Erreur FCM Token: $e");
     }
   }
 
@@ -476,6 +544,45 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // --- Apple UGC Guideline 1.2: Block / Unblock Users ---
+  Future<void> blockUser(String targetUserId) async {
+    if (_currentUser == null || targetUserId.isEmpty) return;
+    if (_currentUser!.blockedUserIds.contains(targetUserId)) return;
+
+    final updatedBlocked = List<String>.from(_currentUser!.blockedUserIds)..add(targetUserId);
+    _currentUser = _currentUser!.copyWith(blockedUserIds: updatedBlocked);
+    notifyListeners();
+
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).update({
+        'blockedUserIds': FieldValue.arrayUnion([targetUserId]),
+      });
+    } catch (e) {
+      debugPrint("Erreur blockUser: $e");
+    }
+  }
+
+  Future<void> unblockUser(String targetUserId) async {
+    if (_currentUser == null || targetUserId.isEmpty) return;
+    if (!_currentUser!.blockedUserIds.contains(targetUserId)) return;
+
+    final updatedBlocked = List<String>.from(_currentUser!.blockedUserIds)..remove(targetUserId);
+    _currentUser = _currentUser!.copyWith(blockedUserIds: updatedBlocked);
+    notifyListeners();
+
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).update({
+        'blockedUserIds': FieldValue.arrayRemove([targetUserId]),
+      });
+    } catch (e) {
+      debugPrint("Erreur unblockUser: $e");
+    }
+  }
+
+  bool isUserBlocked(String userId) {
+    return _currentUser?.blockedUserIds.contains(userId) ?? false;
+  }
+
   List<UserModel> _players = [];
   List<UserModel> get players => _players;
 
@@ -498,6 +605,7 @@ class AppState extends ChangeNotifier {
     try {
       final tournamentsSnapshot = await FirebaseFirestore.instance
           .collection('tournaments')
+          .limit(100)
           .get()
           .timeout(const Duration(seconds: 12));
 
@@ -506,14 +614,14 @@ class AppState extends ChangeNotifier {
         try {
           list.add(TournamentModel.fromMap(doc.data(), doc.id));
         } catch (e) {
-          print("Erreur parsing tournoi ${doc.id}: $e");
+          debugPrint("Erreur parsing tournoi ${doc.id}: $e");
         }
       }
       if (list.isNotEmpty) {
         _tournaments = list;
       }
     } catch (e) {
-      print("Erreur chargement tournois: $e");
+      debugPrint("Erreur chargement tournois: $e");
       // Fallback offline cache
       try {
         final cacheSnapshot = await FirebaseFirestore.instance
@@ -545,7 +653,7 @@ class AppState extends ChangeNotifier {
           .timeout(const Duration(seconds: 10));
       _courts = courtSnapshot.docs.map((doc) => CourtModel.fromMap(doc.data(), doc.id)).toList();
     } catch (e) {
-      print("Erreur chargement terrains: $e");
+      debugPrint("Erreur chargement terrains: $e");
     }
   }
 
@@ -553,6 +661,7 @@ class AppState extends ChangeNotifier {
     try {
       final usersSnapshot = await FirebaseFirestore.instance
           .collection('users')
+          .limit(80)
           .get()
           .timeout(const Duration(seconds: 10));
       _players = usersSnapshot.docs
@@ -560,7 +669,7 @@ class AppState extends ChangeNotifier {
           .map((doc) => UserModel.fromMap(doc.data(), doc.id))
           .toList();
     } catch (e) {
-      print("Erreur chargement joueurs: $e");
+      debugPrint("Erreur chargement joueurs: $e");
     }
   }
 
@@ -568,11 +677,12 @@ class AppState extends ChangeNotifier {
     try {
       final matchesSnapshot = await FirebaseFirestore.instance
           .collection('matches')
+          .limit(60)
           .get()
           .timeout(const Duration(seconds: 10));
       _matches = matchesSnapshot.docs.map((doc) => MatchModel.fromMap(doc.data(), doc.id)).toList();
     } catch (e) {
-      print("Erreur chargement matchs: $e");
+      debugPrint("Erreur chargement matchs: $e");
     }
   }
 
@@ -853,7 +963,7 @@ class AppState extends ChangeNotifier {
       // Note: ELO scores are managed exclusively by the confirmMatchScore Cloud Function.
       // Do NOT reset them here.
     } catch (e) {
-      print("Erreur nettoyage BDD: $e");
+      debugPrint("Erreur nettoyage BDD: $e");
     }
   }
 
@@ -872,7 +982,7 @@ class AppState extends ChangeNotifier {
         }
       }
     } catch (e) {
-      print("Erreur ou Timeout seed courts: $e");
+      debugPrint("Erreur ou Timeout seed courts: $e");
     }
   }
 
@@ -920,7 +1030,7 @@ class AppState extends ChangeNotifier {
         }
       }
     } catch (e) {
-      print("Erreur ou Timeout seed tournaments: $e");
+      debugPrint("Erreur ou Timeout seed tournaments: $e");
     }
   }
 
@@ -1099,7 +1209,7 @@ class AppState extends ChangeNotifier {
         'isLookingForPartner': newValue,
       });
     } catch (e) {
-      print("Erreur mise à jour recherche partenaire: $e");
+      debugPrint("Erreur mise à jour recherche partenaire: $e");
     }
   }
 
@@ -1125,7 +1235,7 @@ class AppState extends ChangeNotifier {
         'subscribedCourts': currentCourts,
       });
     } catch (e) {
-      print("Erreur mise à jour abonnements terrains: $e");
+      debugPrint("Erreur mise à jour abonnements terrains: $e");
     }
   }
 }

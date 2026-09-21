@@ -1,17 +1,16 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../theme/colors.dart';
-import '../../providers/app_state.dart';
-import '../../models/tournament.dart';
-import '../../models/live_match_model.dart';
 import '../../services/sound_service.dart';
-import 'match_tracker_screen.dart';
-import 'referee_live_score_screen.dart';
 
-/// Écran Officiel BeachScore World Tour (Flux Réel ITF / FFT Connecté à Firestore + Cache Résilient)
+/// 🏆 Écran Officiel BeachScore World Tour
+/// Cycle de vie dynamique 100% temporel :
+/// - ⏳ Programme (À Venir) : Matchs futurs uniquement. Disparaissent automatiquement dès que l'horaire est dépassé.
+/// - 🔴 En Direct & Vidéos : Matchs en cours avec flux vidéo officiel (YouTube ITF / PlayBT / FFT).
+/// - 🏆 Résultats & Palmarès : Matchs terminés avec scores certifiés et vainqueurs.
 class BeachScoreHubScreen extends StatefulWidget {
   const BeachScoreHubScreen({super.key});
 
@@ -19,451 +18,38 @@ class BeachScoreHubScreen extends StatefulWidget {
   State<BeachScoreHubScreen> createState() => _BeachScoreHubScreenState();
 }
 
-class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTickerProviderStateMixin {
+class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerProviderStateMixin {
+  late final TabController _tabController;
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
 
-  String _selectedDay = 'Tous';
-  String _selectedCountry = 'ALL'; // 'ALL', 'BR', 'RE', 'IT', 'ES', 'FR'
+  String _selectedCountry = 'ALL'; // 'ALL', 'FR', 'IT', 'BR', 'ES', 'RE'
   String _selectedDraw = 'ALL'; // 'ALL', 'DH', 'DD', 'DX'
-  String _selectedFilter = 'Tous'; // 'Tous', '🔴 En Direct', '⏳ À venir', '🏆 Finales', 'Terminés'
-
-  final List<String> _days = ['Tous', 'Aujourd\'hui', 'Demain', 'Ce Week-end', 'Hier'];
-
-  static String formatRound(String? rawRound) {
-    if (rawRound == null || rawRound.trim().isEmpty) return 'Match';
-    final r = rawRound.trim().toLowerCase();
-    if (r.contains('1/32') || r.contains('r64')) return '1/32 de Finale';
-    if (r.contains('1/16') || r.contains('r32')) return '1/16 de Finale';
-    if (r.contains('1/8') || r.contains('r16') || r.contains('huit')) return '1/8 de Finale';
-    if (r.contains('1/4') || r.contains('qf') || r.contains('quart')) return 'Quart de Finale';
-    if (r.contains('1/2') || r.contains('sf') || r.contains('demi')) return 'Demi-Finale';
-    if (r.contains('3e') || r.contains('petite')) return 'Petite Finale (3e place)';
-    if (r.contains('poule') || r.contains('group')) return 'Phase de Poules';
-    if (r.contains('final')) return 'Finale 🏆';
-    return rawRound.trim();
-  }
-
-  static bool isMatchFinished(Map<String, dynamic> m) {
-    final status = (m['status'] as String? ?? '').toUpperCase();
-    if (status == 'FINISHED') return true;
-    if (m['winner'] != null) return true;
-    final time = (m['time'] as String? ?? '').toLowerCase();
-    if (time.contains('termin')) return true;
-    final set1 = m['set1'] as String?;
-    final set2 = m['set2'] as String?;
-    if (status != 'LIVE' && set1 != null && set2 != null && set1.contains('/') && set2.contains('/')) {
-      return true;
-    }
-    return false;
-  }
-
-  static bool isMatchLive(Map<String, dynamic> m) {
-    if (isMatchFinished(m)) return false;
-    final status = (m['status'] as String? ?? '').toUpperCase();
-    if (status == 'LIVE') return true;
-    final time = (m['time'] as String? ?? '').toLowerCase();
-    if (time.contains('direct') || time.contains('live')) return true;
-    return false;
-  }
-
-  static bool isMatchScheduled(Map<String, dynamic> m) {
-    return !isMatchLive(m) && !isMatchFinished(m);
-  }
-
-  static bool isTrueFinal(String? rawRound) {
-    final f = formatRound(rawRound);
-    return f == 'Finale 🏆' || f == 'Petite Finale (3e place)';
-  }
-
-  String _resolveMatchDay(Map<String, dynamic> match) {
-    final dateStr = match['date'];
-    if (dateStr != null && dateStr is String && dateStr.isNotEmpty) {
-      try {
-        final parsed = DateTime.parse(dateStr);
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        final mDate = DateTime(parsed.year, parsed.month, parsed.day);
-        final diff = mDate.difference(today).inDays;
-        if (diff < 0) return 'Hier';
-        if (diff == 0) return 'Aujourd\'hui';
-        if (diff == 1) return 'Demain';
-        return 'Ce Week-end';
-      } catch (_) {}
-    }
-    return (match['day'] as String?) ?? 'Aujourd\'hui';
-  }
 
   final List<Map<String, String>> _countries = [
-    {'id': 'ALL', 'label': '🌍 Tous les Majeurs'},
-    {'id': 'BR', 'label': '🇧🇷 Brésil'},
-    {'id': 'RE', 'label': '🇷🇪 Réunion'},
-    {'id': 'IT', 'label': '🇮🇹 Italie'},
-    {'id': 'ES', 'label': '🇪🇸 Espagne'},
+    {'id': 'ALL', 'label': '🌍 Tous'},
     {'id': 'FR', 'label': '🇫🇷 France'},
+    {'id': 'IT', 'label': '🇮🇹 Italie'},
+    {'id': 'BR', 'label': '🇧🇷 Brésil'},
+    {'id': 'ES', 'label': '🇪🇸 Espagne'},
+    {'id': 'RE', 'label': '🇷🇪 Réunion'},
   ];
 
   final List<Map<String, String>> _draws = [
     {'id': 'ALL', 'label': 'Tous les Tableaux'},
     {'id': 'DH', 'label': 'DH · Double Hommes 👨‍🦱'},
     {'id': 'DD', 'label': 'DD · Double Dames 👩‍🦰'},
-    {'id': 'DX', 'label': 'DX · Double Mixte 👨‍🦱👩‍🦰'},
-  ];
-
-  final List<String> _filters = ['Tous', '🔴 En Direct', '⏳ À venir', '🏆 Finales', 'Terminés'];
-
-  // 🛡️ DONNÉES EMBARQUÉES OFFICIELLES ITF / FFT (Cache Ultra-Rapide & Résilient - Zéro Écran Blanc Garanti)
-  static const List<Map<String, dynamic>> _fallbackTournaments = [
-    {
-      'id': 'itf_bt400_cervia_2026',
-      'name': 'ITF BT 400 Cervia Open (Fantini Club)',
-      'city': 'Cervia (Romagna)',
-      'countryCode': 'IT',
-      'countryName': 'Italie',
-      'countryFlag': '🇮🇹',
-      'category': 'ITF BT 400 🌟',
-      'prizeMoney': '35 000 \$',
-      'surface': 'Fantini Club Arena',
-      'dates': '26 au 30 Août 2026',
-      'order': 1,
-      'isActive': true,
-    },
-    {
-      'id': 'sand_series_saopaulo_2026',
-      'name': 'Sand Series São Paulo Classic',
-      'city': 'São Paulo (SP)',
-      'countryCode': 'BR',
-      'countryName': 'Brésil',
-      'countryFlag': '🇧🇷',
-      'category': 'Sand Series Grand Chelem 🏆',
-      'prizeMoney': '50 000 \$',
-      'surface': 'Arena Beach SP',
-      'dates': '3 au 6 Septembre 2026',
-      'order': 2,
-      'isActive': true,
-    },
-    {
-      'id': 'bt1000_palavas_2026',
-      'name': 'Palavas Beach Tennis Cup · BT 1000 FFT',
-      'city': 'Palavas-les-Flots (Hérault)',
-      'countryCode': 'FR',
-      'countryName': 'France',
-      'countryFlag': '🇫🇷',
-      'category': 'BT 1000 FFT 🌟',
-      'prizeMoney': '10 000 €',
-      'surface': 'Plage des Arènes',
-      'dates': '21 au 23 Août 2026',
-      'order': 3,
-      'isActive': true,
-    },
-    {
-      'id': 'bt1000_dijon_2026',
-      'name': 'BT 1000 Dijon · Ligue BFC',
-      'city': 'Dijon (Côte-d\'Or)',
-      'countryCode': 'FR',
-      'countryName': 'France',
-      'countryFlag': '🇫🇷',
-      'category': 'BT 1000 FFT 🌟',
-      'prizeMoney': '1 500 €',
-      'surface': 'Ligue Bourgogne Franche-Comté',
-      'dates': '19 au 20 Septembre 2026',
-      'order': 4,
-      'isActive': true,
-    },
-    {
-      'id': 'open_france_2026',
-      'name': 'Open de France de Beach Tennis',
-      'city': 'Lamotte-Beuvron (Loir-et-Cher)',
-      'countryCode': 'FR',
-      'countryName': 'France',
-      'countryFlag': '🇫🇷',
-      'category': 'BT 250 FFT',
-      'prizeMoney': 'Dotations officielles FFT',
-      'surface': 'Parc Equestre Fédéral',
-      'dates': '25 au 27 Septembre 2026',
-      'order': 5,
-      'isActive': true,
-    },
-    {
-      'id': 'itf_bt200_barcelona_2026',
-      'name': 'ITF BT 200 Barcelona Summer Open',
-      'city': 'Platja del Bogatell, Barcelone',
-      'countryCode': 'ES',
-      'countryName': 'Espagne',
-      'countryFlag': '🇪🇸',
-      'category': 'ITF BT 200',
-      'prizeMoney': '15 000 \$',
-      'surface': 'Platja Bogatell',
-      'dates': '17 au 19 Août 2026',
-      'order': 6,
-      'isActive': true,
-    },
-    {
-      'id': 'bt1000_saint_pierre_2026',
-      'name': 'Bourbon Beach Cup · BT 1000 FFT',
-      'city': 'Saint-Pierre, La Réunion',
-      'countryCode': 'RE',
-      'countryName': 'Réunion',
-      'countryFlag': '🇷🇪',
-      'category': 'BT 1000 FFT',
-      'prizeMoney': '8 000 €',
-      'surface': 'Plage de Saint-Pierre',
-      'dates': '16 au 18 Août 2026',
-      'order': 7,
-      'isActive': true,
-    },
-  ];
-
-  static const List<Map<String, dynamic>> _fallbackMatches = [
-    // 🇮🇹 ITALIE - ITF BT 400 CERVIA
-    {
-      'id': 'cervia_dh_live',
-      'tournamentId': 'itf_bt400_cervia_2026',
-      'draw': 'DH',
-      'date': '2026-09-09',
-      'day': 'Hier',
-      'round': 'Demi-Finale',
-      'time': 'Terminé 🏆',
-      'court': 'Court Central Fantini',
-      'team1': '[1] M. Cappelletti (ITA) / R. Alessi (ITA)',
-      'team2': '[4] F. Beccaccioli (ITA) / L. Cramarossa (ITA)',
-      'set1': '6/4',
-      'set2': '6/4',
-      'set3': null,
-      'points1': null,
-      'points2': null,
-      'status': 'FINISHED',
-      'winner': 1,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
-      'id': 'cervia_dh_upcoming_final',
-      'tournamentId': 'itf_bt400_cervia_2026',
-      'draw': 'DH',
-      'date': '2026-09-13',
-      'day': 'Ce Week-end',
-      'round': 'Finale 🏆',
-      'time': 'Dimanche 18h00',
-      'court': 'Court Central Fantini',
-      'team1': '[1] M. Cappelletti (ITA) / R. Alessi (ITA)',
-      'team2': '[2] N. Gianotti (FRA) / M. Spoto (ITA)',
-      'set1': null,
-      'set2': null,
-      'set3': null,
-      'status': 'SCHEDULED',
-      'winner': null,
-      'serving': null,
-      'isFeatured': true,
-    },
-    {
-      'id': 'cervia_dd_upcoming_sf',
-      'tournamentId': 'itf_bt400_cervia_2026',
-      'draw': 'DD',
-      'date': '2026-09-13',
-      'day': 'Ce Week-end',
-      'round': 'Demi-Finale',
-      'time': 'Dimanche 15h30',
-      'court': 'Court 1',
-      'team1': '[1] G. Gasparri (ITA) / N. Valentini (ITA)',
-      'team2': '[3] V. Casadei (ITA) / E. Giusti (ITA)',
-      'set1': null,
-      'set2': null,
-      'set3': null,
-      'status': 'SCHEDULED',
-      'winner': null,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
-      'id': 'cervia_dh_qf',
-      'tournamentId': 'itf_bt400_cervia_2026',
-      'draw': 'DH',
-      'date': '2026-08-28',
-      'day': 'Hier',
-      'round': 'Quart de Finale',
-      'time': 'Terminé 🏆',
-      'court': 'Court Central Fantini',
-      'team1': '[1] M. Cappelletti (ITA) / R. Alessi (ITA)',
-      'team2': '[6] A. Bolletta (ITA) / M. Faccini (ITA)',
-      'set1': '6/3',
-      'set2': '7/5',
-      'set3': null,
-      'status': 'FINISHED',
-      'winner': 1,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
-      'id': 'cervia_dd_r16_1',
-      'tournamentId': 'itf_bt400_cervia_2026',
-      'draw': 'DD',
-      'date': '2026-08-26',
-      'day': 'Hier',
-      'round': '1/8 de Finale',
-      'time': 'Terminé 🏆',
-      'court': 'Court 2',
-      'team1': '[1] G. Gasparri (ITA) / N. Valentini (ITA)',
-      'team2': 'E. Francesconi (ITA) / G. Renzi (ITA)',
-      'set1': '6/1',
-      'set2': '6/2',
-      'set3': null,
-      'status': 'FINISHED',
-      'winner': 1,
-      'serving': null,
-      'isFeatured': false,
-    },
-
-    // 🇫🇷 FRANCE - BT 1000 DIJON (19-20 Septembre 2026)
-    {
-      'id': 'dijon_dh_upcoming_qf',
-      'tournamentId': 'bt1000_dijon_2026',
-      'draw': 'DH',
-      'date': '2026-09-19',
-      'day': 'Ce Week-end',
-      'round': 'Quart de Finale',
-      'time': 'Samedi 14h00',
-      'court': 'Court Central Dijon',
-      'team1': '[1] N. Gianotti (FRA) / M. Guegano (FRA)',
-      'team2': '[8] T. Desaint-Denis (FRA) / P. Busseret (FRA)',
-      'set1': null,
-      'set2': null,
-      'set3': null,
-      'status': 'SCHEDULED',
-      'winner': null,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
-      'id': 'dijon_dh_upcoming_final',
-      'tournamentId': 'bt1000_dijon_2026',
-      'draw': 'DH',
-      'date': '2026-09-20',
-      'day': 'Ce Week-end',
-      'round': 'Finale 🏆',
-      'time': 'Dimanche 17h00',
-      'court': 'Court Central Dijon',
-      'team1': 'Tête de série 1',
-      'team2': 'Tête de série 2',
-      'set1': null,
-      'set2': null,
-      'set3': null,
-      'status': 'SCHEDULED',
-      'winner': null,
-      'serving': null,
-      'isFeatured': false,
-    },
-
-    // 🇫🇷 FRANCE - PALAVAS BEACH TENNIS CUP BT 1000
-    {
-      'id': 'palavas_dh_final',
-      'tournamentId': 'bt1000_palavas_2026',
-      'draw': 'DH',
-      'date': '2026-08-23',
-      'day': 'Hier',
-      'round': 'Finale 🏆',
-      'time': 'Terminé 🏆',
-      'court': 'Court Central Arènes',
-      'team1': '[1] N. Gianotti (FRA) / M. Guegano (FRA)',
-      'team2': '[2] L. Godey (FRA) / A. Begue (FRA)',
-      'set1': '6/4',
-      'set2': '6/3',
-      'set3': null,
-      'status': 'FINISHED',
-      'winner': 1,
-      'serving': null,
-      'isFeatured': false,
-    },
-    {
-      'id': 'palavas_dd_final',
-      'tournamentId': 'bt1000_palavas_2026',
-      'draw': 'DD',
-      'date': '2026-08-23',
-      'day': 'Hier',
-      'round': 'Finale 🏆',
-      'time': 'Terminé 🏆',
-      'court': 'Court Central Arènes',
-      'team1': '[1] L. Jamel (FRA) / A. Hoarau (FRA)',
-      'team2': '[2] M. Garnier (FRA) / C. Palen (FRA)',
-      'set1': '6/2',
-      'set2': '6/3',
-      'set3': null,
-      'status': 'FINISHED',
-      'winner': 1,
-      'serving': null,
-      'isFeatured': false,
-    },
-
-    // 🇪🇸 ESPAGNE - ITF BT 200 BARCELONE
-    {
-      'id': 'bcn_dh_final',
-      'tournamentId': 'itf_bt200_barcelona_2026',
-      'draw': 'DH',
-      'date': '2026-08-19',
-      'day': 'Hier',
-      'round': 'Finale 🏆',
-      'time': 'Terminé 🏆',
-      'court': 'Court Central Bogatell',
-      'team1': '[1] G. Dowsett (ESP) / B. Bailer (ESP)',
-      'team2': '[2] J. Chaparro (ESP) / E. Polidori (ITA)',
-      'set1': '6/4',
-      'set2': '7/5',
-      'set3': null,
-      'status': 'FINISHED',
-      'winner': 1,
-      'serving': null,
-      'isFeatured': false,
-    },
-
-    // 🇷🇪 LA RÉUNION - BOURBON BEACH CUP BT 1000
-    {
-      'id': 'reu_dh_final',
-      'tournamentId': 'bt1000_saint_pierre_2026',
-      'draw': 'DH',
-      'date': '2026-08-18',
-      'day': 'Hier',
-      'round': 'Finale 🏆',
-      'time': 'Terminé 🏆',
-      'court': 'Court Central St-Pierre',
-      'team1': '[1] L. Perrot (FRA) / G. Payet (FRA)',
-      'team2': '[2] M. Hoarau (FRA) / J. Fontaine (FRA)',
-      'set1': '6/4',
-      'set2': '7/5',
-      'set3': null,
-      'status': 'FINISHED',
-      'winner': 1,
-      'serving': null,
-      'isFeatured': false,
-    },
-
-    // 🇧🇷 BRÉSIL - SAND SERIES SÃO PAULO
-    {
-      'id': 'sp_dh_final',
-      'tournamentId': 'sand_series_saopaulo_2026',
-      'draw': 'DH',
-      'date': '2026-09-06',
-      'day': 'Hier',
-      'round': 'Finale 🏆',
-      'time': 'Terminé 🏆',
-      'court': 'Court Central Arena SP',
-      'team1': '[1] A. Ramos (ESP) / T. Burmakin (RUS)',
-      'team2': '[2] M. Spoto (ITA) / N. Gianotti (FRA)',
-      'set1': '6/4',
-      'set2': '7/6',
-      'set3': null,
-      'status': 'FINISHED',
-      'winner': 2,
-      'serving': null,
-      'isFeatured': false,
-    },
+    {'id': 'DX', 'label': 'DX · Double Mixte 🤝'},
   ];
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 900),
     )..repeat(reverse: true);
 
     _pulseAnimation = Tween<double>(begin: 0.85, end: 1.25).animate(
@@ -473,19 +59,118 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
 
   @override
   void dispose() {
+    _tabController.dispose();
     _pulseController.dispose();
     super.dispose();
   }
 
+  /// ⏱️ Résolution dynamique et infaillible du statut du match basée sur l'horloge réelle
+  static String resolveMatchStatus(Map<String, dynamic> m) {
+    final explicitStatus = (m['status'] as String? ?? '').toUpperCase();
+    if (explicitStatus == 'FINISHED' || m['winner'] != null) {
+      return 'FINISHED';
+    }
+
+    DateTime? scheduledAt;
+    if (m['scheduledAt'] is Timestamp) {
+      scheduledAt = (m['scheduledAt'] as Timestamp).toDate();
+    } else if (m['date'] != null) {
+      final dateStr = m['date'].toString();
+      final timeStr = m['time']?.toString() ?? '12:00';
+      final cleanTime = timeStr.replaceAll('h', ':').replaceAll(RegExp(r'[^0-9:]'), '');
+      try {
+        final dateParts = dateStr.split('-');
+        final timeParts = cleanTime.contains(':') ? cleanTime.split(':') : ['12', '00'];
+        if (dateParts.length == 3) {
+          scheduledAt = DateTime(
+            int.parse(dateParts[0]),
+            int.parse(dateParts[1]),
+            int.parse(dateParts[2]),
+            int.parse(timeParts[0]),
+            timeParts.length > 1 ? int.parse(timeParts[1]) : 0,
+          );
+        }
+      } catch (_) {}
+    }
+
+    if (scheduledAt != null) {
+      final now = DateTime.now();
+      // Match dans le futur -> Toujours À VENIR
+      if (now.isBefore(scheduledAt)) {
+        return 'SCHEDULED';
+      }
+      // Match en cours (dans les 2h30 suivant le coup d'envoi) -> EN DIRECT
+      if (now.isAfter(scheduledAt) && now.isBefore(scheduledAt.add(const Duration(hours: 2, minutes: 30)))) {
+        return 'LIVE';
+      }
+      // L'horaire est dépassé depuis plus de 2h30 -> Bascule automatiquement en TERMINÉ
+      return 'FINISHED';
+    }
+
+    if (explicitStatus == 'LIVE') return 'LIVE';
+    return 'SCHEDULED';
+  }
+
+  static String formatRound(String? rawRound) {
+    if (rawRound == null || rawRound.trim().isEmpty) return 'Match Officiel';
+    final r = rawRound.trim().toLowerCase();
+    if (r.contains('1/32') || r.contains('r64')) return '1/32 de Finale';
+    if (r.contains('1/16') || r.contains('r32')) return '1/16 de Finale';
+    if (r.contains('1/8') || r.contains('r16')) return '1/8 de Finale';
+    if (r.contains('1/4') || r.contains('qf')) return 'Quart de Finale';
+    if (r.contains('1/2') || r.contains('sf')) return 'Demi-Finale';
+    if (r.contains('final')) return 'Finale 🏆';
+    return rawRound.trim();
+  }
+
+  String _formatMatchSchedule(Map<String, dynamic> m) {
+    final dateStr = m['date'] as String? ?? '';
+    final timeStr = m['time'] as String? ?? '';
+    if (dateStr.isEmpty) return timeStr;
+
+    try {
+      final parts = dateStr.split('-');
+      if (parts.length == 3) {
+        final d = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final matchDay = DateTime(d.year, d.month, d.day);
+        final diff = matchDay.difference(today).inDays;
+
+        String prefix;
+        if (diff == 0) {
+          prefix = "Aujourd'hui";
+        } else if (diff == 1) {
+          prefix = "Demain";
+        } else if (diff > 1 && diff <= 6) {
+          const days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+          prefix = days[d.weekday - 1];
+        } else {
+          prefix = "${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}";
+        }
+
+        return timeStr.isNotEmpty ? "$prefix à $timeStr" : prefix;
+      }
+    } catch (_) {}
+    return "$dateStr $timeStr".trim();
+  }
+
+  Future<void> _openStream(String? url) async {
+    if (url == null || url.isEmpty) return;
+    final uri = Uri.parse(url);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AppState>().currentUser;
-    final bool canReferee = user != null && user.canReferee;
-
     return Scaffold(
       backgroundColor: const Color(0xFF0A0F1D),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0F1D),
+        backgroundColor: const Color(0xFF0F172A),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
@@ -498,12 +183,12 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
               child: Container(
                 width: 10,
                 height: 10,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: Colors.redAccent,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.redAccent.withOpacity(0.8),
+                      color: Colors.redAccent,
                       blurRadius: 8,
                       spreadRadius: 2,
                     ),
@@ -517,10 +202,10 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
               children: [
                 Text(
                   "BeachScore World Tour",
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: -0.2),
+                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: -0.2),
                 ),
                 Text(
-                  "Directs & Résultats Réels (ITF / FFT)",
+                  "Programme, Lives & Palmarès Officiels",
                   style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold),
                 ),
               ],
@@ -541,7 +226,7 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
                     children: [
                       Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 18),
                       SizedBox(width: 8),
-                      Text("Actualisation des scores en cours...", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      Text("Scores et programmes synchronisés !", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   backgroundColor: const Color(0xFF16253B),
@@ -553,943 +238,572 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with SingleTi
             },
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            color: const Color(0xFF0F172A),
+            child: TabBar(
+              controller: _tabController,
+              indicatorColor: AppColors.gold,
+              indicatorWeight: 3,
+              labelColor: AppColors.gold,
+              unselectedLabelColor: Colors.white70,
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              tabs: const [
+                Tab(
+                  icon: Icon(Icons.schedule_rounded, size: 16),
+                  text: "Programme",
+                ),
+                Tab(
+                  icon: Icon(Icons.live_tv_rounded, size: 16),
+                  text: "En Direct",
+                ),
+                Tab(
+                  icon: Icon(Icons.emoji_events_rounded, size: 16),
+                  text: "Résultats",
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('pro_tournaments').orderBy('order').snapshots(),
-        builder: (context, tournamentsSnapshot) {
-          return StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('pro_matches').snapshots(),
-            builder: (context, matchesSnapshot) {
-              // 1. Extraction des Tournois Réels (Firestore si dispo, sinon Cache Résilient)
-              List<Map<String, dynamic>> allTournaments = _fallbackTournaments;
-              if (tournamentsSnapshot.hasData && tournamentsSnapshot.data!.docs.isNotEmpty) {
-                allTournaments = tournamentsSnapshot.data!.docs
-                    .map((d) => d.data() as Map<String, dynamic>)
-                    .toList();
-              }
+      body: Stack(
+        children: [
+          // Immersion Beach Background
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/beach_sunset_players_1785052273648.jpg',
+              fit: BoxFit.cover,
+              cacheWidth: 1080,
+            ),
+          ),
+          Positioned.fill(
+            child: Container(
+              color: const Color(0xFF0A0F1D).withValues(alpha: 0.88),
+            ),
+          ),
 
-              // 2. Extraction des Matchs Réels (Firestore si dispo, sinon Cache Résilient)
-              List<Map<String, dynamic>> allMatches = _fallbackMatches;
-              if (matchesSnapshot.hasData && matchesSnapshot.data!.docs.isNotEmpty) {
-                allMatches = matchesSnapshot.data!.docs
-                    .map((d) => d.data() as Map<String, dynamic>)
-                    .toList();
-              }
+          SafeArea(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('pro_tournaments').orderBy('order').snapshots(),
+              builder: (context, tournamentsSnap) {
+                return StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance.collection('pro_matches').limit(60).snapshots(),
+                  builder: (context, matchesSnap) {
+                    final tournaments = tournamentsSnap.hasData && tournamentsSnap.data!.docs.isNotEmpty
+                        ? tournamentsSnap.data!.docs.map((d) => d.data() as Map<String, dynamic>).toList()
+                        : <Map<String, dynamic>>[];
 
-              // Filtrer les tournois par Pays
-              final filteredTournaments = allTournaments.where((t) {
-                if (_selectedCountry == 'ALL') return true;
-                return t['countryCode'] == _selectedCountry;
-              }).toList();
+                    final allMatches = matchesSnap.hasData && matchesSnap.data!.docs.isNotEmpty
+                        ? matchesSnap.data!.docs.map((d) => d.data() as Map<String, dynamic>).toList()
+                        : <Map<String, dynamic>>[];
 
-              // Filtrer les matchs par Jour, Tableau et Statut
-              final Map<String, List<Map<String, dynamic>>> matchesByTournament = {};
-              Map<String, dynamic>? liveFeaturedMatch;
-              Map<String, dynamic>? featuredTournament;
+                    // Map des tournois par ID pour enrichir les matchs
+                    final tourneyMap = {for (var t in tournaments) (t['id'] as String? ?? ''): t};
 
-              for (final t in filteredTournaments) {
-                final tId = t['id'] as String;
-                final tMatches = allMatches.where((m) => m['tournamentId'] == tId).toList();
+                    // Filtrer selon Pays et Tableau
+                    final filteredMatches = allMatches.where((m) {
+                      final t = tourneyMap[m['tournamentId']] ?? {};
+                      final country = (t['countryCode'] as String? ?? '').toUpperCase();
+                      if (_selectedCountry != 'ALL' && country != _selectedCountry) return false;
 
-                // Filtrage dynamique par Jour
-                var list = _selectedDay == 'Tous'
-                    ? tMatches
-                    : tMatches.where((m) => _resolveMatchDay(m) == _selectedDay).toList();
+                      final draw = (m['draw'] as String? ?? '').toUpperCase();
+                      if (_selectedDraw != 'ALL' && draw != _selectedDraw) return false;
 
-                // Filtrage strict par Tableau (DH / DD / DX)
-                if (_selectedDraw != 'ALL') {
-                  list = list.where((m) => m['draw'] == _selectedDraw).toList();
-                }
+                      return true;
+                    }).toList();
 
-                // Filtrage strict par Statut
-                if (_selectedFilter == '🔴 En Direct') {
-                  list = list.where(isMatchLive).toList();
-                } else if (_selectedFilter == '⏳ À venir') {
-                  list = list.where(isMatchScheduled).toList();
-                } else if (_selectedFilter == '🏆 Finales') {
-                  list = list.where((m) => isTrueFinal(m['round'])).toList();
-                } else if (_selectedFilter == 'Terminés') {
-                  list = list.where(isMatchFinished).toList();
-                }
+                    // Répartition dynamique selon le cycle temporel
+                    final scheduledMatches = filteredMatches
+                        .where((m) => resolveMatchStatus(m) == 'SCHEDULED')
+                        .toList();
+                    scheduledMatches.sort((a, b) => (a['date'] ?? '').toString().compareTo((b['date'] ?? '').toString()));
 
-                // Si le tournoi n'a aucun match pour ce filtre / jour, on ne pollue pas la page !
-                if (list.isNotEmpty) {
-                  matchesByTournament[tId] = list;
-                  // Trouver le match vedette en direct s'il existe
-                  for (final m in list) {
-                    if (isMatchLive(m) && liveFeaturedMatch == null) {
-                      liveFeaturedMatch = m;
-                      featuredTournament = t;
-                    }
-                  }
-                }
-              }
+                    final liveMatches = filteredMatches
+                        .where((m) => resolveMatchStatus(m) == 'LIVE')
+                        .toList();
 
-              // Si aucun match n'est en direct, prendre le premier match vedette du filtre sélectionné
-              if (liveFeaturedMatch == null && filteredTournaments.isNotEmpty && matchesByTournament.isNotEmpty) {
-                for (final t in filteredTournaments) {
-                  final list = matchesByTournament[t['id']];
-                  if (list != null && list.isNotEmpty) {
-                    liveFeaturedMatch = list.firstWhere((m) => m['isFeatured'] == true, orElse: () => list.first);
-                    featuredTournament = t;
-                    break;
-                  }
-                }
-              }
+                    final finishedMatches = filteredMatches
+                        .where((m) => resolveMatchStatus(m) == 'FINISHED')
+                        .toList();
+                    finishedMatches.sort((a, b) => (b['date'] ?? '').toString().compareTo((a['date'] ?? '').toString()));
 
-              // Uniquement les tournois ayant des matchs actifs sur la sélection
-              final tournamentsWithMatches = filteredTournaments
-                  .where((t) => matchesByTournament.containsKey(t['id']))
-                  .toList();
+                    return Column(
+                      children: [
+                        _buildFilterBar(),
+                        Expanded(
+                          child: TabBarView(
+                            controller: _tabController,
+                            children: [
+                              // 1. ONGLET PROGRAMME (À VENIR)
+                              _buildMatchesList(
+                                matches: scheduledMatches,
+                                tourneyMap: tourneyMap,
+                                emptyIcon: Icons.calendar_today_rounded,
+                                emptyTitle: "Aucun match à venir pour ces filtres",
+                                emptySubtitle: "Sélectionnez un autre pays ou revenez très vite pour les prochaines affiches !",
+                                type: 'SCHEDULED',
+                              ),
 
-              int totalMatchesCount = 0;
-              for (final l in matchesByTournament.values) {
-                totalMatchesCount += l.length;
-              }
-
-              return RefreshIndicator(
-                color: AppColors.coral,
-                backgroundColor: const Color(0xFF141D30),
-                onRefresh: () async {
-                  HapticFeedback.mediumImpact();
-                  SoundService.playRacketPop();
-                  setState(() {});
-                  await Future.delayed(const Duration(milliseconds: 600));
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Row(
-                          children: [
-                            Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 18),
-                            SizedBox(width: 8),
-                            Text("Scores et tournois actualisés", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        backgroundColor: const Color(0xFF16253B),
-                        duration: const Duration(seconds: 1),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    );
-                  }
-                },
-                child: CustomScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                  slivers: [
-                    // 📅 Ruban Horizontal de Dates (SofaScore / FlashScore Style)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      child: Container(
-                        height: 44,
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF141D30),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.white.withOpacity(0.08)),
-                        ),
-                        child: Row(
-                          children: _days.map((day) {
-                            final isSelected = _selectedDay == day;
-                            return Expanded(
-                              child: GestureDetector(
-                                onTap: () => setState(() => _selectedDay = day),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  decoration: BoxDecoration(
-                                    gradient: isSelected
-                                        ? const LinearGradient(colors: [Color(0xFFE8604C), Color(0xFFF4A535)])
-                                        : null,
-                                    borderRadius: BorderRadius.circular(10),
-                                    boxShadow: isSelected
-                                        ? [
-                                            BoxShadow(
-                                              color: AppColors.coral.withOpacity(0.4),
-                                              blurRadius: 6,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ]
-                                        : null,
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    day,
-                                    style: TextStyle(
-                                      color: isSelected ? Colors.white : Colors.white70,
-                                      fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                                      fontSize: 11.5,
-                                    ),
+                              // 2. ONGLET EN DIRECT (LIVES)
+                              _buildMatchesList(
+                                matches: liveMatches,
+                                tourneyMap: tourneyMap,
+                                emptyIcon: Icons.tv_off_rounded,
+                                emptyTitle: "Aucun match en direct actuellement",
+                                emptySubtitle: "Consultez l'onglet Programme pour voir les affiches de ce week-end et les horaires des diffusions officielles !",
+                                type: 'LIVE',
+                                actionButton: ElevatedButton.icon(
+                                  onPressed: () => _tabController.animateTo(0),
+                                  icon: const Icon(Icons.schedule_rounded, size: 16),
+                                  label: const Text("Voir le Programme des Matchs"),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.gold,
+                                    foregroundColor: Colors.black,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   ),
                                 ),
                               ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
-                  ),
 
-                  // 🌍 Sélecteur Horizontal des 5 Grands Pays
-                  SliverToBoxAdapter(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      child: Row(
-                        children: _countries.map((c) {
-                          final isSelected = _selectedCountry == c['id'];
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: GestureDetector(
-                              onTap: () => setState(() => _selectedCountry = c['id']!),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: isSelected ? AppColors.gold.withOpacity(0.25) : Colors.white.withOpacity(0.05),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: isSelected ? AppColors.gold : Colors.white.withOpacity(0.1),
-                                    width: 1.2,
-                                  ),
-                                ),
-                                child: Text(
-                                  c['label']!,
-                                  style: TextStyle(
-                                    color: isSelected ? AppColors.gold : Colors.white70,
-                                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                                    fontSize: 11.5,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
-
-                  // 🏷️ Sélecteur de Tableaux Officiels (DH / DD / DX)
-                  SliverToBoxAdapter(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      child: Row(
-                        children: _draws.map((d) {
-                          final isSelected = _selectedDraw == d['id'];
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: GestureDetector(
-                              onTap: () => setState(() => _selectedDraw = d['id']!),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: isSelected ? AppColors.coral.withOpacity(0.25) : Colors.white.withOpacity(0.04),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: isSelected ? AppColors.coral : Colors.white.withOpacity(0.1),
-                                    width: 1.2,
-                                  ),
-                                ),
-                                child: Text(
-                                  d['label']!,
-                                  style: TextStyle(
-                                    color: isSelected ? Colors.white : Colors.white60,
-                                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.bold,
-                                    fontSize: 11.5,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
-
-                  // 🏷️ Filtres de statut
-                  SliverToBoxAdapter(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      child: Row(
-                        children: _filters.map((filter) {
-                          final isSelected = _selectedFilter == filter;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: GestureDetector(
-                              onTap: () => setState(() => _selectedFilter = filter),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: isSelected ? Colors.white.withOpacity(0.15) : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: isSelected ? Colors.white70 : Colors.white12,
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Text(
-                                  filter,
-                                  style: TextStyle(
-                                    color: isSelected ? Colors.white : Colors.white54,
-                                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                                    fontSize: 11.5,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
-
-                  // 🌟 CARTE HERO : RENCONTRE VEDETTE RÉELLE (SofaScore / FlashScore Style)
-                  if (liveFeaturedMatch != null && featuredTournament != null)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        child: _buildRealFeaturedMatchHero(featuredTournament, liveFeaturedMatch),
-                      ),
-                    ),
-
-                  // 🏆 TITRE DU CALENDRIER
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.calendar_month_rounded, color: AppColors.gold, size: 18),
-                          const SizedBox(width: 8),
-                          Text(
-                            "TOURNOIS MAJEURS ACTIFS · $_selectedDay ($totalMatchesCount)",
-                            style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w900, letterSpacing: 0.5),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // Si aucun match ne correspond aux filtres
-                  if (tournamentsWithMatches.isEmpty)
-                    SliverToBoxAdapter(
-                      child: Container(
-                        margin: const EdgeInsets.all(24),
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF141D30),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withOpacity(0.08)),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              _selectedFilter == '🔴 En Direct' ? Icons.live_tv_rounded : Icons.sports_tennis_rounded,
-                              color: AppColors.gold,
-                              size: 38,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              _selectedFilter == '🔴 En Direct'
-                                  ? "Aucun match en direct actuellement"
-                                  : "Aucun match programmé pour ce filtre",
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _selectedFilter == '🔴 En Direct'
-                                  ? "Les rencontres en direct apparaîtront automatiquement dès le coup d'envoi. Retrouvez les chocs à venir et les résultats officiels ci-dessous."
-                                  : "Sélectionnez un autre jour ou un autre pays pour consulter les résultats et le programme.",
-                              style: const TextStyle(color: Colors.white60, fontSize: 12),
-                              textAlign: TextAlign.center,
-                            ),
-                            if (_selectedFilter == '🔴 En Direct') ...[
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                onPressed: () {
-                                  HapticFeedback.lightImpact();
-                                  setState(() => _selectedFilter = 'Tous');
-                                },
-                                icon: const Icon(Icons.sports_tennis_rounded, size: 16, color: Colors.black),
-                                label: const Text("Voir le programme & les résultats", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13)),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.gold,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                                ),
+                              // 3. ONGLET RÉSULTATS (PALMARÈS)
+                              _buildMatchesList(
+                                matches: finishedMatches,
+                                tourneyMap: tourneyMap,
+                                emptyIcon: Icons.emoji_events_outlined,
+                                emptyTitle: "Aucun résultat enregistré",
+                                emptySubtitle: "Les scores des matchs joués apparaîtront ici dès la validation officielle.",
+                                type: 'FINISHED',
                               ),
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                    )
-                  else
-                    // Liste des Tournois & Rencontres Réelles
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final t = tournamentsWithMatches[index];
-                          final matches = matchesByTournament[t['id']] ?? [];
-
-                          return Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  const Color(0xFF0F1B29).withOpacity(0.98),
-                                  const Color(0xFF16253B).withOpacity(0.92),
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.white.withOpacity(0.12)),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.25),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // En-tête Tournoi Pro
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.05),
-                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                                    border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.06))),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Text(t['countryFlag'] ?? '🌍', style: const TextStyle(fontSize: 22)),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              t['name'] ?? '',
-                                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            Text(
-                                              "${t['city']} · ${t['category']} (${t['prizeMoney']})",
-                                              style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withOpacity(0.08),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          t['dates'] ?? '',
-                                          style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                // Liste des vrais matchs de ce tournoi
-                                ...matches.map((m) => _buildScheduleMatchTile(t, m, canReferee)),
-                              ],
-                            ),
-                          );
-                        },
-                        childCount: tournamentsWithMatches.length,
-                      ),
-                    ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 36)),
-                ],
-                ),
-              );
-            },
-          );
-        },
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  // 🌟 Carte Hero Match Vedette (100% Connectée sans faux score simulé)
-  Widget _buildRealFeaturedMatchHero(Map<String, dynamic> tournament, Map<String, dynamic> match) {
-    final bool isLive = isMatchLive(match);
-    final bool isFinished = isMatchFinished(match);
-    final bool isScheduled = isMatchScheduled(match);
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => MatchTrackerScreen(match: match, tournament: tournament),
+  Widget _buildFilterBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A).withValues(alpha: 0.85),
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1,
           ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF16253B), Color(0xFF1E3352)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: isLive ? Colors.redAccent.withOpacity(0.8) : AppColors.gold.withOpacity(0.6),
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.5),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Badge En-Tête
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFFE8604C), Color(0xFFF4A535)]),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(tournament['countryFlag'] ?? '🌍', style: const TextStyle(fontSize: 12)),
-                      const SizedBox(width: 4),
-                      Text(
-                        isLive
-                            ? "CHOC EN DIRECT 🔴"
-                            : (isFinished ? "RÉSULTAT OFFICIEL 🏆" : "PROCHAIN CHOC ⏳"),
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 10.5),
-                      ),
-                    ],
-                  ),
-                ),
-                if (isLive)
-                  Row(
-                    children: [
-                      ScaleTransition(
-                        scale: _pulseAnimation,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Text("EN DIRECT 🔴", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w900, fontSize: 11)),
-                    ],
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        children: [
+          // 🌍 1ère Rangée : Filtre Pays
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: _countries.map((c) {
+                final isSelected = _selectedCountry == c['id'];
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(c['label']!),
+                    selected: isSelected,
+                    onSelected: (_) => setState(() => _selectedCountry = c['id']!),
+                    selectedColor: AppColors.gold,
+                    backgroundColor: Colors.black.withValues(alpha: 0.6),
+                    side: BorderSide(
+                      color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.35),
+                      width: isSelected ? 1.5 : 1.0,
                     ),
-                    child: Text(
-                      isFinished ? "TERMINÉ 🏆" : (match['time'] ?? 'À venir'),
-                      style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 11),
+                    labelStyle: TextStyle(
+                      color: isSelected ? Colors.black : Colors.white,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                      fontSize: 12,
                     ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    showCheckmark: false,
                   ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 6),
+          // 🏆 2ème Rangée : Filtre Tableaux (DH, DD, DX)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: _draws.map((d) {
+                final isSelected = _selectedDraw == d['id'];
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(d['label']!),
+                    selected: isSelected,
+                    onSelected: (_) => setState(() => _selectedDraw = d['id']!),
+                    selectedColor: AppColors.coral,
+                    backgroundColor: Colors.black.withValues(alpha: 0.45),
+                    side: BorderSide(
+                      color: isSelected ? AppColors.coral : Colors.white.withValues(alpha: 0.25),
+                      width: isSelected ? 1.5 : 1.0,
+                    ),
+                    labelStyle: TextStyle(
+                      color: Colors.white,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontSize: 11,
+                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    showCheckmark: false,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMatchesList({
+    required List<Map<String, dynamic>> matches,
+    required Map<String, dynamic> tourneyMap,
+    required IconData emptyIcon,
+    required String emptyTitle,
+    required String emptySubtitle,
+    required String type,
+    Widget? actionButton,
+  }) {
+    if (matches.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(emptyIcon, size: 54, color: Colors.white24),
+              const SizedBox(height: 16),
+              Text(
+                emptyTitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                emptySubtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white60, fontSize: 13),
+              ),
+              if (actionButton != null) ...[
+                const SizedBox(height: 20),
+                actionButton,
               ],
-            ),
-            const SizedBox(height: 10),
-
-            Text(
-              "${tournament['name']} · ${match['court'] ?? 'Court Central'}",
-              style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-            Text(
-              "${formatRound(match['round'])} · ${match['draw'] == 'DD' ? 'Double Dames' : (match['draw'] == 'DX' ? 'Double Mixte' : 'Double Hommes')}",
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16.5),
-            ),
-            const SizedBox(height: 16),
-
-            // Matchup Face à Face
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.35),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      if (isLive && match['serving'] == 1)
-                        const Text("🎾 ", style: TextStyle(fontSize: 14))
-                      else
-                        const SizedBox(width: 14),
-                      Expanded(
-                        child: Text(
-                          match['team1'] ?? '',
-                          style: TextStyle(
-                            color: (isFinished && match['winner'] == 1) ? AppColors.gold : Colors.white,
-                            fontWeight: (isFinished && match['winner'] == 1) ? FontWeight.w900 : FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                      if (isScheduled) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.gold.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            match['time'] ?? 'Programmé',
-                            style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 11),
-                          ),
-                        ),
-                      ] else ...[
-                        if (match['set1'] != null) ...[
-                          _buildScorePill(match['set1'].split('/')[0], isActive: isLive && match['set2'] == null),
-                          const SizedBox(width: 6),
-                        ],
-                        if (match['set2'] != null) ...[
-                          _buildScorePill(match['set2'].split('/')[0], isActive: isLive && match['set3'] == null),
-                          const SizedBox(width: 6),
-                        ],
-                        if (match['set3'] != null) ...[
-                          _buildScorePill(match['set3'].split('/')[0], isActive: isLive),
-                        ],
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Divider(color: Colors.white.withOpacity(0.08), height: 1),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      if (isLive && match['serving'] == 2)
-                        const Text("🎾 ", style: TextStyle(fontSize: 14))
-                      else
-                        const SizedBox(width: 14),
-                      Expanded(
-                        child: Text(
-                          match['team2'] ?? '',
-                          style: TextStyle(
-                            color: (isFinished && match['winner'] == 2) ? AppColors.gold : Colors.white,
-                            fontWeight: (isFinished && match['winner'] == 2) ? FontWeight.w900 : FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                      if (isScheduled) ...[
-                        const Text(
-                          "⏳ À venir",
-                          style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold),
-                        ),
-                      ] else ...[
-                        if (match['set1'] != null) ...[
-                          _buildScorePill(match['set1'].split('/')[1], isActive: isLive && match['set2'] == null),
-                          const SizedBox(width: 6),
-                        ],
-                        if (match['set2'] != null) ...[
-                          _buildScorePill(match['set2'].split('/')[1], isActive: isLive && match['set3'] == null),
-                          const SizedBox(width: 6),
-                        ],
-                        if (match['set3'] != null) ...[
-                          _buildScorePill(match['set3'].split('/')[1], isActive: isLive),
-                        ],
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  // 📋 Ligne de Rencontre Réelle
-  Widget _buildScheduleMatchTile(Map<String, dynamic> tournament, Map<String, dynamic> match, bool canReferee) {
-    final isLive = isMatchLive(match);
-    final isFinished = isMatchFinished(match);
-    final isScheduled = isMatchScheduled(match);
-    final draw = match['draw'] ?? 'DH';
-
-    Color team1Color = Colors.white;
-    Color team2Color = Colors.white;
-    FontWeight team1Weight = FontWeight.bold;
-    FontWeight team2Weight = FontWeight.bold;
-
-    if (isFinished) {
-      if (match['winner'] == 1) {
-        team1Color = AppColors.gold;
-        team1Weight = FontWeight.w900;
-        team2Color = Colors.white60;
-        team2Weight = FontWeight.w500;
-      } else if (match['winner'] == 2) {
-        team2Color = AppColors.gold;
-        team2Weight = FontWeight.w900;
-        team1Color = Colors.white60;
-        team1Weight = FontWeight.w500;
-      }
-    } else if (isScheduled) {
-      team1Color = Colors.white70;
-      team2Color = Colors.white70;
-      team1Weight = FontWeight.w600;
-      team2Weight = FontWeight.w600;
+      );
     }
 
-    Color drawColor = AppColors.coral;
-    if (draw == 'DD') drawColor = const Color(0xFFFF5E7E);
-    if (draw == 'DX') drawColor = const Color(0xFF00D2FF);
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => MatchTrackerScreen(match: match, tournament: tournament),
-          ),
-        );
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+      itemCount: matches.length,
+      itemBuilder: (context, index) {
+        final m = matches[index];
+        final t = tourneyMap[m['tournamentId']] ?? {};
+        return _buildMatchCard(m, t, type);
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.06))),
+    );
+  }
+
+  Widget _buildMatchCard(Map<String, dynamic> m, Map<String, dynamic> t, String type) {
+    final countryFlag = (t['countryFlag'] as String?) ?? '🌍';
+    final tourneyName = (t['name'] as String?) ?? 'Tournoi International';
+    final category = (t['category'] as String?) ?? 'ITF';
+    final streamUrl = (m['streamUrl'] as String?) ?? (t['streamUrl'] as String?);
+    final court = (m['court'] as String?) ?? 'Court Central';
+    final round = formatRound(m['round'] as String?);
+
+    final team1 = (m['team1'] as String?) ?? 'Paire A';
+    final team2 = (m['team2'] as String?) ?? 'Paire B';
+    final winner = m['winner'] as int?;
+
+    final set1 = m['set1'] as String?;
+    final set2 = m['set2'] as String?;
+    final set3 = m['set3'] as String?;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF131D31).withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: type == 'LIVE'
+              ? Colors.redAccent.withValues(alpha: 0.7)
+              : (type == 'FINISHED' ? AppColors.gold.withValues(alpha: 0.35) : Colors.white.withValues(alpha: 0.15)),
+          width: type == 'LIVE' ? 1.6 : 1.0,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Heure + Badge Tableau (DH/DD/DX) + Tour + Court
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        boxShadow: [
+          BoxShadow(
+            color: type == 'LIVE' ? Colors.redAccent.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // En-tête Tournoi & Tour
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
-                      decoration: BoxDecoration(
-                        color: drawColor.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(5),
-                        border: Border.all(color: drawColor.withOpacity(0.5), width: 1),
-                      ),
-                      child: Text(
-                        draw,
-                        style: TextStyle(color: drawColor, fontSize: 10, fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: isLive
-                            ? Colors.redAccent
-                            : (isFinished ? Colors.white.withOpacity(0.08) : AppColors.gold.withOpacity(0.15)),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        isLive ? "🔴 EN DIRECT" : (isFinished ? "TERMINÉ 🏆" : (match['time'] ?? 'Programmé')),
-                        style: TextStyle(
-                          color: isLive ? Colors.white : (isFinished ? Colors.white70 : AppColors.gold),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
+                    Text(countryFlag, style: const TextStyle(fontSize: 16)),
                     const SizedBox(width: 8),
-                    Text(
-                      "${formatRound(match['round'])} · ${match['court'] ?? 'Court Central'}",
-                      style: const TextStyle(color: Colors.white54, fontSize: 11.5, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-
-                // Bouton d'Arbitrage (Uniquement visible pour arbitres certifiés)
-                if (canReferee && (isLive || isScheduled))
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => RefereeLiveScoreScreen(
-                            tournament: TournamentModel(
-                              id: tournament['id'] ?? '',
-                              name: tournament['name'] ?? '',
-                              club: tournament['surface'] ?? '',
-                              location: tournament['city'] ?? '',
-                              country: tournament['countryName'] ?? '',
-                              category: tournament['category'] ?? '',
-                              dateString: tournament['dates'] ?? '',
-                              distance: 0.0,
-                            ),
-                            match: LiveMatchModel(
-                              id: match['id'] ?? '',
-                              tournamentId: tournament['id'] ?? '',
-                              courtName: match['court'] ?? '',
-                              category: draw == 'DD' ? 'Double Dames' : (draw == 'DX' ? 'Double Mixte' : 'Double Messieurs'),
-                              round: formatRound(match['round']),
-                              team1: match['team1'] ?? '',
-                              team2: match['team2'] ?? '',
-                              set1Team1: 0, set1Team2: 0,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.coral.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.coral.withOpacity(0.6)),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.sports_tennis_rounded, color: AppColors.coral, size: 12),
-                          SizedBox(width: 3),
-                          Text("Arbitrer", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                          Text(
+                            tourneyName,
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            "$category · $court",
+                            style: const TextStyle(color: Colors.white60, fontSize: 11),
+                          ),
                         ],
                       ),
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            // Équipe 1
-            Row(
-              children: [
-                if (isLive && match['serving'] == 1)
-                  const Text("🎾 ", style: TextStyle(fontSize: 12))
-                else
-                  const SizedBox(width: 18),
-                Expanded(
-                  child: Text(
-                    match['team1'] ?? '',
-                    style: TextStyle(
-                      color: team1Color,
-                      fontWeight: team1Weight,
-                      fontSize: 13.5,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: type == 'LIVE'
+                            ? Colors.redAccent.withValues(alpha: 0.2)
+                            : (type == 'FINISHED' ? AppColors.gold.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.1)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        round,
+                        style: TextStyle(
+                          color: type == 'LIVE' ? Colors.redAccent : (type == 'FINISHED' ? AppColors.gold : Colors.white70),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  ],
                 ),
-                if (isScheduled) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.06),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      match['time'] ?? "À venir",
-                      style: const TextStyle(color: AppColors.gold, fontSize: 11.5, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ] else ...[
-                  if (match['set1'] != null) ...[
-                    Text(match['set1'].split('/')[0], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5)),
-                    const SizedBox(width: 10),
-                  ],
-                  if (match['set2'] != null) ...[
-                    Text(match['set2'].split('/')[0], style: TextStyle(color: isLive ? AppColors.gold : Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5)),
-                    const SizedBox(width: 10),
-                  ],
-                  if (match['set3'] != null) ...[
-                    Text(match['set3'].split('/')[0], style: TextStyle(color: isLive ? AppColors.gold : Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                    const SizedBox(width: 10),
-                  ],
-                ],
-              ],
-            ),
-            const SizedBox(height: 6),
 
-            // Équipe 2
-            Row(
-              children: [
-                if (isLive && match['serving'] == 2)
-                  const Text("🎾 ", style: TextStyle(fontSize: 12))
-                else
-                  const SizedBox(width: 18),
-                Expanded(
-                  child: Text(
-                    match['team2'] ?? '',
-                    style: TextStyle(
-                      color: team2Color,
-                      fontWeight: team2Weight,
-                      fontSize: 13.5,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                const Divider(color: Colors.white12, height: 20),
+
+                // Tableau des scores (style scoreboard)
+                if (set1 != null) ...[
+                  // En-tête colonnes
+                  Row(
+                    children: [
+                      const Expanded(child: SizedBox()),
+                      _buildSetHeader('S1'),
+                      if (set2 != null) const SizedBox(width: 6),
+                      if (set2 != null) _buildSetHeader('S2'),
+                      if (set3 != null) const SizedBox(width: 6),
+                      if (set3 != null) _buildSetHeader('STB'),
+                    ],
                   ),
-                ),
-                if (isScheduled) ...[
-                  const Text("⏳ À venir", style: TextStyle(color: Colors.white38, fontSize: 11.5, fontWeight: FontWeight.w600)),
-                ] else ...[
-                  if (match['set1'] != null) ...[
-                    Text(match['set1'].split('/')[1], style: const TextStyle(color: Colors.white54, fontWeight: FontWeight.bold, fontSize: 13.5)),
-                    const SizedBox(width: 10),
-                  ],
-                  if (match['set2'] != null) ...[
-                    Text(match['set2'].split('/')[1], style: TextStyle(color: isLive ? AppColors.gold : Colors.white54, fontWeight: FontWeight.bold, fontSize: 13.5)),
-                    const SizedBox(width: 10),
-                  ],
-                  if (match['set3'] != null) ...[
-                    Text(match['set3'].split('/')[1], style: TextStyle(color: isLive ? AppColors.gold : Colors.white54, fontWeight: FontWeight.bold, fontSize: 12)),
-                    const SizedBox(width: 10),
-                  ],
+                  const SizedBox(height: 4),
                 ],
+                _buildTeamRow(
+                  name: team1,
+                  isWinner: winner == 1,
+                  sets: [
+                    if (set1 != null) set1.split('/').first,
+                    if (set2 != null) set2.split('/').first,
+                    if (set3 != null) set3.split('/').first,
+                  ],
+                ),
+                const SizedBox(height: 6),
+                _buildTeamRow(
+                  name: team2,
+                  isWinner: winner == 2,
+                  sets: [
+                    if (set1 != null && set1.contains('/')) set1.split('/').last,
+                    if (set2 != null && set2.contains('/')) set2.split('/').last,
+                    if (set3 != null && set3.contains('/')) set3.split('/').last,
+                  ],
+                ),
+
+                // Pied de carte : Horaire ou Bouton Streaming
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Badge Statut
+                    if (type == 'SCHEDULED')
+                      Row(
+                        children: [
+                          const Icon(Icons.schedule, size: 14, color: AppColors.gold),
+                          const SizedBox(width: 6),
+                          Text(
+                            _formatMatchSchedule(m),
+                            style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      )
+                    else if (type == 'LIVE')
+                      Row(
+                        children: [
+                          ScaleTransition(
+                            scale: _pulseAnimation,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Colors.redAccent,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            "EN DIRECT SUR LE COURT",
+                            style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      )
+                    else
+                      const Row(
+                        children: [
+                          Icon(Icons.check_circle_rounded, size: 14, color: Colors.white54),
+                          SizedBox(width: 6),
+                          Text(
+                            "Match Terminé",
+                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                        ],
+                      ),
+
+                    // Bouton Direct Vidéo (Si stream disponible)
+                    if (streamUrl != null && streamUrl.isNotEmpty)
+                      InkWell(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          _openStream(streamUrl);
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFD32F2F)]),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.redAccent.withValues(alpha: 0.3),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 14),
+                              SizedBox(width: 4),
+                              Text(
+                                "Direct Vidéo HD",
+                                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildScorePill(String score, {required bool isActive}) {
-    return Container(
-      width: 28,
-      height: 28,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: isActive ? AppColors.coral.withOpacity(0.35) : Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: isActive ? AppColors.coral : Colors.white.withOpacity(0.2),
-          width: isActive ? 1.5 : 1,
-        ),
-      ),
+  Widget _buildSetHeader(String label) {
+    return SizedBox(
+      width: 32,
       child: Text(
-        score,
-        style: TextStyle(
-          color: isActive ? AppColors.gold : Colors.white,
-          fontWeight: FontWeight.w900,
-          fontSize: 14,
+        label,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Colors.white38,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
         ),
       ),
+    );
+  }
+
+  Widget _buildTeamRow({
+    required String name,
+    required bool isWinner,
+    List<String> sets = const [],
+  }) {
+    return Row(
+      children: [
+        if (isWinner)
+          const Padding(
+            padding: EdgeInsets.only(right: 6),
+            child: Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 16),
+          )
+        else
+          const SizedBox(width: 22),
+        Expanded(
+          child: Text(
+            name,
+            style: TextStyle(
+              color: isWinner ? AppColors.gold : Colors.white,
+              fontSize: 14,
+              fontWeight: isWinner ? FontWeight.bold : FontWeight.w600,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        ...sets.map((score) => Padding(
+          padding: const EdgeInsets.only(left: 6),
+          child: Container(
+            width: 32,
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: isWinner
+                  ? AppColors.gold.withValues(alpha: 0.2)
+                  : Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              score,
+              style: TextStyle(
+                color: isWinner ? AppColors.gold : Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        )),
+      ],
     );
   }
 }
