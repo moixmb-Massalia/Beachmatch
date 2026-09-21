@@ -44,13 +44,14 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
     {'name': 'Toulon / Var (83) 🌴', 'lat': 43.1242, 'lng': 5.9280},
     {'name': 'Nice / Côte d\'Azur (06) ☀️', 'lat': 43.7102, 'lng': 7.2620},
     {'name': 'Montpellier / Hérault (34) 🌊', 'lat': 43.6108, 'lng': 3.8767},
+    {'name': 'Royan / Didonne (17) 🏖️', 'lat': 45.6025, 'lng': -0.9979},
     {'name': 'Paris / Île-de-France (75) 🗼', 'lat': 48.8566, 'lng': 2.3522},
     {'name': 'Bordeaux / Aquitaine (33) 🍷', 'lat': 44.8378, 'lng': -0.5792},
     {'name': 'Saint-Pierre / La Réunion (974) 🌋', 'lat': -20.8821, 'lng': 55.4507},
+    {'name': 'Saint-Martin / Antilles (971) 🏝️', 'lat': 18.0934, 'lng': -63.0315},
   ];
 
   TournamentModel? _selectedTournament;
-  Map<String, Offset> _blipPositions = {};
 
   @override
   void initState() {
@@ -235,12 +236,12 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppColors.gold.withOpacity(0.12),
+                                  color: AppColors.gold.withValues(alpha: 0.12),
                                   blurRadius: 30,
                                   spreadRadius: 2,
                                 ),
                                 BoxShadow(
-                                  color: Colors.cyanAccent.withOpacity(0.08),
+                                  color: Colors.cyanAccent.withValues(alpha: 0.08),
                                   blurRadius: 50,
                                   spreadRadius: 10,
                                 ),
@@ -259,9 +260,6 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                                     userLng: userLng,
                                     tournaments: validTournaments,
                                     selectedTournament: _selectedTournament,
-                                    onBlipsCalculated: (positions) {
-                                      _blipPositions = positions;
-                                    },
                                   ),
                                 );
                               },
@@ -284,7 +282,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                       ? _buildSelectedTournamentHUDCard(_selectedTournament!, userLat, userLng)
                       : _buildDetectedTournamentsCarousel(validTournaments, userLat, userLng),
                 ),
-                const SizedBox(height: 72),
+                const SizedBox(height: 92),
               ],
             ),
           ),
@@ -304,11 +302,11 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.cyanAccent.withOpacity(0.15),
+                  color: Colors.cyanAccent.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.cyanAccent, width: 1.5),
                   boxShadow: [
-                    BoxShadow(color: Colors.cyanAccent.withOpacity(0.3), blurRadius: 10),
+                    BoxShadow(color: Colors.cyanAccent.withValues(alpha: 0.3), blurRadius: 10),
                   ],
                 ),
                 child: const Icon(Icons.radar_rounded, color: Colors.cyanAccent, size: 20),
@@ -352,9 +350,9 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.12),
+                            color: Colors.white.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.gold.withOpacity(0.5), width: 0.8),
+                            border: Border.all(color: AppColors.gold.withValues(alpha: 0.5), width: 0.8),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -450,7 +448,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: _presetCenters.length,
-                    separatorBuilder: (_, __) => Divider(color: Colors.white.withOpacity(0.08), height: 1),
+                    separatorBuilder: (_, __) => Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
                     itemBuilder: (ctx, i) {
                       final item = _presetCenters[i];
                       final isSelected = (_customCenterName == item['name']) ||
@@ -501,10 +499,10 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
       margin: const EdgeInsets.fromLTRB(16, 2, 16, 6),
       height: 38,
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.55),
+        color: Colors.black.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: _searchQuery.isNotEmpty ? AppColors.gold : Colors.white.withOpacity(0.25),
+          color: _searchQuery.isNotEmpty ? AppColors.gold : Colors.white.withValues(alpha: 0.25),
           width: 1.2,
         ),
       ),
@@ -513,7 +511,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
         style: const TextStyle(color: Colors.white, fontSize: 12.5),
         decoration: InputDecoration(
           hintText: "Rechercher (Duglos, Tennis Park, BT 500, Marseille...)",
-          hintStyle: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11.5),
+          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11.5),
           prefixIcon: const Icon(Icons.search_rounded, color: AppColors.gold, size: 18),
           suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
@@ -568,9 +566,9 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
             ),
             selected: isSelected,
             selectedColor: AppColors.gold,
-            backgroundColor: Colors.black.withOpacity(0.65),
+            backgroundColor: Colors.black.withValues(alpha: 0.65),
             side: BorderSide(
-              color: isSelected ? AppColors.gold : Colors.white.withOpacity(0.35),
+              color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.35),
               width: isSelected ? 1.5 : 1,
             ),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -617,9 +615,9 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
             ),
             selected: isSelected,
             selectedColor: AppColors.coral,
-            backgroundColor: Colors.black.withOpacity(0.5),
+            backgroundColor: Colors.black.withValues(alpha: 0.5),
             side: BorderSide(
-              color: isSelected ? AppColors.coral : Colors.white.withOpacity(0.25),
+              color: isSelected ? AppColors.coral : Colors.white.withValues(alpha: 0.25),
               width: isSelected ? 1.5 : 1,
             ),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -641,14 +639,29 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
   void _handleRadarTap(Offset tapPos, double radarSize, double userLat, double userLng, List<TournamentModel> tournaments) {
     TournamentModel? closest;
     double minDistance = 32.0; // Tolérance de toucher en pixels
+    final center = Offset(radarSize / 2, radarSize / 2);
+    final radius = radarSize / 2;
 
-    _blipPositions.forEach((id, pos) {
-      final dist = (pos - tapPos).distance;
+    for (final t in tournaments) {
+      if (t.latitude == null || t.longitude == null) continue;
+      final distMeters = Geolocator.distanceBetween(userLat, userLng, t.latitude!, t.longitude!);
+      final distKm = distMeters / 1000.0;
+      if (distKm > _selectedRangeKm) continue;
+
+      final r = (distKm / _selectedRangeKm) * (radius * 0.92);
+      final bearingRad = _calculateBearing(userLat, userLng, t.latitude!, t.longitude!);
+      final angleOnCanvas = bearingRad - (math.pi / 2);
+      final blipOffset = Offset(
+        center.dx + r * math.cos(angleOnCanvas),
+        center.dy + r * math.sin(angleOnCanvas),
+      );
+
+      final dist = (blipOffset - tapPos).distance;
       if (dist < minDistance) {
         minDistance = dist;
-        closest = tournaments.firstWhere((t) => t.id == id);
+        closest = t;
       }
-    });
+    }
 
     if (closest != null) {
       HapticFeedback.heavyImpact();
@@ -690,12 +703,12 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A).withOpacity(0.95),
+        color: const Color(0xFF0F172A).withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.cyanAccent.withOpacity(0.5), width: 1.5),
+        border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.5), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.cyanAccent.withOpacity(0.2),
+            color: Colors.cyanAccent.withValues(alpha: 0.2),
             blurRadius: 20,
             spreadRadius: 2,
           ),
@@ -712,7 +725,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Colors.cyanAccent.withOpacity(0.2),
+                  color: Colors.cyanAccent.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Row(
@@ -899,7 +912,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                   Text(
                     "ÉCHOS DÉTECTÉS (${tournaments.length}) · Touchez pour verrouiller",
                     style: TextStyle(
-                      color: Colors.cyanAccent.withOpacity(0.9),
+                      color: Colors.cyanAccent.withValues(alpha: 0.9),
                       fontSize: 10.5,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.8,
@@ -909,7 +922,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
               ),
               Text(
                 "Classés par distance",
-                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 10),
               ),
             ],
           ),
@@ -936,16 +949,27 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                   HapticFeedback.heavyImpact();
                   if (_soundEnabled) SoundService.playRacketPop();
                   _lockController.forward(from: 0.0);
-                  setState(() => _selectedTournament = t);
+                  setState(() {
+                    _selectedTournament = t;
+                    if (km > _selectedRangeKm) {
+                      if (km <= 500) {
+                        _selectedRangeKm = 500.0;
+                      } else if (km <= 1200) {
+                        _selectedRangeKm = 1200.0;
+                      } else {
+                        _selectedRangeKm = 30000.0;
+                      }
+                    }
+                  });
                 },
                 child: Container(
                   width: 255,
                   padding: const EdgeInsets.all(9),
                   decoration: BoxDecoration(
-                    color: isTarget ? const Color(0xFF132238) : const Color(0xFF0F172A).withOpacity(0.9),
+                    color: isTarget ? const Color(0xFF132238) : const Color(0xFF0F172A).withValues(alpha: 0.9),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: isTarget ? AppColors.gold : Colors.white.withOpacity(0.2),
+                      color: isTarget ? AppColors.gold : Colors.white.withValues(alpha: 0.2),
                       width: isTarget ? 1.5 : 1,
                     ),
                   ),
@@ -970,7 +994,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.12),
+                              color: Colors.white.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -1025,7 +1049,6 @@ class TacticalRadarPainter extends CustomPainter {
   final double userLng;
   final List<TournamentModel> tournaments;
   final TournamentModel? selectedTournament;
-  final Function(Map<String, Offset>) onBlipsCalculated;
 
   TacticalRadarPainter({
     required this.sweepAngle,
@@ -1035,7 +1058,6 @@ class TacticalRadarPainter extends CustomPainter {
     required this.userLng,
     required this.tournaments,
     required this.selectedTournament,
-    required this.onBlipsCalculated,
   });
 
   @override
@@ -1051,7 +1073,7 @@ class TacticalRadarPainter extends CustomPainter {
 
     // 2. Cercles de portée concentriques
     final gridPaint = Paint()
-      ..color = Colors.cyanAccent.withOpacity(0.18)
+      ..color = Colors.cyanAccent.withValues(alpha: 0.18)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
 
@@ -1063,7 +1085,7 @@ class TacticalRadarPainter extends CustomPainter {
       final textSpan = TextSpan(
         text: "${(rangeKm * frac).round()} km",
         style: TextStyle(
-          color: Colors.cyanAccent.withOpacity(0.4),
+          color: Colors.cyanAccent.withValues(alpha: 0.4),
           fontSize: 9,
           fontWeight: FontWeight.bold,
         ),
@@ -1076,14 +1098,14 @@ class TacticalRadarPainter extends CustomPainter {
     // 3. Onde sonar pulsante qui s'étend vers l'extérieur
     final pulseRadius = radius * pulseProgress;
     final pulsePaint = Paint()
-      ..color = Colors.cyanAccent.withOpacity((1.0 - pulseProgress) * 0.35)
+      ..color = Colors.cyanAccent.withValues(alpha: (1.0 - pulseProgress) * 0.35)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
     canvas.drawCircle(center, pulseRadius, pulsePaint);
 
     // 4. Lignes d'axes cardinaux (N, S, E, W)
     final axisPaint = Paint()
-      ..color = Colors.cyanAccent.withOpacity(0.20)
+      ..color = Colors.cyanAccent.withValues(alpha: 0.20)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
     canvas.drawLine(Offset(center.dx, 0), Offset(center.dx, size.height), axisPaint);
@@ -1105,9 +1127,9 @@ class TacticalRadarPainter extends CustomPainter {
       Offset.zero,
       [
         Colors.transparent,
-        Colors.cyanAccent.withOpacity(0.0),
-        Colors.cyanAccent.withOpacity(0.08),
-        Colors.cyanAccent.withOpacity(0.35),
+        Colors.cyanAccent.withValues(alpha: 0.0),
+        Colors.cyanAccent.withValues(alpha: 0.08),
+        Colors.cyanAccent.withValues(alpha: 0.35),
       ],
       [0.0, 0.7, 0.88, 1.0],
     );
@@ -1120,7 +1142,7 @@ class TacticalRadarPainter extends CustomPainter {
 
     // Ligne frontale du faisceau
     final linePaint = Paint()
-      ..color = Colors.cyanAccent.withOpacity(0.9)
+      ..color = Colors.cyanAccent.withValues(alpha: 0.9)
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke
       ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 2);
@@ -1129,8 +1151,6 @@ class TacticalRadarPainter extends CustomPainter {
     canvas.restore();
 
     // 6. Dessin des échos de tournois (Blips)
-    final Map<String, Offset> calculatedPositions = {};
-
     for (final t in tournaments) {
       if (t.latitude == null || t.longitude == null) continue;
 
@@ -1149,8 +1169,6 @@ class TacticalRadarPainter extends CustomPainter {
       final blipX = center.dx + r * math.cos(angleOnCanvas);
       final blipY = center.dy + r * math.sin(angleOnCanvas);
       final blipOffset = Offset(blipX, blipY);
-
-      calculatedPositions[t.id] = blipOffset;
 
       // Détection du passage du faisceau radar
       final blipAngleNormalized = (bearingRad) % (2 * math.pi);
@@ -1179,7 +1197,7 @@ class TacticalRadarPainter extends CustomPainter {
 
       // Halo externe
       final glowPaint = Paint()
-        ..color = (isSelected ? Colors.white : blipColor).withOpacity(isSwept ? 0.8 : 0.3)
+        ..color = (isSelected ? Colors.white : blipColor).withValues(alpha: isSwept ? 0.8 : 0.3)
         ..style = PaintingStyle.fill
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, isSwept ? 8 : 4);
 
@@ -1192,11 +1210,6 @@ class TacticalRadarPainter extends CustomPainter {
       }
     }
 
-    // Callback pour stocker les positions de hit-test
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      onBlipsCalculated(calculatedPositions);
-    });
-
     // 7. Centre Radar : Position Joueur (Point d'origine)
     final userCenterPaint = Paint()
       ..color = AppColors.coral
@@ -1204,14 +1217,14 @@ class TacticalRadarPainter extends CustomPainter {
     canvas.drawCircle(center, 5, userCenterPaint);
 
     final userRingPaint = Paint()
-      ..color = AppColors.coral.withOpacity(0.5)
+      ..color = AppColors.coral.withValues(alpha: 0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     canvas.drawCircle(center, 10, userRingPaint);
 
     // 8. Cercle de bordure tactique avec halo cyan
     final borderPaint = Paint()
-      ..color = Colors.cyanAccent.withOpacity(0.5)
+      ..color = Colors.cyanAccent.withValues(alpha: 0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5;
     canvas.drawCircle(center, radius, borderPaint);
@@ -1222,7 +1235,7 @@ class TacticalRadarPainter extends CustomPainter {
       text: TextSpan(
         text: label,
         style: TextStyle(
-          color: Colors.cyanAccent.withOpacity(0.7),
+          color: Colors.cyanAccent.withValues(alpha: 0.7),
           fontSize: 11,
           fontWeight: FontWeight.w900,
         ),

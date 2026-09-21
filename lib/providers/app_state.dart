@@ -605,7 +605,7 @@ class AppState extends ChangeNotifier {
     try {
       final tournamentsSnapshot = await FirebaseFirestore.instance
           .collection('tournaments')
-          .limit(100)
+          .limit(300)
           .get()
           .timeout(const Duration(seconds: 12));
 

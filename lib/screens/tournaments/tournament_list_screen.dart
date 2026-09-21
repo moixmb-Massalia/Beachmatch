@@ -5,8 +5,8 @@ import 'package:provider/provider.dart';
 import '../../providers/app_state.dart';
 import '../../theme/colors.dart';
 import '../../models/tournament.dart';
-import '../profile_screen.dart';
 import 'tournament_detail_screen.dart';
+import 'tournament_radar_screen.dart';
 import 'beach_score_hub_screen.dart';
 import '../../services/sound_service.dart';
 import '../../l10n/app_localizations.dart';
@@ -288,9 +288,9 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                         ),
                         IconButton(
                           icon: const Icon(Icons.radar, color: AppColors.coral, size: 28),
-                          tooltip: "Radar des alertes",
+                          tooltip: "Radar 360°",
                           onPressed: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+                            Navigator.push(context, MaterialPageRoute(builder: (context) => const TournamentRadarScreen()));
                           },
                         ),
                       ],
@@ -657,13 +657,18 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
     String? flag;
     final locLower = tournament.location.toLowerCase();
     final countryLower = (tournament.country ?? '').toLowerCase();
-    if (locLower.contains('italie') || locLower.contains('italy') || countryLower.contains('italie')) {
+    final nameLower = tournament.name.toLowerCase();
+    if (locLower.contains('italie') || locLower.contains('italy') || countryLower.contains('italie') || locLower.contains('cervia') || locLower.contains('terracina')) {
       flag = '🇮🇹';
-    } else if (locLower.contains('espagne') || locLower.contains('spain') || countryLower.contains('espagne')) {
+    } else if (locLower.contains('espagne') || locLower.contains('spain') || countryLower.contains('espagne') || locLower.contains('canaria') || locLower.contains('barcelona')) {
       flag = '🇪🇸';
+    } else if (locLower.contains('brésil') || locLower.contains('brasil') || countryLower.contains('brésil') || countryLower.contains('brazil') || locLower.contains('copacabana') || locLower.contains('brasilia')) {
+      flag = '🇧🇷';
+    } else if (locLower.contains('saint-martin') || locLower.contains('st martin') || locLower.contains('orientale') || locLower.contains('guadeloupe') || locLower.contains('martinique')) {
+      flag = '🌴';
     } else if (locLower.contains('nouméa') || locLower.contains('noumea')) {
       flag = '🇳🇨';
-    } else if (locLower.contains('reunion') || locLower.contains('réunion') || locLower.contains('clotilde') || locLower.contains('paul')) {
+    } else if (locLower.contains('reunion') || locLower.contains('réunion') || locLower.contains('clotilde') || locLower.contains('paul') || nameLower.contains('brisants')) {
       flag = '🇷🇪';
     } else {
       flag = '🇫🇷';
