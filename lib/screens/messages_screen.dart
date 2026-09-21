@@ -22,6 +22,52 @@ class MessagesScreen extends StatefulWidget {
 
 class _MessagesScreenState extends State<MessagesScreen> {
   String _selectedFilter = 'all'; // 'all', 'clubs', 'players'
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  String _formatChatTimestamp(Timestamp? timestamp) {
+    if (timestamp == null) return "";
+    final date = timestamp.toDate();
+    final now = DateTime.now();
+
+    final isToday = now.year == date.year && now.month == date.month && now.day == date.day;
+    if (isToday) {
+      return DateFormat('HH:mm').format(date);
+    }
+
+    final yesterday = now.subtract(const Duration(days: 1));
+    final isYesterday = yesterday.year == date.year && yesterday.month == date.month && yesterday.day == date.day;
+    if (isYesterday) {
+      return "Hier";
+    }
+
+    final difference = now.difference(date);
+    if (difference.inDays < 7 && now.weekday > date.weekday) {
+      const days = ['Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.', 'Dim.'];
+      return days[date.weekday - 1];
+    }
+
+    if (now.year == date.year) {
+      return DateFormat('dd/MM').format(date);
+    }
+
+    return DateFormat('dd/MM/yy').format(date);
+  }
+
+  void _showNewMessageModal(BuildContext context, UserModel currentUser) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _NewMessageModal(currentUser: currentUser),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +78,53 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 80),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppColors.coral, AppColors.gold],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.coral.withValues(alpha: 0.45),
+                blurRadius: 14,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(30),
+              onTap: () => _showNewMessageModal(context, currentUser),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(CupertinoIcons.square_pencil, color: Colors.white, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      "Nouveau message",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
       body: Stack(
         children: [
           // Background Image Beach Sunset
@@ -39,6 +132,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
             child: Image.asset(
               'assets/images/beach_sunset_players_1785052273648.jpg',
               fit: BoxFit.cover,
+              cacheWidth: 1080,
             ),
           ),
           // Dark Gradient Overlay
@@ -49,8 +143,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.55),
-                    Colors.black.withOpacity(0.85),
+                    Colors.black.withValues(alpha: 0.55),
+                    Colors.black.withValues(alpha: 0.85),
                   ],
                 ),
               ),
@@ -115,6 +209,36 @@ class _MessagesScreenState extends State<MessagesScreen> {
                           _buildFilterChip("players", "🎾 Joueurs"),
                         ],
                       ),
+                      const SizedBox(height: 10),
+                      // Search Bar
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                        ),
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (value) => setState(() => _searchQuery = value.trim()),
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: "Rechercher une conversation...",
+                            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
+                            prefixIcon: const Icon(CupertinoIcons.search, color: Colors.white70, size: 18),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(CupertinoIcons.clear_circled_solid, color: Colors.white60, size: 18),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -161,9 +285,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.all(28),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.08),
+                                    color: Colors.white.withValues(alpha: 0.08),
                                     borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(color: Colors.white.withOpacity(0.15)),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
                                   ),
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
@@ -171,7 +295,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                       Container(
                                         padding: const EdgeInsets.all(16),
                                         decoration: BoxDecoration(
-                                          color: AppColors.coral.withOpacity(0.2),
+                                          color: AppColors.coral.withValues(alpha: 0.2),
                                           shape: BoxShape.circle,
                                         ),
                                         child: const Icon(CupertinoIcons.chat_bubble_2, color: AppColors.gold, size: 36),
@@ -217,6 +341,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             final groupName = chatData['groupName'] as String? ?? "Groupe";
                             final groupIcon = chatData['groupIcon'] as String?;
                             final clubId = chatId.replaceFirst('club_', '');
+                            if (_searchQuery.isNotEmpty) {
+                              final q = _searchQuery.toLowerCase();
+                              final matchName = groupName.toLowerCase().contains(q);
+                              final matchMsg = lastMessage.toLowerCase().contains(q);
+                              if (!matchName && !matchMsg) return const SizedBox.shrink();
+                            }
                             return _buildGroupMessageItem(context, currentUser, groupName, groupIcon, lastMessage, clubId, lastTimestamp, isUnread);
                           } else {
                             final otherUserId = users.firstWhere((id) => id != currentUser.id, orElse: () => currentUser.id);
@@ -227,6 +357,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                   return const SizedBox.shrink();
                                 }
                                 final otherUser = UserModel.fromMap(userSnapshot.data!.data() as Map<String, dynamic>, otherUserId);
+                                if (_searchQuery.isNotEmpty) {
+                                  final q = _searchQuery.toLowerCase();
+                                  final matchName = otherUser.displayName.toLowerCase().contains(q);
+                                  final matchMsg = lastMessage.toLowerCase().contains(q);
+                                  if (!matchName && !matchMsg) return const SizedBox.shrink();
+                                }
                                 return _buildMessageItem(context, currentUser, otherUser, lastMessage, chatId, lastTimestamp, isUnread);
                               },
                             );
@@ -252,16 +388,16 @@ class _MessagesScreenState extends State<MessagesScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.coral : Colors.white.withOpacity(0.12),
+          color: isSelected ? AppColors.coral : Colors.white.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? AppColors.coral : Colors.white.withOpacity(0.2),
+            color: isSelected ? AppColors.coral : Colors.white.withValues(alpha: 0.2),
             width: 1,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.coral.withOpacity(0.4),
+                    color: AppColors.coral.withValues(alpha: 0.4),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   )
@@ -336,7 +472,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.only(right: 24.0),
               decoration: BoxDecoration(
-                color: Colors.redAccent.withOpacity(0.85),
+                color: Colors.redAccent.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: const Row(
@@ -360,10 +496,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: isUnread ? Colors.white.withOpacity(0.18) : Colors.white.withOpacity(0.09),
+                color: isUnread ? Colors.white.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.09),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isUnread ? AppColors.gold.withOpacity(0.6) : Colors.white.withOpacity(0.16),
+                  color: isUnread ? AppColors.gold.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.16),
                   width: isUnread ? 1.5 : 1.0,
                 ),
               ),
@@ -389,7 +525,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
-                            border: Border.all(color: Colors.white.withOpacity(0.8), width: 1.5),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1.5),
                           ),
                           child: ClipOval(
                             child: otherUser.photoUrl != null && otherUser.photoUrl!.isNotEmpty
@@ -439,7 +575,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               ),
                               if (lastTimestamp != null)
                                 Text(
-                                  DateFormat('HH:mm').format(lastTimestamp.toDate()),
+                                  _formatChatTimestamp(lastTimestamp),
                                   style: TextStyle(
                                     color: isUnread ? AppColors.gold : Colors.white60,
                                     fontSize: 11,
@@ -455,7 +591,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: AppColors.gold.withOpacity(0.2),
+                                    color: AppColors.gold.withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
@@ -520,10 +656,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(color: Colors.white.withOpacity(0.8), width: 2),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 2),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFE8604C).withOpacity(0.35),
+            color: const Color(0xFFE8604C).withValues(alpha: 0.35),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -616,7 +752,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.only(right: 24.0),
               decoration: BoxDecoration(
-                color: Colors.redAccent.withOpacity(0.85),
+                color: Colors.redAccent.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: const Row(
@@ -640,10 +776,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: isUnread ? Colors.white.withOpacity(0.18) : Colors.white.withOpacity(0.09),
+                color: isUnread ? Colors.white.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.09),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isUnread ? AppColors.gold.withOpacity(0.6) : Colors.white.withOpacity(0.16),
+                  color: isUnread ? AppColors.gold.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.16),
                   width: isUnread ? 1.5 : 1.0,
                 ),
               ),
@@ -678,7 +814,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             border: Border.all(color: Colors.white, width: 1.5),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.25),
+                                color: Colors.black.withValues(alpha: 0.25),
                                 blurRadius: 4,
                                 offset: const Offset(0, 1),
                               ),
@@ -721,9 +857,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: AppColors.coral.withOpacity(0.25),
+                                  color: AppColors.coral.withValues(alpha: 0.25),
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: AppColors.coral.withOpacity(0.5)),
+                                  border: Border.all(color: AppColors.coral.withValues(alpha: 0.5)),
                                 ),
                                 child: const Text(
                                   "Voir le club",
@@ -739,7 +875,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: AppColors.gold.withOpacity(0.2),
+                                color: AppColors.gold.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: const Text(
@@ -763,8 +899,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             if (lastTimestamp != null) ...[
                               const SizedBox(width: 6),
                               Text(
-                                DateFormat('HH:mm').format(lastTimestamp.toDate()),
-                                style: const TextStyle(color: Colors.white60, fontSize: 11),
+                                _formatChatTimestamp(lastTimestamp),
+                                style: TextStyle(
+                                  color: isUnread ? AppColors.gold : Colors.white60,
+                                  fontSize: 11,
+                                  fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
+                                ),
                               ),
                             ],
                           ],
@@ -781,4 +921,310 @@ class _MessagesScreenState extends State<MessagesScreen> {
     ),
   );
 }
+}
+
+class _NewMessageModal extends StatefulWidget {
+  final UserModel currentUser;
+
+  const _NewMessageModal({required this.currentUser});
+
+  @override
+  State<_NewMessageModal> createState() => _NewMessageModalState();
+}
+
+class _NewMessageModalState extends State<_NewMessageModal> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _filter = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  String _normalize(String s) {
+    return s
+        .toLowerCase()
+        .replaceAll(RegExp(r'[éèêë]'), 'e')
+        .replaceAll(RegExp(r'[àâä]'), 'a')
+        .replaceAll(RegExp(r'[îï]'), 'i')
+        .replaceAll(RegExp(r'[ôö]'), 'o')
+        .replaceAll(RegExp(r'[ùûü]'), 'u')
+        .replaceAll(RegExp(r'[ç]'), 'c')
+        .trim();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.75,
+          padding: EdgeInsets.only(
+            top: 12,
+            left: 18,
+            right: 18,
+            bottom: bottomInset > 0 ? bottomInset + 12 : 24,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFF16253B).withValues(alpha: 0.96),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.white30,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [AppColors.coral, AppColors.gold]),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(CupertinoIcons.square_pencil, color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Nouvelle discussion",
+                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          "Sélectionnez un joueur pour lui écrire",
+                          style: TextStyle(color: Colors.white60, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(CupertinoIcons.xmark_circle_fill, color: Colors.white54, size: 24),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Search Field
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                ),
+                child: TextField(
+                  controller: _searchCtrl,
+                  autofocus: false,
+                  onChanged: (val) => setState(() => _filter = val.trim()),
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: "Rechercher par nom, ville...",
+                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
+                    prefixIcon: const Icon(CupertinoIcons.search, color: AppColors.coral, size: 20),
+                    suffixIcon: _filter.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(CupertinoIcons.clear_circled_solid, color: Colors.white54, size: 18),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              setState(() => _filter = '');
+                            },
+                          )
+                        : null,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              // Stream of users
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance.collection('users').snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator(color: AppColors.coral));
+                    }
+                    if (snapshot.hasError) {
+                      return const Center(child: Text("Erreur de chargement", style: TextStyle(color: Colors.white70)));
+                    }
+
+                    final docs = snapshot.data?.docs ?? [];
+                    final blockedIds = widget.currentUser.blockedUserIds;
+
+                    final users = docs
+                        .where((doc) {
+                          if (doc.id == widget.currentUser.id) return false;
+                          if (blockedIds.contains(doc.id)) return false;
+                          final data = doc.data() as Map<String, dynamic>?;
+                          if (data == null) return false;
+                          return true;
+                        })
+                        .map((doc) => UserModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+                        .where((user) {
+                          if (_filter.isEmpty) return true;
+                          final q = _normalize(_filter);
+                          final nameMatch = _normalize(user.displayName).contains(q);
+                          final locMatch = _normalize(user.location).contains(q);
+                          return nameMatch || locMatch;
+                        })
+                        .toList();
+
+                    users.sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
+
+                    if (users.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(CupertinoIcons.person_badge_minus, color: Colors.white.withValues(alpha: 0.3), size: 48),
+                            const SizedBox(height: 12),
+                            Text(
+                              _filter.isNotEmpty ? "Aucun joueur trouvé pour '$_filter'" : "Aucun joueur disponible",
+                              style: const TextStyle(color: Colors.white60, fontSize: 14),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      itemCount: users.length,
+                      separatorBuilder: (_, __) => Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
+                      itemBuilder: (context, index) {
+                        final player = users[index];
+                        final initial = player.displayName.isNotEmpty ? player.displayName[0].toUpperCase() : "?";
+
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => ChatDetailScreen(otherUser: player)),
+                            );
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                            child: Row(
+                              children: [
+                                // Avatar
+                                Container(
+                                  width: 46,
+                                  height: 46,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: const LinearGradient(colors: [AppColors.coral, AppColors.gold]),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 1.5),
+                                  ),
+                                  child: ClipOval(
+                                    child: player.photoUrl != null && player.photoUrl!.isNotEmpty
+                                        ? Image.network(player.photoUrl!, fit: BoxFit.cover)
+                                        : Center(
+                                            child: Text(
+                                              initial,
+                                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                // Name + Details
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        player.displayName,
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Row(
+                                        children: [
+                                          if (player.level > 0) ...[
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.gold.withValues(alpha: 0.2),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                "Niv. ${player.level}",
+                                                style: const TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                          ],
+                                          if (player.location.isNotEmpty)
+                                            Expanded(
+                                              child: Text(
+                                                player.location,
+                                                style: const TextStyle(color: Colors.white60, fontSize: 12),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                // Action Button
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(colors: [AppColors.coral, AppColors.gold]),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 12),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        "Écrire",
+                                        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

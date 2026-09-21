@@ -4,14 +4,22 @@ class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Generate a unique chat room ID for two users
-  String _getChatRoomId(String userId1, String userId2) {
+  String getChatRoomId(String userId1, String userId2) {
     List<String> ids = [userId1, userId2];
     ids.sort();
     return ids.join('_');
   }
 
+  String _getChatRoomId(String userId1, String userId2) => getChatRoomId(userId1, userId2);
+
+  String getClubChatRoomId(String clubId) {
+    return clubId.startsWith('club_') ? clubId : 'club_$clubId';
+  }
+
+  String _getClubChatRoomId(String clubId) => getClubChatRoomId(clubId);
+
   // Send a message (1-on-1)
-  Future<void> sendMessage(String senderId, String receiverId, String text) async {
+  Future<void> sendMessage(String senderId, String receiverId, String text, {String? imageUrl}) async {
     final String chatRoomId = _getChatRoomId(senderId, receiverId);
     
     final message = {
@@ -19,13 +27,16 @@ class ChatService {
       'receiverId': receiverId,
       'text': text,
       'timestamp': FieldValue.serverTimestamp(),
+      if (imageUrl != null) 'imageUrl': imageUrl,
     };
+
+    final String lastMsg = (imageUrl != null && text.isEmpty) ? "📷 Photo" : text;
 
     // Update the recent chat doc for the inbox view FIRST
     await _firestore.collection('chats').doc(chatRoomId).set({
       'users': [senderId, receiverId],
       'isGroup': false,
-      'lastMessage': text,
+      'lastMessage': lastMsg,
       'lastTimestamp': FieldValue.serverTimestamp(),
       'unreadBy': FieldValue.arrayUnion([receiverId]),
     }, SetOptions(merge: true));
@@ -39,7 +50,7 @@ class ChatService {
 
   // Send a message to a Club Group Chat
   Future<void> sendGroupMessage(String clubId, String senderId, String senderName, String text, String clubName, String? clubBannerUrl, {String? imageUrl, String? audioUrl, Map<String, dynamic>? poll}) async {
-    final String chatRoomId = 'club_$clubId';
+    final String chatRoomId = _getClubChatRoomId(clubId);
     
     final message = {
       'senderId': senderId,
@@ -52,9 +63,19 @@ class ChatService {
     };
 
     String lastMsg = text;
-    if (imageUrl != null) lastMsg = "📷 Photo";
+    if (imageUrl != null && text.isEmpty) lastMsg = "📷 Photo";
     if (audioUrl != null) lastMsg = "🎙️ Message vocal";
     if (poll != null) lastMsg = "📊 Sondage: ${poll['question']}";
+
+    // Get current chat doc to find other members for unreadBy
+    List<String> unreadMembers = [];
+    try {
+      final chatDoc = await _firestore.collection('chats').doc(chatRoomId).get();
+      if (chatDoc.exists) {
+        final existingUsers = List<String>.from(chatDoc.data()?['users'] ?? []);
+        unreadMembers = existingUsers.where((u) => u != senderId).toList();
+      }
+    } catch (_) {}
 
     // Update the recent chat doc
     await _firestore.collection('chats').doc(chatRoomId).set({
@@ -64,6 +85,7 @@ class ChatService {
       'lastMessage': lastMsg,
       'lastTimestamp': FieldValue.serverTimestamp(),
       'users': FieldValue.arrayUnion([senderId]), // Ensure sender is in users array
+      if (unreadMembers.isNotEmpty) 'unreadBy': FieldValue.arrayUnion(unreadMembers),
     }, SetOptions(merge: true));
 
     await _firestore
@@ -92,7 +114,7 @@ class ChatService {
 
   // Get stream of messages
   Stream<QuerySnapshot> getMessages(String userId1, String userId2, {bool isGroup = false, String? clubId}) {
-    final String chatRoomId = isGroup ? 'club_$clubId' : _getChatRoomId(userId1, userId2);
+    final String chatRoomId = isGroup ? _getClubChatRoomId(clubId!) : _getChatRoomId(userId1, userId2);
     
     if (!isGroup) {
       markAsRead(userId1, userId2); // auto mark as read when entering conversation
@@ -116,23 +138,48 @@ class ChatService {
         .snapshots();
   }
 
-  // Delete chat conversation
+  // Delete chat conversation (masquage non-destructif pour l'autre utilisateur)
   Future<void> deleteChat(String userId1, String userId2, {bool isGroup = false, String? clubId}) async {
-    final String chatRoomId = isGroup ? 'club_$clubId' : _getChatRoomId(userId1, userId2);
+    final String chatRoomId = isGroup 
+        ? _getClubChatRoomId(clubId!)
+        : _getChatRoomId(userId1, userId2);
     
-    if (isGroup) {
-       // On ne supprime pas le groupe, on retire l'utilisateur
-       await _firestore.collection('chats').doc(chatRoomId).update({
-         'users': FieldValue.arrayRemove([userId1])
-       });
-    } else {
-      await _firestore.collection('chats').doc(chatRoomId).delete();
+    try {
+      final doc = await _firestore.collection('chats').doc(chatRoomId).get();
+      if (!doc.exists) return;
+      
+      final data = doc.data() ?? {};
+      final List<dynamic> users = List.from(data['users'] ?? []);
+      users.remove(userId1);
+
+      if (isGroup) {
+        // Pour un club, on retire l'utilisateur de la liste
+        await _firestore.collection('chats').doc(chatRoomId).update({
+          'users': FieldValue.arrayRemove([userId1]),
+          'unreadBy': FieldValue.arrayRemove([userId1]),
+        });
+      } else {
+        if (users.isEmpty) {
+          // Si les deux utilisateurs ont supprimé la discussion, effacement du document
+          await _firestore.collection('chats').doc(chatRoomId).delete();
+        } else {
+          // L'autre utilisateur conserve la discussion dans sa boîte de réception
+          await _firestore.collection('chats').doc(chatRoomId).update({
+            'users': FieldValue.arrayRemove([userId1]),
+            'unreadBy': FieldValue.arrayRemove([userId1]),
+          });
+        }
+      }
+    } catch (_) {
+      await _firestore.collection('chats').doc(chatRoomId).update({
+        'users': FieldValue.arrayRemove([userId1]),
+      }).catchError((_) {});
     }
   }
 
   // Join a Club Group Chat
   Future<void> joinClubChat(String userId, String clubId, String clubName, String? clubBannerUrl) async {
-    final String chatRoomId = 'club_$clubId';
+    final String chatRoomId = _getClubChatRoomId(clubId);
     await _firestore.collection('chats').doc(chatRoomId).set({
       'isGroup': true,
       'groupName': clubName,
@@ -143,15 +190,16 @@ class ChatService {
 
   // Leave a Club Group Chat
   Future<void> leaveClubChat(String userId, String clubId) async {
-    final String chatRoomId = 'club_$clubId';
+    final String chatRoomId = _getClubChatRoomId(clubId);
     await _firestore.collection('chats').doc(chatRoomId).update({
       'users': FieldValue.arrayRemove([userId]),
-    });
+      'unreadBy': FieldValue.arrayRemove([userId]),
+    }).catchError((_) {});
   }
 
   // Mark group chat as read
   Future<void> markGroupAsRead(String userId, String clubId) async {
-    final String chatRoomId = 'club_$clubId';
+    final String chatRoomId = _getClubChatRoomId(clubId);
     await _firestore.collection('chats').doc(chatRoomId).set({
       'unreadBy': FieldValue.arrayRemove([userId]),
     }, SetOptions(merge: true));

@@ -1,9 +1,13 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 import '../theme/colors.dart';
 import '../models/user.dart';
 import '../providers/app_state.dart';
@@ -44,6 +48,148 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
+  Future<void> _pickAndSendImage(ImageSource source, String currentUserId) async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: source, imageQuality: 70);
+    if (pickedFile == null) return;
+
+    setState(() => _isSending = true);
+    try {
+      final file = File(pickedFile.path);
+      final ext = pickedFile.name.split('.').last;
+      final fileName = '${const Uuid().v4()}.$ext';
+      final chatRoomId = _chatService.getChatRoomId(currentUserId, widget.otherUser.id);
+      final ref = FirebaseStorage.instance.ref().child('chats/$chatRoomId/$fileName');
+
+      await ref.putFile(file);
+      final downloadUrl = await ref.getDownloadURL();
+
+      await _chatService.sendMessage(
+        currentUserId,
+        widget.otherUser.id,
+        "",
+        imageUrl: downloadUrl,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur lors de l'envoi de l'image : $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  void _showImagePickerOptions(BuildContext context, String currentUserId) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+            decoration: BoxDecoration(
+              color: const Color(0xFF16253B).withValues(alpha: 0.96),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white30,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.coral.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(CupertinoIcons.camera_fill, color: AppColors.coral, size: 22),
+                  ),
+                  title: const Text("Prendre une photo", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  subtitle: const Text("Ouvrir l'appareil photo", style: TextStyle(color: Colors.white60, fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickAndSendImage(ImageSource.camera, currentUserId);
+                  },
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.gold.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(CupertinoIcons.photo_fill_on_rectangle_fill, color: AppColors.gold, size: 22),
+                  ),
+                  title: const Text("Choisir dans la galerie", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  subtitle: const Text("Envoyer une photo de votre pellicule", style: TextStyle(color: Colors.white60, fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickAndSendImage(ImageSource.gallery, currentUserId);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showFullScreenImage(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            GestureDetector(
+              onTap: () => Navigator.pop(ctx),
+              child: Container(color: Colors.black.withValues(alpha: 0.9)),
+            ),
+            Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return const Center(child: CircularProgressIndicator(color: AppColors.coral));
+                  },
+                ),
+              ),
+            ),
+            Positioned(
+              top: 50,
+              right: 20,
+              child: IconButton(
+                icon: const Icon(CupertinoIcons.clear_circled_solid, color: Colors.white, size: 32),
+                onPressed: () => Navigator.pop(ctx),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUser = context.watch<AppState>().currentUser;
@@ -60,6 +206,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             child: Image.asset(
               'assets/images/beach_court_aerial_1785052250131.jpg',
               fit: BoxFit.cover,
+              cacheWidth: 1080,
             ),
           ),
           // Dark Gradient Overlay
@@ -70,8 +217,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.55),
-                    Colors.black.withOpacity(0.85),
+                    Colors.black.withValues(alpha: 0.55),
+                    Colors.black.withValues(alpha: 0.85),
                   ],
                 ),
               ),
@@ -90,9 +237,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
+                          color: Colors.white.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withOpacity(0.2)),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                         ),
                         child: Row(
                           children: [
@@ -115,7 +262,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       gradient: const LinearGradient(colors: [AppColors.coral, AppColors.gold]),
-                                      border: Border.all(color: Colors.white.withOpacity(0.8), width: 1.5),
+                                      border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1.5),
                                     ),
                                     child: ClipOval(
                                       child: widget.otherUser.photoUrl != null && widget.otherUser.photoUrl!.isNotEmpty
@@ -137,7 +284,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                               decoration: BoxDecoration(
-                                                color: AppColors.gold.withOpacity(0.25),
+                                                color: AppColors.gold.withValues(alpha: 0.25),
                                                 borderRadius: BorderRadius.circular(6),
                                               ),
                                               child: Text(
@@ -148,7 +295,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                             const SizedBox(width: 4),
                                             Text(
                                               "• Voir profil",
-                                              style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 10),
+                                              style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 10),
                                             ),
                                           ],
                                         ),
@@ -209,6 +356,35 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                       Navigator.pop(context);
                                     }
                                   }
+                                } else if (value == 'block') {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      backgroundColor: const Color(0xFF1E293B),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                      title: const Text("Bloquer cet utilisateur", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                      content: const Text("Voulez-vous bloquer cet utilisateur ? Vous ne verrez plus ses messages et il ne pourra plus interagir avec vous.", style: TextStyle(color: Colors.white70)),
+                                      actions: [
+                                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Annuler", style: TextStyle(color: Colors.white60))),
+                                        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("Bloquer", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold))),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    if (context.mounted) {
+                                      await context.read<AppState>().blockUser(widget.otherUser.id);
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Utilisateur bloqué.")));
+                                      }
+                                    }
+                                  }
+                                } else if (value == 'unblock') {
+                                  if (context.mounted) {
+                                    await context.read<AppState>().unblockUser(widget.otherUser.id);
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Utilisateur débloqué.")));
+                                    }
+                                  }
                                 }
                               },
                               itemBuilder: (context) => [
@@ -219,6 +395,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                       Icon(Icons.flag_rounded, color: Colors.orangeAccent, size: 18),
                                       SizedBox(width: 10),
                                       Text("Signaler", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: context.read<AppState>().isUserBlocked(widget.otherUser.id) ? 'unblock' : 'block',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        context.read<AppState>().isUserBlocked(widget.otherUser.id) ? Icons.lock_open_rounded : Icons.block_rounded,
+                                        color: context.read<AppState>().isUserBlocked(widget.otherUser.id) ? Colors.greenAccent : Colors.redAccent,
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        context.read<AppState>().isUserBlocked(widget.otherUser.id) ? "Débloquer" : "Bloquer",
+                                        style: TextStyle(
+                                          color: context.read<AppState>().isUserBlocked(widget.otherUser.id) ? Colors.greenAccent : Colors.redAccent,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -266,9 +462,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.all(20),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.08),
+                                    color: Colors.white.withValues(alpha: 0.08),
                                     borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: Colors.white.withOpacity(0.15)),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
                                   ),
                                   child: Text(
                                     "Envoyez le premier message à ${widget.otherUser.displayName} pour organiser une partie ! 🎾",
@@ -292,6 +488,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           final msg = doc.data() as Map<String, dynamic>;
                           final isMe = msg['senderId'] == currentUser.id;
                           final text = msg['text'] as String? ?? "";
+                          final imageUrl = msg['imageUrl'] as String?;
                           final timestamp = msg['timestamp'] as Timestamp?;
                           final timeStr = timestamp != null ? DateFormat('HH:mm').format(timestamp.toDate()) : "";
 
@@ -308,15 +505,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                         end: Alignment.bottomRight,
                                       )
                                     : null,
-                                color: isMe ? null : Colors.white.withOpacity(0.16),
+                                color: isMe ? null : Colors.white.withValues(alpha: 0.16),
                                 borderRadius: BorderRadius.circular(18).copyWith(
                                   bottomRight: isMe ? const Radius.circular(3) : const Radius.circular(18),
                                   bottomLeft: !isMe ? const Radius.circular(3) : const Radius.circular(18),
                                 ),
-                                border: isMe ? null : Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+                                border: isMe ? null : Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.15),
+                                    color: Colors.black.withValues(alpha: 0.15),
                                     blurRadius: 6,
                                     offset: const Offset(0, 2),
                                   ),
@@ -326,20 +523,54 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                               child: Column(
                                 crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    text,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      height: 1.3,
+                                  if (imageUrl != null && imageUrl.isNotEmpty) ...[
+                                    GestureDetector(
+                                      onTap: () => _showFullScreenImage(context, imageUrl),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Image.network(
+                                          imageUrl,
+                                          width: 220,
+                                          fit: BoxFit.cover,
+                                          loadingBuilder: (context, child, loadingProgress) {
+                                            if (loadingProgress == null) return child;
+                                            return Container(
+                                              width: 220,
+                                              height: 160,
+                                              color: Colors.black26,
+                                              child: const Center(
+                                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                              ),
+                                            );
+                                          },
+                                          errorBuilder: (_, __, ___) => Container(
+                                            width: 220,
+                                            height: 100,
+                                            color: Colors.black26,
+                                            child: const Center(
+                                              child: Icon(Icons.broken_image_rounded, color: Colors.white60, size: 32),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    if (text.isNotEmpty) const SizedBox(height: 6),
+                                  ],
+                                  if (text.isNotEmpty)
+                                    Text(
+                                      text,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        height: 1.3,
+                                      ),
+                                    ),
                                   if (timeStr.isNotEmpty) ...[
                                     const SizedBox(height: 3),
                                     Text(
                                       timeStr,
                                       style: TextStyle(
-                                        color: isMe ? Colors.white.withOpacity(0.7) : Colors.white60,
+                                        color: isMe ? Colors.white.withValues(alpha: 0.7) : Colors.white60,
                                         fontSize: 10,
                                       ),
                                     ),
@@ -354,23 +585,57 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   ),
                 ),
 
-                // Floating Input Bar Glass
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(28),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                // Floating Input Bar Glass or Blocked Banner
+                if (context.watch<AppState>().isUserBlocked(widget.otherUser.id))
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.block_rounded, color: Colors.redAccent, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              "Cet utilisateur est bloqué.",
+                              style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        TextButton(
+                          onPressed: () => context.read<AppState>().unblockUser(widget.otherUser.id),
+                          child: const Text("Débloquer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.45),
+                          color: Colors.black.withValues(alpha: 0.45),
                           borderRadius: BorderRadius.circular(28),
-                          border: Border.all(color: Colors.white.withOpacity(0.25), width: 1.2),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.2),
                         ),
                         child: Row(
                           children: [
-                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(CupertinoIcons.camera_fill, color: Colors.white70, size: 22),
+                              onPressed: _isSending ? null : () => _showImagePickerOptions(context, currentUser.id),
+                              tooltip: "Envoyer une photo",
+                            ),
                             Expanded(
                               child: TextField(
                                 controller: _controller,
@@ -379,7 +644,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                   hintText: "Écrire un message...",
                                   hintStyle: TextStyle(color: Colors.white60),
                                   border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 10),
                                 ),
                                 onSubmitted: (_) => _sendMessage(currentUser.id),
                               ),
