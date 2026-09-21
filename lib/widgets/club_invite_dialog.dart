@@ -50,7 +50,7 @@ void showClubInviteDialog(BuildContext context, {required String clubId, require
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.coral.withOpacity(0.15),
+                      color: AppColors.coral.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.group_add_rounded, color: AppColors.coral, size: 24),
@@ -101,10 +101,16 @@ void showClubInviteDialog(BuildContext context, {required String clubId, require
                     if (await canLaunchUrl(whatsappUrl)) {
                       await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
                     } else {
-                      Share.share(shareMessage, subject: "Rejoins $clubName sur BeachMatch");
+                      SharePlus.instance.share(ShareParams(
+                        text: shareMessage,
+                        subject: "Rejoins $clubName sur BeachMatch",
+                      ));
                     }
                   } catch (_) {
-                    Share.share(shareMessage, subject: "Rejoins $clubName sur BeachMatch");
+                    SharePlus.instance.share(ShareParams(
+                      text: shareMessage,
+                      subject: "Rejoins $clubName sur BeachMatch",
+                    ));
                   }
                 },
               ),
@@ -124,7 +130,10 @@ void showClubInviteDialog(BuildContext context, {required String clubId, require
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 onPressed: () {
-                  Share.share(shareMessage, subject: "Rejoins $clubName sur BeachMatch");
+                  SharePlus.instance.share(ShareParams(
+                    text: shareMessage,
+                    subject: "Rejoins $clubName sur BeachMatch",
+                  ));
                 },
               ),
               const SizedBox(height: 20),
@@ -162,7 +171,7 @@ void showClubInviteDialog(BuildContext context, {required String clubId, require
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
+                            color: Colors.black.withValues(alpha: 0.06),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),

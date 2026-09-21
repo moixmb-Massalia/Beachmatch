@@ -96,7 +96,7 @@ class _OnboardingTutorialScreenState extends State<OnboardingTutorialScreen> {
                         Container(
                           padding: const EdgeInsets.all(32),
                           decoration: BoxDecoration(
-                            color: AppColors.gold.withOpacity(0.15),
+                            color: AppColors.gold.withValues(alpha: 0.15),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(step["icon"], size: 100, color: AppColors.gold),
@@ -160,7 +160,7 @@ class _OnboardingTutorialScreenState extends State<OnboardingTutorialScreen> {
                         borderRadius: BorderRadius.circular(30),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary.withOpacity(0.4),
+                            color: AppColors.primary.withValues(alpha: 0.4),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           )

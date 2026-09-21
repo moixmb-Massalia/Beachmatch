@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../theme/colors.dart';
@@ -98,9 +97,9 @@ class _LiveScoreScreenState extends State<LiveScoreScreen> with SingleTickerProv
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
+              color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withOpacity(0.12)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
             ),
             child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
           ),
@@ -118,7 +117,7 @@ class _LiveScoreScreenState extends State<LiveScoreScreen> with SingleTickerProv
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFFF334B).withOpacity(0.8),
+                      color: const Color(0xFFFF334B).withValues(alpha: 0.8),
                       blurRadius: 8,
                       spreadRadius: 2,
                     ),
@@ -138,9 +137,9 @@ class _LiveScoreScreenState extends State<LiveScoreScreen> with SingleTickerProv
             icon: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.08),
+                color: Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.12)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
               ),
               child: const Icon(Icons.refresh_rounded, color: AppColors.gold, size: 18),
             ),
@@ -162,7 +161,7 @@ class _LiveScoreScreenState extends State<LiveScoreScreen> with SingleTickerProv
                   decoration: BoxDecoration(
                     color: const Color(0xFF141D30),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                   ),
                   child: Row(
                     children: [
@@ -179,7 +178,7 @@ class _LiveScoreScreenState extends State<LiveScoreScreen> with SingleTickerProv
                               boxShadow: _selectedSource == 'ITF'
                                   ? [
                                       BoxShadow(
-                                        color: AppColors.coral.withOpacity(0.4),
+                                        color: AppColors.coral.withValues(alpha: 0.4),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
@@ -218,7 +217,7 @@ class _LiveScoreScreenState extends State<LiveScoreScreen> with SingleTickerProv
                               boxShadow: _selectedSource == 'TENUP'
                                   ? [
                                       BoxShadow(
-                                        color: AppColors.coral.withOpacity(0.4),
+                                        color: AppColors.coral.withValues(alpha: 0.4),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
@@ -275,9 +274,9 @@ class _LiveScoreScreenState extends State<LiveScoreScreen> with SingleTickerProv
                       height: 50,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.06),
+                        color: Colors.white.withValues(alpha: 0.06),
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.gold.withOpacity(0.3)),
+                        border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
                       ),
                       child: const CircularProgressIndicator(
                         color: AppColors.gold,

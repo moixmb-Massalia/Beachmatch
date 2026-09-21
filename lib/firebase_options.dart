@@ -10,6 +10,8 @@ class DefaultFirebaseOptions {
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
+      case TargetPlatform.iOS:
+        return ios;
       default:
         throw UnsupportedError(
           'DefaultFirebaseOptions are not supported for this platform.',
@@ -32,5 +34,14 @@ class DefaultFirebaseOptions {
     messagingSenderId: '975202518106',
     projectId: 'beach-tennis-216f4',
     storageBucket: 'beach-tennis-216f4.firebasestorage.app',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyA9QlsaelF4QrnfQlZkHJGSa7RWZQNEUT0',
+    appId: '1:975202518106:ios:67c866c34dc4ede5030463',
+    messagingSenderId: '975202518106',
+    projectId: 'beach-tennis-216f4',
+    storageBucket: 'beach-tennis-216f4.firebasestorage.app',
+    iosBundleId: 'com.beachmatch.mobile',
   );
 }

@@ -44,20 +44,20 @@ class TournamentLiveScoresCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      const Color(0xFF0F1B29).withOpacity(0.95),
-                      const Color(0xFF16253B).withOpacity(0.92),
+                      const Color(0xFF0F1B29).withValues(alpha: 0.95),
+                      const Color(0xFF16253B).withValues(alpha: 0.92),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
-                    color: liveMatches.isNotEmpty ? Colors.redAccent.withOpacity(0.6) : AppColors.gold.withOpacity(0.4),
+                    color: liveMatches.isNotEmpty ? Colors.redAccent.withValues(alpha: 0.6) : AppColors.gold.withValues(alpha: 0.4),
                     width: 1.5,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: liveMatches.isNotEmpty ? Colors.redAccent.withOpacity(0.15) : Colors.black.withOpacity(0.4),
+                      color: liveMatches.isNotEmpty ? Colors.redAccent.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.4),
                       blurRadius: 16,
                       offset: const Offset(0, 6),
                     ),
@@ -81,7 +81,7 @@ class TournamentLiveScoresCard extends StatelessWidget {
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.redAccent.withOpacity(0.8),
+                                      color: Colors.redAccent.withValues(alpha: 0.8),
                                       blurRadius: 8,
                                       spreadRadius: 2,
                                     ),
@@ -119,7 +119,7 @@ class TournamentLiveScoresCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(10),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppColors.coral.withOpacity(0.4),
+                                  color: AppColors.coral.withValues(alpha: 0.4),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
                                 ),
@@ -147,15 +147,15 @@ class TournamentLiveScoresCard extends StatelessWidget {
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.04),
+                          color: Colors.white.withValues(alpha: 0.04),
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.white.withOpacity(0.08)),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                         ),
-                        child: Row(
+                        child: const Row(
                           children: [
-                            const Icon(Icons.touch_app_rounded, color: AppColors.gold, size: 20),
-                            const SizedBox(width: 10),
-                            const Expanded(
+                            Icon(Icons.touch_app_rounded, color: AppColors.gold, size: 20),
+                            SizedBox(width: 10),
+                            Expanded(
                               child: Text(
                                 "Aucun match en direct pour le moment.\nCliquez sur 'Arbitrer un match' pour démarrer un live !",
                                 style: TextStyle(color: Colors.white70, fontSize: 11.5, height: 1.3),
@@ -196,10 +196,10 @@ class TournamentLiveScoresCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isLive ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.04),
+          color: isLive ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.04),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isLive ? AppColors.coral.withOpacity(0.4) : Colors.white.withOpacity(0.1),
+            color: isLive ? AppColors.coral.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.1),
           ),
         ),
         child: Column(
@@ -315,10 +315,10 @@ class TournamentLiveScoresCard extends StatelessWidget {
       height: 26,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: isActive ? AppColors.coral.withOpacity(0.3) : Colors.white.withOpacity(0.08),
+        color: isActive ? AppColors.coral.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: isActive ? AppColors.coral : Colors.white.withOpacity(0.15),
+          color: isActive ? AppColors.coral : Colors.white.withValues(alpha: 0.15),
           width: 1,
         ),
       ),

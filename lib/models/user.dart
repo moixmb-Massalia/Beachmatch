@@ -29,6 +29,7 @@ class UserModel {
   final String? availability;
   final bool isBanned;
   final bool isReferee;
+  final List<String> blockedUserIds; // Apple UGC Guideline 1.2: Blocked users
 
   bool get canReferee => isAdmin || isReferee;
 
@@ -57,6 +58,7 @@ class UserModel {
     this.preferredPosition,
     this.availability,
     this.isBanned = false,
+    this.blockedUserIds = const [],
   });
 
   UserModel copyWith({
@@ -84,6 +86,7 @@ class UserModel {
     String? availability,
     bool? isBanned,
     bool? isReferee,
+    List<String>? blockedUserIds,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -110,6 +113,7 @@ class UserModel {
       preferredPosition: preferredPosition ?? this.preferredPosition,
       availability: availability ?? this.availability,
       isBanned: isBanned ?? this.isBanned,
+      blockedUserIds: blockedUserIds ?? this.blockedUserIds,
     );
   }
 
@@ -139,6 +143,7 @@ class UserModel {
       preferredPosition: data['preferredPosition'],
       availability: data['availability'],
       isBanned: data['isBanned'] ?? false,
+      blockedUserIds: List<String>.from(data['blockedUserIds'] ?? []),
     );
   }
 
@@ -167,6 +172,7 @@ class UserModel {
       'preferredPosition': preferredPosition,
       'availability': availability,
       'isBanned': isBanned,
+      'blockedUserIds': blockedUserIds,
     };
   }
 }

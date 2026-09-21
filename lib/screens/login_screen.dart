@@ -273,10 +273,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 24),
                           
                           // Or Divider
-                          Row(
+                          const Row(
                             children: [
                               Expanded(child: Divider(color: AppColors.surfaceAlt)),
-                              const Padding(
+                              Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 16),
                                 child: Text("OU", style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.bold)),
                               ),

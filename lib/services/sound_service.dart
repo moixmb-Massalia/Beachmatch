@@ -12,7 +12,7 @@ class SoundService {
       await _player.play(AssetSource('sounds/beach_hit.wav'), volume: 0.7);
     } catch (e) {
       if (kDebugMode) {
-        print('SoundService: error playing sound: $e');
+        debugPrint('SoundService: error playing sound: $e');
       }
     }
   }

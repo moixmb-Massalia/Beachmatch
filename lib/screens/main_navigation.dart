@@ -69,7 +69,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               borderRadius: BorderRadius.circular(32),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 25,
                   spreadRadius: 2,
                   offset: const Offset(0, 10),
@@ -82,15 +82,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.45),
+                    color: Colors.black.withValues(alpha: 0.45),
                     borderRadius: BorderRadius.circular(32),
-                    border: Border.all(color: Colors.white.withOpacity(0.25), width: 1.5),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.5),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _buildNavItem(0, CupertinoIcons.home, CupertinoIcons.house_fill, AppLocalizations.of(context)?.navHome ?? "Accueil"),
-                      _buildNavItem(1, CupertinoIcons.map, CupertinoIcons.map_fill, AppLocalizations.of(context)?.navCourts ?? "Terrains"),
+                      _buildNavItem(0, CupertinoIcons.home, CupertinoIcons.house_fill, AppLocalizations.of(context).navHome),
+                      _buildNavItem(1, CupertinoIcons.map, CupertinoIcons.map_fill, AppLocalizations.of(context).navCourts),
                       _buildNavItem(2, Icons.emoji_events_outlined, Icons.emoji_events, "Compétition"),
                       _buildNavItem(3, CupertinoIcons.person_3, CupertinoIcons.person_3_fill, "Communauté"),
                       StreamBuilder<int>(
@@ -101,7 +101,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                             4,
                             CupertinoIcons.chat_bubble_2,
                             CupertinoIcons.chat_bubble_2_fill,
-                            AppLocalizations.of(context)?.navChat ?? "Chat",
+                            AppLocalizations.of(context).navChat,
                             badgeCount: unreadCount,
                           );
                         },
@@ -127,9 +127,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         curve: Curves.easeOutCubic,
         padding: EdgeInsets.symmetric(horizontal: isSelected ? 12 : 8, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.coral.withOpacity(0.25) : Colors.transparent,
+          color: isSelected ? AppColors.coral.withValues(alpha: 0.25) : Colors.transparent,
           borderRadius: BorderRadius.circular(18),
-          border: isSelected ? Border.all(color: AppColors.coral.withOpacity(0.5), width: 1) : null,
+          border: isSelected ? Border.all(color: AppColors.coral.withValues(alpha: 0.5), width: 1) : null,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

@@ -18,7 +18,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:app_links/app_links.dart';
 import 'l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'providers/app_state.dart';
+import 'screens/tournaments/beach_score_hub_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,8 +49,9 @@ void main() async {
           badge: true,
           sound: true,
         );
+        await messaging.subscribeToTopic('beachscore_live');
       } catch (e) {
-        print("Notification init error: $e");
+        debugPrint("Notification init error: $e");
       }
     }
 
@@ -59,7 +62,7 @@ void main() async {
       ),
     );
   } catch (e) {
-    print("Erreur critique au démarrage: $e");
+    debugPrint("Erreur critique au démarrage: $e");
     runApp(MaterialApp(
       home: Scaffold(
         backgroundColor: Colors.black,
@@ -96,10 +99,10 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
         // Listen to foreground messages
         FirebaseMessaging.onMessage.listen((RemoteMessage message) {
           if (message.notification != null) {
-            print('Message en premier plan: ${message.notification?.title}');
-            final context = navigatorKey.currentContext;
-            if (context != null) {
-              ScaffoldMessenger.of(context).showSnackBar(
+            debugPrint('Message en premier plan: ${message.notification?.title}');
+            final ctx = navigatorKey.currentContext;
+            if (ctx != null && ctx.mounted) {
+              ScaffoldMessenger.of(ctx).showSnackBar(
                 SnackBar(
                   content: Text("${message.notification?.title} : ${message.notification?.body}"),
                   behavior: SnackBarBehavior.floating,
@@ -123,7 +126,7 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
         _checkInitialMessage();
         _initDeepLinks();
       } catch (e) {
-        print("Messaging listeners error: $e");
+        debugPrint("Messaging listeners error: $e");
       }
     }
   }
@@ -147,16 +150,16 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
         _handleDeepLink(uri);
       }
     }, onError: (err) {
-      print("Erreur DeepLink: $err");
+      debugPrint("Erreur DeepLink: $err");
     });
   }
 
   void _handleDeepLink(Uri uri) {
-    print("Deep link reçu : $uri (path: ${uri.path}, params: ${uri.queryParameters})");
+    debugPrint("Deep link reçu : $uri (path: ${uri.path}, params: ${uri.queryParameters})");
 
     if (uri.pathSegments.length >= 2 && uri.pathSegments[0] == 'match') {
       final matchId = uri.pathSegments[1];
-      print("Ouverture du match via Deep Link: $matchId");
+      debugPrint("Ouverture du match via Deep Link: $matchId");
       final context = navigatorKey.currentContext;
       if (context != null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -174,7 +177,7 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
             );
           }
         }).catchError((e) {
-          print("Erreur chargement club via deep link: $e");
+          debugPrint("Erreur chargement club via deep link: $e");
         });
       }
     }
@@ -194,11 +197,41 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
   }
 
   void _handleMessageRoute(RemoteMessage message) {
-    if (message.data['type'] == 'match_confirmation' && message.data['matchId'] != null) {
+    final type = message.data['type'];
+    if (type == 'match_confirmation' && message.data['matchId'] != null) {
       navigatorKey.currentState?.push(
         MaterialPageRoute(
           builder: (_) => MatchConfirmationScreen(matchId: message.data['matchId']),
-        )
+        ),
+      );
+    } else if (type == 'pro_match_live') {
+      final streamUrl = message.data['streamUrl'];
+      if (streamUrl != null && streamUrl.toString().isNotEmpty) {
+        launchUrl(Uri.parse(streamUrl.toString()), mode: LaunchMode.externalApplication);
+      } else {
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => const BeachScoreHubScreen()),
+        );
+      }
+    } else if (type == 'club_announcement') {
+      final clubId = message.data['clubId'];
+      if (clubId != null && clubId.toString().isNotEmpty) {
+        FirebaseFirestore.instance.collection('clubs').doc(clubId.toString()).get().then((doc) {
+          if (doc.exists) {
+            final club = ClubModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+            navigatorKey.currentState?.push(
+              MaterialPageRoute(builder: (_) => ClubDetailScreen(club: club)),
+            );
+          }
+        }).catchError((_) {
+          _navigateToChat();
+        });
+      } else {
+        _navigateToChat();
+      }
+    } else if (type == 'match_player_left' || type == 'match_reminder') {
+      navigatorKey.currentState?.pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainNavigationScreen(initialIndex: 0)),
       );
     } else {
       _navigateToChat();
@@ -248,7 +281,7 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
           seedColor: AppColors.primary,
           primary: AppColors.primary,
           secondary: AppColors.gold,
-          background: AppColors.background,
+          surface: AppColors.background,
         ),
         textTheme: GoogleFonts.outfitTextTheme(
           Theme.of(context).textTheme,

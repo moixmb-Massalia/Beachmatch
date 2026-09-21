@@ -88,7 +88,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ),
           Positioned.fill(
-            child: Container(color: Colors.black.withOpacity(0.4)),
+            child: Container(color: Colors.black.withValues(alpha: 0.4)),
           ),
           SafeArea(
             child: Center(
@@ -101,11 +101,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(32.0),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.85),
+                        color: Colors.white.withValues(alpha: 0.85),
                         borderRadius: BorderRadius.circular(32),
-                        border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1.5),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 30, spreadRadius: -5)
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 30, spreadRadius: -5)
                         ],
                       ),
                       child: Column(

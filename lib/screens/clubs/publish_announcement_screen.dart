@@ -139,8 +139,8 @@ class _PublishAnnouncementScreenState extends State<PublishAnnouncementScreen> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.60),
-                  Colors.black.withOpacity(0.88),
+                  Colors.black.withValues(alpha: 0.60),
+                  Colors.black.withValues(alpha: 0.88),
                 ],
               ),
             ),
@@ -157,9 +157,9 @@ class _PublishAnnouncementScreenState extends State<PublishAnnouncementScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
+                        color: Colors.white.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withOpacity(0.2)),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                       ),
                       child: Row(
                         children: [
@@ -206,7 +206,7 @@ class _PublishAnnouncementScreenState extends State<PublishAnnouncementScreen> {
                               hintText: "Ex : Entraînement de ce soir, Tournoi...",
                               hintStyle: const TextStyle(color: Colors.white38),
                               filled: true,
-                              fillColor: Colors.white.withOpacity(0.08),
+                              fillColor: Colors.white.withValues(alpha: 0.08),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
@@ -238,7 +238,7 @@ class _PublishAnnouncementScreenState extends State<PublishAnnouncementScreen> {
                               hintText: "Détaillez votre annonce pour l'ensemble des beacheurs du club...",
                               hintStyle: const TextStyle(color: Colors.white38),
                               filled: true,
-                              fillColor: Colors.white.withOpacity(0.08),
+                              fillColor: Colors.white.withValues(alpha: 0.08),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
@@ -273,7 +273,7 @@ class _PublishAnnouncementScreenState extends State<PublishAnnouncementScreen> {
                               style: TextStyle(color: Colors.white60, fontSize: 12),
                             ),
                             value: _pinToTavern,
-                            activeColor: AppColors.gold,
+                            activeThumbColor: AppColors.gold,
                             onChanged: (val) => setState(() => _pinToTavern = val),
                           ),
                           const Divider(color: Colors.white12),
@@ -294,7 +294,7 @@ class _PublishAnnouncementScreenState extends State<PublishAnnouncementScreen> {
                               style: TextStyle(color: Colors.white60, fontSize: 12),
                             ),
                             value: _sendPushNotification,
-                            activeColor: AppColors.coral,
+                            activeThumbColor: AppColors.coral,
                             onChanged: (val) => setState(() => _sendPushNotification = val),
                           ),
                         ],
@@ -348,9 +348,9 @@ class _PublishAnnouncementScreenState extends State<PublishAnnouncementScreen> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.12),
+            color: Colors.white.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           ),
           child: child,
         ),

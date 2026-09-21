@@ -43,7 +43,7 @@ class _SignupScreenState extends State<SignupScreen> {
           // Dark Overlay for readability
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.45),
+              color: Colors.black.withValues(alpha: 0.45),
             ),
           ),
           SafeArea(
@@ -68,12 +68,12 @@ class _SignupScreenState extends State<SignupScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(28.0),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0F1B29).withOpacity(0.85),
+                              color: const Color(0xFF0F1B29).withValues(alpha: 0.85),
                               borderRadius: BorderRadius.circular(32),
-                              border: Border.all(color: AppColors.gold.withOpacity(0.4), width: 1.5),
+                              border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 1.5),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.3),
+                                  color: Colors.black.withValues(alpha: 0.3),
                                   blurRadius: 25,
                                   offset: const Offset(0, 10),
                                 ),
@@ -179,9 +179,9 @@ class _SignupScreenState extends State<SignupScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: TextField(
         controller: controller,

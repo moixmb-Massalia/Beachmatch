@@ -24,7 +24,7 @@ class BeachWeatherWidget extends StatelessWidget {
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Row(
@@ -55,9 +55,9 @@ class BeachWeatherWidget extends StatelessWidget {
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.35),
+              color: Colors.black.withValues(alpha: 0.35),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withOpacity(0.15)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -70,9 +70,9 @@ class BeachWeatherWidget extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: windColor.withOpacity(0.25),
+                    color: windColor.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: windColor.withOpacity(0.5)),
+                    border: Border.all(color: windColor.withValues(alpha: 0.5)),
                   ),
                   child: Row(
                     children: [
@@ -97,9 +97,9 @@ class BeachWeatherWidget extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.14),
+                color: Colors.white.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.white.withOpacity(0.3)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -107,7 +107,7 @@ class BeachWeatherWidget extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.gold.withOpacity(0.2),
+                      color: AppColors.gold.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.wb_sunny_rounded, color: AppColors.gold, size: 24),
@@ -150,9 +150,9 @@ class BeachWeatherWidget extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: windColor.withOpacity(0.2),
+                      color: windColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: windColor.withOpacity(0.6)),
+                      border: Border.all(color: windColor.withValues(alpha: 0.6)),
                     ),
                     child: Column(
                       children: [
@@ -172,7 +172,7 @@ class BeachWeatherWidget extends StatelessWidget {
                         ),
                         Text(
                           weather.windDirectionLabel,
-                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 10),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 10),
                         ),
                       ],
                     ),

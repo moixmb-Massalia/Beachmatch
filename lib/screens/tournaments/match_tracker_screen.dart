@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -180,7 +179,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
                       decoration: BoxDecoration(
                         color: const Color(0xFF141D30),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withOpacity(0.08)),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                       ),
                       child: TabBar(
                         controller: _tabController,
@@ -232,20 +231,20 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            const Color(0xFF16253B).withOpacity(0.95),
-            const Color(0xFF1F3554).withOpacity(0.95),
+            const Color(0xFF16253B).withValues(alpha: 0.95),
+            const Color(0xFF1F3554).withValues(alpha: 0.95),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isLive ? Colors.redAccent.withOpacity(0.6) : Colors.white.withOpacity(0.12),
+          color: isLive ? Colors.redAccent.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.12),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.4),
+            color: Colors.black.withValues(alpha: 0.4),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -261,13 +260,13 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: isLive
-                      ? Colors.redAccent.withOpacity(0.2)
-                      : (isFinished ? AppColors.gold.withOpacity(0.2) : Colors.white.withOpacity(0.1)),
+                      ? Colors.redAccent.withValues(alpha: 0.2)
+                      : (isFinished ? AppColors.gold.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.1)),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: isLive
                         ? Colors.redAccent
-                        : (isFinished ? AppColors.gold : Colors.white.withOpacity(0.3)),
+                        : (isFinished ? AppColors.gold : Colors.white.withValues(alpha: 0.3)),
                   ),
                 ),
                 child: Row(
@@ -389,7 +388,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
             margin: const EdgeInsets.only(left: 6),
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
             decoration: BoxDecoration(
-              color: AppColors.coral.withOpacity(0.3),
+              color: AppColors.coral.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: AppColors.coral),
             ),
@@ -408,7 +407,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
       height: 28,
       margin: const EdgeInsets.only(left: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Center(
@@ -449,7 +448,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
         border: Border.all(color: const Color(0xFFF3D59B), width: 2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.6),
+            color: Colors.black.withValues(alpha: 0.6),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -487,9 +486,9 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.75),
+                      color: Colors.black.withValues(alpha: 0.75),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withOpacity(0.3)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -564,7 +563,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.4),
+                    color: Colors.black.withValues(alpha: 0.4),
                     blurRadius: 6,
                     offset: const Offset(0, 3),
                   ),
@@ -603,7 +602,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.6),
+            color: Colors.black.withValues(alpha: 0.6),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
@@ -645,7 +644,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
             decoration: BoxDecoration(
               color: const Color(0xFF141D30),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white.withOpacity(0.08)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -690,13 +689,13 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
               gradient: LinearGradient(
                 colors: [
                   const Color(0xFF16253B),
-                  const Color(0xFF1F3554).withOpacity(0.85),
+                  const Color(0xFF1F3554).withValues(alpha: 0.85),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.gold.withOpacity(0.35)),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -728,7 +727,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
           decoration: BoxDecoration(
             color: const Color(0xFF141D30),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: Column(
             children: [
@@ -785,7 +784,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
           decoration: BoxDecoration(
             color: const Color(0xFF141D30),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: Column(
             children: [
@@ -818,16 +817,16 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
           decoration: BoxDecoration(
             color: const Color(0xFF141D30),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: Column(
             children: [
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.12),
+                  color: AppColors.gold.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.gold.withOpacity(0.3)),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
                 ),
                 child: const Icon(Icons.bar_chart_rounded, color: AppColors.gold, size: 32),
               ),
@@ -854,7 +853,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
           decoration: BoxDecoration(
             color: const Color(0xFF141D30),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -892,7 +891,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
           decoration: BoxDecoration(
             color: const Color(0xFF141D30),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: Column(
             children: [
@@ -916,7 +915,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: AppColors.gold, size: 18),
@@ -1081,7 +1080,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
+                  color: Colors.white.withValues(alpha: 0.06),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.timer_outlined, color: AppColors.gold, size: 36),
@@ -1201,7 +1200,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
       decoration: BoxDecoration(
         color: const Color(0xFF141D30),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1227,7 +1226,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
                     width: 54,
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     decoration: BoxDecoration(
-                      color: isBreak ? AppColors.coral.withOpacity(0.25) : Colors.white.withOpacity(0.06),
+                      color: isBreak ? AppColors.coral.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.06),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: isBreak ? AppColors.coral : Colors.white12,
@@ -1307,12 +1306,12 @@ class BeachCourtPainter extends CustomPainter {
       ..strokeWidth = 2.5;
 
     final netPaint = Paint()
-      ..color = Colors.white.withOpacity(0.9)
+      ..color = Colors.white.withValues(alpha: 0.9)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.5;
 
     final netMeshPaint = Paint()
-      ..color = Colors.white.withOpacity(0.3)
+      ..color = Colors.white.withValues(alpha: 0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
 

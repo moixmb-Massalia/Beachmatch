@@ -83,7 +83,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
             ),
           ),
           Positioned.fill(
-            child: Container(color: Colors.black.withOpacity(0.5)),
+            child: Container(color: Colors.black.withValues(alpha: 0.5)),
           ),
           
           SafeArea(
@@ -113,9 +113,9 @@ class _TutorialScreenState extends State<TutorialScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.all(24),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
+                                    color: Colors.white.withValues(alpha: 0.2),
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white.withOpacity(0.4), width: 1.5),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
                                   ),
                                   child: Icon(
                                     page['icon'] as IconData,
@@ -135,9 +135,9 @@ class _TutorialScreenState extends State<TutorialScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.all(24),
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.3),
+                                    color: Colors.black.withValues(alpha: 0.3),
                                     borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
                                   ),
                                   child: Column(
                                     children: [
@@ -204,7 +204,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
                             backgroundColor: AppColors.coral,
                             foregroundColor: Colors.white,
                             elevation: 8,
-                            shadowColor: AppColors.coral.withOpacity(0.5),
+                            shadowColor: AppColors.coral.withValues(alpha: 0.5),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),

@@ -27,7 +27,7 @@ class WhatsAppShareService {
     } catch (_) {}
 
     // Repli natif universel (SharePlus)
-    await Share.share(text, subject: subject);
+    await SharePlus.instance.share(ShareParams(text: text, subject: subject));
   }
 
   /// 🤝 Message viral de recherche de partenaire pour un tournoi
