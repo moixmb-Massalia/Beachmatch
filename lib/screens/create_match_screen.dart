@@ -43,6 +43,24 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
     super.dispose();
   }
 
+  String _normalize(String s) {
+    return s
+        .toLowerCase()
+        .replaceAll(RegExp(r'[éèêë]'), 'e')
+        .replaceAll(RegExp(r'[àâä]'), 'a')
+        .replaceAll(RegExp(r'[îï]'), 'i')
+        .replaceAll(RegExp(r'[ôö]'), 'o')
+        .replaceAll(RegExp(r'[ùûü]'), 'u')
+        .replaceAll(RegExp(r'[ç]'), 'c')
+        .trim();
+  }
+
+  bool _matchesTokens(String text, List<String> tokens) {
+    if (tokens.isEmpty) return true;
+    final norm = _normalize(text);
+    return tokens.every((token) => norm.contains(token));
+  }
+
   Future<void> _saveMatch() async {
     if (_selectedCourtId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -138,7 +156,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               onPressed: () {
-                Share.share(shareText);
+                SharePlus.instance.share(ShareParams(text: shareText));
               },
             ),
           ],
@@ -181,11 +199,12 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
             child: Image.asset(
               'assets/images/beach_court_aerial_1785052250131.jpg',
               fit: BoxFit.cover,
+              cacheWidth: 1080,
             ),
           ),
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.78),
+              color: Colors.black.withValues(alpha: 0.78),
             ),
           ),
           SafeArea(
@@ -200,7 +219,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                       margin: const EdgeInsets.only(bottom: 20),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppColors.gold.withOpacity(0.2),
+                        color: AppColors.gold.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: AppColors.gold, width: 1.5),
                       ),
@@ -283,23 +302,96 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                         ),
                         const SizedBox(height: 12),
                         Autocomplete<CourtModel>(
+                          initialValue: widget.preselectedCourt != null
+                              ? TextEditingValue(text: "${widget.preselectedCourt!.name} (${widget.preselectedCourt!.city})")
+                              : null,
                           displayStringForOption: (CourtModel court) =>
                               court.id == "NEW_COURT" ? "+ Saisir un terrain manuellement" : "${court.name} (${court.city})",
                           optionsBuilder: (TextEditingValue textEditingValue) {
                             if (textEditingValue.text.isEmpty) {
-                              return const Iterable<CourtModel>.empty();
+                              return courts.take(8);
                             }
-                            final query = textEditingValue.text.toLowerCase();
+                            final tokens = _normalize(textEditingValue.text).split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
                             final matches = courts.where((CourtModel court) {
-                              return court.name.toLowerCase().contains(query) || court.city.toLowerCase().contains(query);
+                              return _matchesTokens("${court.name} ${court.city} ${court.country} ${court.description ?? ''}", tokens);
                             }).toList();
 
-                            matches.add(CourtModel(id: "NEW_COURT", name: textEditingValue.text, latitude: 0, longitude: 0, isFree: true, hasLights: false, hasShowers: false));
+                            matches.add(CourtModel(
+                              id: "NEW_COURT",
+                              name: textEditingValue.text,
+                              latitude: 0,
+                              longitude: 0,
+                              isFree: true,
+                              hasLights: false,
+                              hasShowers: false,
+                            ));
                             return matches;
+                          },
+                          optionsViewBuilder: (context, onSelected, options) {
+                            return Align(
+                              alignment: Alignment.topLeft,
+                              child: Material(
+                                color: Colors.transparent,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                                    child: Container(
+                                      width: MediaQuery.of(context).size.width - 72,
+                                      constraints: const BoxConstraints(maxHeight: 260),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF16253B).withValues(alpha: 0.96),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.5),
+                                            blurRadius: 16,
+                                            offset: const Offset(0, 6),
+                                          ),
+                                        ],
+                                      ),
+                                      child: ListView.separated(
+                                        padding: const EdgeInsets.symmetric(vertical: 6),
+                                        shrinkWrap: true,
+                                        itemCount: options.length,
+                                        separatorBuilder: (_, __) => Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
+                                        itemBuilder: (context, index) {
+                                          final court = options.elementAt(index);
+                                          final isNew = court.id == "NEW_COURT";
+                                          return ListTile(
+                                            dense: true,
+                                            leading: Icon(
+                                              isNew ? Icons.add_location_alt_rounded : Icons.sports_tennis_rounded,
+                                              color: isNew ? AppColors.gold : AppColors.coral,
+                                              size: 20,
+                                            ),
+                                            title: Text(
+                                              isNew ? "+ Saisir un terrain manuellement" : court.name,
+                                              style: TextStyle(
+                                                color: isNew ? AppColors.gold : Colors.white,
+                                                fontWeight: isNew ? FontWeight.bold : FontWeight.w600,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                            subtitle: !isNew && court.city.isNotEmpty
+                                                ? Text(court.city, style: const TextStyle(color: Colors.white60, fontSize: 11))
+                                                : null,
+                                            onTap: () => onSelected(court),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
                           },
                           onSelected: (CourtModel selection) async {
                             FocusScope.of(context).unfocus();
                             if (selection.id == "NEW_COURT") {
+                              final appState = context.read<AppState>();
+                              final currentPos = appState.currentPosition;
                               final newCourtName = await showDialog<String>(
                                 context: context,
                                 builder: (ctx) {
@@ -333,14 +425,16 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                                 final docRef = await FirebaseFirestore.instance.collection('courts').add({
                                   "name": newCourtName,
                                   "city": "Inconnue",
-                                  "latitude": context.read<AppState>().currentPosition?.latitude ?? 43.6961,
-                                  "longitude": context.read<AppState>().currentPosition?.longitude ?? 7.2717,
+                                  "latitude": currentPos?.latitude ?? 43.6961,
+                                  "longitude": currentPos?.longitude ?? 7.2717,
                                   "isFree": true,
                                   "hasLighting": false,
                                   "hasParking": false,
                                 });
-                                await context.read<AppState>().loadData();
-                                setState(() => _selectedCourtId = docRef.id);
+                                await appState.loadData();
+                                if (mounted) {
+                                  setState(() => _selectedCourtId = docRef.id);
+                                }
                               }
                             } else {
                               setState(() => _selectedCourtId = selection.id);
@@ -356,13 +450,45 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                                 hintText: "Rechercher un terrain de plage...",
                                 hintStyle: const TextStyle(color: Colors.white38),
                                 filled: true,
-                                fillColor: Colors.white.withOpacity(0.08),
+                                fillColor: Colors.white.withValues(alpha: 0.08),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
                                 prefixIcon: const Icon(Icons.search, color: AppColors.gold),
                               ),
                             );
                           },
                         ),
+                        if (_selectedCourtId != null) ...[
+                          const SizedBox(height: 10),
+                          Builder(
+                            builder: (context) {
+                              final selectedCourt = courts.firstWhere(
+                                (c) => c.id == _selectedCourtId,
+                                orElse: () => CourtModel(id: '', name: 'Terrain sélectionné', latitude: 0, longitude: 0, isFree: true, hasLights: false, hasShowers: false),
+                              );
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.greenAccent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 16),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        "Terrain sélectionné : ${selectedCourt.name}",
+                                        style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -403,7 +529,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                                   style: const TextStyle(fontWeight: FontWeight.bold),
                                 ),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white.withOpacity(0.12),
+                                  backgroundColor: Colors.white.withValues(alpha: 0.12),
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(vertical: 14),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -427,7 +553,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                                   style: const TextStyle(fontWeight: FontWeight.bold),
                                 ),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white.withOpacity(0.12),
+                                  backgroundColor: Colors.white.withValues(alpha: 0.12),
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(vertical: 14),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -507,7 +633,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                             hintText: "Ex : Balles fournies, match amical détendu...",
                             hintStyle: const TextStyle(color: Colors.white38),
                             filled: true,
-                            fillColor: Colors.white.withOpacity(0.08),
+                            fillColor: Colors.white.withValues(alpha: 0.08),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                             contentPadding: const EdgeInsets.all(12),
                           ),
@@ -563,10 +689,10 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.coral.withOpacity(0.3) : Colors.white.withOpacity(0.06),
+          color: isSelected ? AppColors.coral.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? AppColors.coral : Colors.white.withOpacity(0.15),
+            color: isSelected ? AppColors.coral : Colors.white.withValues(alpha: 0.15),
             width: isSelected ? 1.8 : 1.0,
           ),
         ),
@@ -605,18 +731,18 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.coral
-              : Colors.black.withOpacity(0.4),
+              : Colors.black.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isSelected
                 ? AppColors.coral
-                : Colors.white.withOpacity(0.25),
+                : Colors.white.withValues(alpha: 0.25),
             width: isSelected ? 1.8 : 1.0,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.coral.withOpacity(0.4),
+                    color: AppColors.coral.withValues(alpha: 0.4),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -653,18 +779,18 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.coral
-              : Colors.black.withOpacity(0.4),
+              : Colors.black.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isSelected
                 ? AppColors.coral
-                : Colors.white.withOpacity(0.25),
+                : Colors.white.withValues(alpha: 0.25),
             width: isSelected ? 1.8 : 1.0,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.coral.withOpacity(0.4),
+                    color: AppColors.coral.withValues(alpha: 0.4),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -757,9 +883,9 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.12),
+            color: Colors.white.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           ),
           child: child,
         ),
