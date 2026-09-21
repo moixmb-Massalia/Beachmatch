@@ -11,7 +11,10 @@ import 'competition_screen.dart';
 import 'community_screen.dart';
 import 'messages_screen.dart';
 import 'tutorial_screen.dart';
+import 'create_match_screen.dart';
 import '../services/chat_service.dart';
+import '../services/beachy_service.dart';
+import '../widgets/beachy_floating_bubble.dart';
 import '../l10n/app_localizations.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -51,6 +54,29 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     const MessagesScreen(),
   ];
 
+  void _handleBeachyAction(BeachyAction action) {
+    switch (action.type) {
+      case BeachyActionType.openMap:
+        setState(() => _currentIndex = 1);
+        break;
+      case BeachyActionType.openTournaments:
+      case BeachyActionType.openRankings:
+        setState(() => _currentIndex = 2);
+        break;
+      case BeachyActionType.createMatch:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const CreateMatchScreen()),
+        );
+        break;
+      case BeachyActionType.openProfile:
+        setState(() => _currentIndex = 0);
+        break;
+      case BeachyActionType.none:
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUser = context.watch<AppState>().currentUser;
@@ -60,9 +86,26 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
     return Scaffold(
       extendBody: true, // Body flows behind the bottom nav bar
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: _currentIndex,
+            children: _screens,
+          ),
+          SafeArea(
+            child: AnimatedAlign(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOutCubic,
+              alignment: _currentIndex == 1 ? Alignment.bottomLeft : Alignment.bottomRight,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 96, left: 16, right: 16),
+                child: BeachyFloatingBubble(
+                  onActionSelected: _handleBeachyAction,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
