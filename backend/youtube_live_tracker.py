@@ -1,8 +1,11 @@
 """
-BeachMatch - YouTube Live Scoreboard Tracker (Robot IA Vision)
----------------------------------------------------------------
-Surveille les chaînes YouTube de Beach Tennis (PlayBT, ITF, FFTennis)
-et met à jour automatiquement les scores en direct dans Firestore.
+BeachMatch - YouTube Live Scoreboard Tracker (Robot IA Vision 100% Automatique)
+-------------------------------------------------------------------------------
+1. Découvre automatiquement les matchs programmés, en direct et terminés
+   sur les chaînes officielles (PlayBT, FFTennis...).
+2. Extrait le tournoi, le tour, les équipes et le genre directement depuis le titre.
+3. Crée les documents Firestore sans aucune saisie manuelle.
+4. Lit le score en direct sur le flux vidéo via RapidOCR toutes les 30s.
 """
 
 import os
@@ -26,11 +29,9 @@ if sys.stdout.encoding != 'utf-8':
     except Exception:
         pass
 
-# Chaînes officielles surveillées
 CHANNELS = [
-    {"name": "PlayBT", "url": "https://www.youtube.com/@playbtoficial/live", "priority": 1},
-    {"name": "ITF Beach Tennis", "url": "https://www.youtube.com/@ITFBeachTennisTour/live", "priority": 2},
-    {"name": "FFTennis", "url": "https://www.youtube.com/@FFTennis/live", "priority": 3},
+    {"name": "PlayBT", "url": "https://www.youtube.com/@ProgramaPLAYBT/streams"},
+    {"name": "FFTennis", "url": "https://www.youtube.com/@FFTennis/streams"},
 ]
 
 def init_firebase():
@@ -65,55 +66,136 @@ def init_firebase():
 
     raise RuntimeError("❌ Impossible d'initialiser Firebase. Aucune clé trouvée.")
 
-def check_active_live_stream():
-    """Vérifie si une des chaînes surveillées est actuellement en direct."""
-    print("🔍 Recherche d'un direct sur les chaînes de Beach Tennis...")
+def parse_match_title(title):
+    """Extrait Tournoi, Tour, Équipes et Tableau (DH/DD) depuis le titre de la vidéo."""
+    res = {
+        'round': 'Match Pro',
+        'team1': 'Équipe 1',
+        'team2': 'Équipe 2',
+        'tournament': 'World Tour',
+        'draw': 'DH'
+    }
+
+    # 1. Extraction du Tour (FINAL, SEMIFINAL, QUARTAS...)
+    round_match = re.match(r'^(FINAL(?:E)?|SEMIFINAL|DEMI(?:-)?FINALE|QUART(?:AS)?(?: DE FINAL)?):\s*', title, re.I)
+    rest = title
+    if round_match:
+        raw_round = round_match.group(1).upper()
+        if 'FINAL' in raw_round and 'SEMI' not in raw_round and 'DEMI' not in raw_round and 'QUART' not in raw_round:
+            res['round'] = 'Finale 🏆'
+        elif 'SEMI' in raw_round or 'DEMI' in raw_round:
+            res['round'] = '1/2 Finale'
+        elif 'QUART' in raw_round:
+            res['round'] = '1/4 Finale'
+        rest = title[round_match.end():]
+
+    # 2. Extraction du Tournoi (après le dernier tiret -)
+    if ' - ' in rest:
+        parts = rest.rsplit(' - ', 1)
+        rest = parts[0].strip()
+        res['tournament'] = parts[1].strip()
+
+    # 3. Extraction des Équipes (séparées par X ou VS)
+    team_split = re.split(r'\s+[xX]\s+|\s+vs\s+|\s+VS\s+', rest)
+    if len(team_split) == 2:
+        res['team1'] = team_split[0].strip().title()
+        res['team2'] = team_split[1].strip().title()
+
+    # 4. Détection Double Dames (DD) vs Double Hommes (DH)
+    fem_names = ['julia', 'mariana', 'ana', 'graziele', 'giulia', 'ninny', 'sophia', 'vitoria', 'patricia', 'flaminia', 'elena', 'nicole', 'dames']
+    t_lower = (res['team1'] + ' ' + res['team2'] + ' ' + title).lower()
+    if any(name in t_lower for name in fem_names):
+        res['draw'] = 'DD'
+    else:
+        res['draw'] = 'DH'
+
+    return res
+
+def discover_channel_matches(db=None, max_per_channel=5):
+    """
+    Scanne les chaînes YouTube pour découvrir les matchs sans aucune saisie humaine.
+    Retourne la liste des matchs découverts et le premier match LIVE s'il y en a un.
+    """
+    print("\n📡 Découverte automatique des matchs sur YouTube...")
+    discovered = []
+    active_live_match = None
+
     for ch in CHANNELS:
+        print(f"  🔍 Scan {ch['name']}...")
         cmd = [
             "yt-dlp",
             "--js-runtimes", "node",
-            "--print", "%(is_live)s|%(id)s|%(title)s",
-            "--no-playlist",
+            "--flat-playlist",
+            "--print", "%(id)s|%(live_status)s|%(title)s",
+            "--playlist-end", str(max_per_channel),
             ch["url"]
         ]
-        try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
-            out = res.stdout.strip()
-            if out and "|" in out:
-                parts = out.split("|", 2)
-                is_live = parts[0].strip().lower() == "true"
-                vid_id = parts[1].strip()
-                title = parts[2].strip() if len(parts) > 2 else ""
-                if is_live and vid_id:
-                    print(f"  🔴 DIRECT TROUVÉ sur {ch['name']} : '{title}' (ID: {vid_id})")
-                    return {
-                        "channel": ch["name"],
-                        "video_id": vid_id,
-                        "url": f"https://www.youtube.com/watch?v={vid_id}",
-                        "title": title
-                    }
-        except Exception as e:
-            print(f"  ⚠️ Erreur vérification {ch['name']} : {e}")
 
-    print("  ⚪ Aucun direct actif sur les chaînes cibles pour le moment.")
-    return None
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            for line in res.stdout.strip().split('\n'):
+                if not line or '|' not in line:
+                    continue
+                parts = line.split('|', 2)
+                vid_id = parts[0].strip()
+                live_status = parts[1].strip().lower()
+                title = parts[2].strip() if len(parts) > 2 else ""
+
+                # Filtre : s'assurer que c'est bien du Beach Tennis (notamment sur FFTennis)
+                if ch["name"] == "FFTennis" and not any(kw in title.lower() for kw in ["beach", "bt1000", "bt2000", "bt500", "bt200"]):
+                    continue
+
+                parsed = parse_match_title(title)
+                status = 'SCHEDULED'
+                time_str = 'Programmé'
+
+                if live_status == 'is_live':
+                    status = 'LIVE'
+                    time_str = 'En Direct 🔴'
+                elif live_status == 'was_live':
+                    status = 'FINISHED'
+                    time_str = 'Terminé 🏆'
+
+                match_obj = {
+                    'id': f"yt_{vid_id}",
+                    'videoId': vid_id,
+                    'tournamentId': re.sub(r'[^a-zA-Z0-9_]', '_', parsed['tournament'].lower())[:30],
+                    'tournamentName': parsed['tournament'],
+                    'round': parsed['round'],
+                    'draw': parsed['draw'],
+                    'team1': parsed['team1'],
+                    'team2': parsed['team2'],
+                    'status': status,
+                    'time': time_str,
+                    'streamUrl': f"https://www.youtube.com/watch?v={vid_id}",
+                    'date': datetime.now(timezone.utc).strftime('%Y-%m-%d'),
+                }
+
+                discovered.append(match_obj)
+                print(f"    ➔ [{match_obj['status']}] {match_obj['round']} : {match_obj['team1']} vs {match_obj['team2']} ({match_obj['tournamentName']})")
+
+                # Enregistrement dans Firestore si disponible
+                if db:
+                    ref = db.collection('pro_matches').document(match_obj['id'])
+                    ref.set({
+                        **match_obj,
+                        'updatedAt': firestore.SERVER_TIMESTAMP,
+                    }, merge=True)
+
+                if status == 'LIVE' and not active_live_match:
+                    active_live_match = match_obj
+
+        except Exception as e:
+            print(f"  ⚠️ Erreur scan {ch['name']} : {e}")
+
+    print(f"✅ {len(discovered)} match(s) synchronisé(s) automatiquement depuis YouTube.\n")
+    return discovered, active_live_match
 
 def parse_scoreboard_detections(ocr_items):
-    """
-    Extrait les données de score (équipes, jeux, points) depuis les détections OCR.
-    Format type :
-      - 'GASPA/VALEN'
-      - '2' ou 'D' (jeu)
-      - '30' ou '40' (point)
-      - 'CHOW/MARCH'
-      - '5' (jeu)
-      - '0' (point)
-    """
+    """Extrait les scores depuis l'OCR."""
     lines = [item[1].strip() for item in ocr_items]
-    
-    # Nettoyage et reconnaissance des chiffres
+
     def clean_game_digit(val):
-        # OCR confond parfois '0' avec 'D', 'O', 'Q'
         if val.upper() in ['D', 'O', 'Q']:
             return '0'
         if val.isdigit() and 0 <= int(val) <= 7:
@@ -127,14 +209,12 @@ def parse_scoreboard_detections(ocr_items):
             return '30'
         return val if val.isdigit() else None
 
-    # Extraction des noms et chiffres
     teams = []
     digits = []
 
     for text in lines:
         cleaned_digit = clean_game_digit(text)
         cleaned_pt = clean_point(text)
-        
         if cleaned_digit is not None:
             digits.append(cleaned_digit)
         elif cleaned_pt is not None:
@@ -156,33 +236,18 @@ def parse_scoreboard_detections(ocr_items):
 
     return score_data
 
-def track_stream(video_url, match_id=None, db=None, max_duration_sec=10800, poll_interval=30):
-    """
-    Boucle principale de tracking du stream YouTube :
-    Capture un fragment toutes les 30s, lit le bandeau, met à jour Firestore.
-    """
-    print(f"\n🚀 Démarrage du tracking en direct : {video_url}")
+def track_live_match(match_obj, db=None, max_duration_sec=10800, poll_interval=30):
+    """Suit le score du match LIVE en temps réel toutes les 30s."""
+    video_url = match_obj['streamUrl']
+    match_id = match_obj['id']
+    print(f"\n🎾 DÉMARRAGE DU TRACKING EN DIRECT pour {match_obj['team1']} vs {match_obj['team2']}")
+
     engine = RapidOCR()
     temp_dir = tempfile.mkdtemp(prefix="bt_live_")
 
     try:
         start_time = time.time()
         last_score_str = ""
-
-        # Détermination du document Firestore cible
-        if db:
-            if not match_id:
-                match_id = f"live_yt_{int(time.time())}"
-            doc_ref = db.collection('pro_matches').document(match_id)
-            doc_ref.set({
-                'id': match_id,
-                'status': 'LIVE',
-                'streamUrl': video_url,
-                'time': 'En Direct 🔴',
-                'date': datetime.now(timezone.utc).strftime('%Y-%m-%d'),
-                'updatedAt': firestore.SERVER_TIMESTAMP,
-            }, merge=True)
-            print(f"📡 Match Firestore initialisé : pro_matches/{match_id}")
 
         frame_idx = 0
         while time.time() - start_time < max_duration_sec:
@@ -191,8 +256,6 @@ def track_stream(video_url, match_id=None, db=None, max_duration_sec=10800, poll
             frame_path = os.path.join(temp_dir, f"frame_{frame_idx}.jpg")
             crop_path = os.path.join(temp_dir, f"crop_{frame_idx}.jpg")
 
-            # 1. Télécharger un mini segment de 2 secondes
-            # Format 311 (720p HLS) ou fallback 230 (360p HLS)
             cmd_dl = [
                 "yt-dlp",
                 "--js-runtimes", "node",
@@ -205,11 +268,15 @@ def track_stream(video_url, match_id=None, db=None, max_duration_sec=10800, poll
 
             res_dl = subprocess.run(cmd_dl, capture_output=True, text=True, timeout=25)
             if not os.path.exists(clip_path) or os.path.getsize(clip_path) == 0:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] ⚠️ Flux indisponible ou terminé.")
-                time.sleep(poll_interval)
-                continue
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] 🏁 Fin du live détectée. Match archivé.")
+                if db:
+                    db.collection('pro_matches').document(match_id).update({
+                        'status': 'FINISHED',
+                        'time': 'Terminé 🏆',
+                        'updatedAt': firestore.SERVER_TIMESTAMP,
+                    })
+                break
 
-            # 2. Extraire 1 frame
             cmd_ff = [
                 "ffmpeg",
                 "-ss", "00:00:01",
@@ -222,42 +289,30 @@ def track_stream(video_url, match_id=None, db=None, max_duration_sec=10800, poll
             subprocess.run(cmd_ff, capture_output=True, timeout=10)
 
             if os.path.exists(frame_path) and os.path.getsize(frame_path) > 0:
-                # 3. Découpe du bandeau (coin supérieur gauche)
                 with Image.open(frame_path) as img:
                     w, h = img.size
                     crop_box = (0, 0, int(w * 0.35), int(h * 0.25))
                     crop_img = img.crop(crop_box)
                     crop_img.save(crop_path)
 
-                # 4. OCR par RapidOCR
                 ocr_result, _ = engine(crop_path)
                 if ocr_result:
                     score = parse_scoreboard_detections(ocr_result)
                     current_score_str = f"{score.get('games1', '?')}-{score.get('games2', '?')} ({score.get('points1', '')}-{score.get('points2', '')})"
-                    
+
                     if current_score_str != last_score_str:
                         last_score_str = current_score_str
-                        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🎾 SCORE MIS À JOUR : {score.get('team1', 'Équipe 1')} [{score.get('games1', '0')}] vs {score.get('team2', 'Équipe 2')} [{score.get('games2', '0')}] | Points: {score.get('points1', '')}-{score.get('points2', '')}")
-                        
-                        if db and ('games1' in score or 'team1' in score):
-                            update_data = {
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🎾 SCORE : [{score.get('games1', '0')}] vs [{score.get('games2', '0')}] | Points: {score.get('points1', '')}-{score.get('points2', '')}")
+
+                        if db and 'games1' in score:
+                            db.collection('pro_matches').document(match_id).update({
                                 'status': 'LIVE',
                                 'set1': f"{score.get('games1', '0')}/{score.get('games2', '0')}",
                                 'points1': score.get('points1', ''),
                                 'points2': score.get('points2', ''),
                                 'updatedAt': firestore.SERVER_TIMESTAMP,
-                            }
-                            if 'team1' in score:
-                                update_data['team1'] = score['team1']
-                            if 'team2' in score:
-                                update_data['team2'] = score['team2']
-                            
-                            db.collection('pro_matches').document(match_id).update(update_data)
-                else:
-                    # Scoreboard temporairement masqué (caméra gros plan, ralenti)
-                    print(f"[{datetime.now().strftime('%H:%M:%S')}] ⏳ Bandeau score temporairement masqué (ralenti/plan large)")
+                            })
 
-            # Nettoyage fichiers temporaires pour garder 0 Mo d'espace disque
             for f in [clip_path, frame_path, crop_path]:
                 if os.path.exists(f):
                     try: os.remove(f)
@@ -267,14 +322,11 @@ def track_stream(video_url, match_id=None, db=None, max_duration_sec=10800, poll
 
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
-        print("🧹 Nettoyage terminé.")
 
 def main():
-    parser = argparse.ArgumentParser(description="Robot IA Live YouTube Tracker pour BeachMatch")
-    parser.add_argument("--url", help="URL directe d'une vidéo ou d'un live YouTube à suivre", default=None)
-    parser.add_argument("--match-id", help="ID du document Firestore à mettre à jour", default=None)
+    parser = argparse.ArgumentParser(description="Robot IA Vision 100% Automatique Beach Tennis")
+    parser.add_argument("--url", help="URL manuelle pour forcer le tracking d'un match spécifique", default=None)
     parser.add_argument("--interval", type=int, help="Intervalle entre chaque capture (secondes)", default=30)
-    parser.add_argument("--test-once", action="store_true", help="Capture et analyse 1 seule frame pour test")
     args = parser.parse_args()
 
     db = None
@@ -283,20 +335,24 @@ def main():
     except Exception as e:
         print(f"ℹ️ Exécution sans écriture Firestore : {e}")
 
-    target_url = args.url
-    if not target_url:
-        live_info = check_active_live_stream()
-        if live_info:
-            target_url = live_info["url"]
-        else:
-            print("🏁 Rien à faire pour l'instant. Fin du robot.")
-            return
+    # Si une URL manuelle est fournie, on la suit directement
+    if args.url:
+        match_obj = {
+            'id': f"yt_manual_{int(time.time())}",
+            'streamUrl': args.url,
+            'team1': 'Équipe 1',
+            'team2': 'Équipe 2',
+        }
+        track_live_match(match_obj, db=db, poll_interval=args.interval)
+        return
 
-    if args.test_once:
-        print("🧪 Mode test 1-frame...")
-        track_stream(target_url, match_id=args.match_id, db=db, max_duration_sec=35, poll_interval=1)
+    # Sinon : MODE AUTO-DISCOVERY 100% SANS SAISIE
+    discovered, live_match = discover_channel_matches(db=db)
+
+    if live_match:
+        track_live_match(live_match, db=db, poll_interval=args.interval)
     else:
-        track_stream(target_url, match_id=args.match_id, db=db, poll_interval=args.interval)
+        print("🏁 Tous les matchs récents sont synchronisés dans Firestore. Aucun live en cours. Repos du robot.")
 
 if __name__ == '__main__':
     main()
