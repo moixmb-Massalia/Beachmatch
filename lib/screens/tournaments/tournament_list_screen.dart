@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -25,8 +26,18 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
   String _selectedCategoryFilter = 'Toutes 🏆';
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  Timer? _searchDebounce;
   Position? _currentPosition;
   bool _isLocating = false;
+
+  String _removeAccents(String str) {
+    var withDia = 'ÀÁÂÃÄÅàáâãäåÒÓÔÕÖØòóôõöøÈÉÊËèéêëðÇçÐÌÍÎÏìíîïÙÚÛÜùúûüÑñŠšŸÿýŽž';
+    var withoutDia = 'AAAAAAaaaaaaOOOOOOooooooEEEEeeeeeCcDIIIIiiiiUUUUuuuuNnSsYyyZz';
+    for (int i = 0; i < withDia.length; i++) {
+      str = str.replaceAll(withDia[i], withoutDia[i]);
+    }
+    return str;
+  }
   
   final List<Map<String, String>> _countryFilters = [
     {'id': 'ALL', 'label': 'Tous 🌍'},
@@ -54,8 +65,13 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
     super.initState();
     _initUserLocation();
     _searchController.addListener(() {
-      setState(() {
-        _searchQuery = _searchController.text.trim().toLowerCase();
+      _searchDebounce?.cancel();
+      _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+        if (mounted) {
+          setState(() {
+            _searchQuery = _removeAccents(_searchController.text.trim()).toLowerCase();
+          });
+        }
       });
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -68,6 +84,7 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -180,7 +197,10 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
         } else if (_selectedCategoryFilter == 'BT 2000 / 400') {
           if (!t.category.contains('2000') && !t.category.contains('400')) return false;
         } else if (_selectedCategoryFilter == 'BT 100 / 25') {
-          if (!t.category.contains('100') && !t.category.contains('25') && !t.category.contains('50')) return false;
+          final has100 = RegExp(r'\b100(?!\d)\b').hasMatch(t.category);
+          final has50 = RegExp(r'\b50(?!\d)\b').hasMatch(t.category);
+          final has25 = RegExp(r'\b25(?!\d)\b').hasMatch(t.category);
+          if (!has100 && !has50 && !has25) return false;
         } else {
           final regex = RegExp(_selectedCategoryFilter + r'(?!\d)');
           if (!regex.hasMatch(t.category)) return false;
@@ -189,11 +209,20 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
 
       // Search Query Filter
       if (_searchQuery.isNotEmpty) {
-        final nameMatches = t.name.toLowerCase().contains(_searchQuery);
-        final locMatches = t.location.toLowerCase().contains(_searchQuery);
-        final clubMatches = t.club.toLowerCase().contains(_searchQuery);
-        final catMatches = t.category.toLowerCase().contains(_searchQuery);
-        if (!nameMatches && !locMatches && !clubMatches && !catMatches) return false;
+        final tokens = _searchQuery.split(RegExp(r'\s+')).where((tok) => tok.isNotEmpty).toList();
+        final nameNorm = _removeAccents(t.name).toLowerCase();
+        final locNorm = _removeAccents(t.location).toLowerCase();
+        final clubNorm = _removeAccents(t.club).toLowerCase();
+        final catNorm = _removeAccents(t.category).toLowerCase();
+        final countryNorm = _removeAccents(t.country ?? '').toLowerCase();
+
+        final matches = tokens.every((tok) =>
+            nameNorm.contains(tok) ||
+            locNorm.contains(tok) ||
+            clubNorm.contains(tok) ||
+            catNorm.contains(tok) ||
+            countryNorm.contains(tok));
+        if (!matches) return false;
       }
 
       return true;
@@ -212,13 +241,26 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
     } else {
       filteredTournaments.sort((a, b) {
         DateTime? parseDate(String dateStr) {
-          if (dateStr.length >= 10) {
-            try {
-              final parts = dateStr.substring(0, 10).split('/');
-              if (parts.length == 3) {
-                return DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
-              }
-            } catch (_) {}
+          final clean = dateStr.trim();
+          if (clean.length >= 10) {
+            // ISO format: yyyy-MM-dd
+            if (clean.contains('-')) {
+              try {
+                final parts = clean.substring(0, 10).split('-');
+                if (parts.length == 3) {
+                  return DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+                }
+              } catch (_) {}
+            }
+            // French format: dd/MM/yyyy
+            if (clean.contains('/')) {
+              try {
+                final parts = clean.substring(0, 10).split('/');
+                if (parts.length == 3) {
+                  return DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+                }
+              } catch (_) {}
+            }
           }
           return null;
         }

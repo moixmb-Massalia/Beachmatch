@@ -5,7 +5,8 @@ import 'package:share_plus/share_plus.dart';
 import '../theme/colors.dart';
 
 class FftRankingsScreen extends StatefulWidget {
-  const FftRankingsScreen({super.key});
+  final bool isEmbedded;
+  const FftRankingsScreen({super.key, this.isEmbedded = false});
 
   @override
   State<FftRankingsScreen> createState() => _FftRankingsScreenState();
@@ -205,53 +206,56 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
             child: Column(
               children: [
                 // Header
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppColors.gold,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.gold.withValues(alpha: 0.4),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.emoji_events, color: Colors.white, size: 24),
-                      ),
-                      const SizedBox(width: 14),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Classement FFT Beach Tennis",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 18,
+                if (!widget.isEmbedded)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.gold,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.gold.withValues(alpha: 0.4),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
                               ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              "Source : FFT Ten'Up · Classement officiel",
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          child: const Icon(Icons.emoji_events, color: Colors.white, size: 24),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Classement FFT Beach Tennis",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 18,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                "Source : FFT Ten'Up · Classement officiel",
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  const SizedBox(height: 12),
 
                 // Search Bar Glass
                 Padding(
