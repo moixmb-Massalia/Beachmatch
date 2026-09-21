@@ -240,6 +240,7 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
             child: Image.asset(
               'assets/images/beach_court_aerial_1785052250131.jpg',
               fit: BoxFit.cover,
+              cacheWidth: 1080,
             ),
           ),
           Positioned.fill(
@@ -249,8 +250,8 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.4),
-                    Colors.black.withOpacity(0.7),
+                    Colors.black.withValues(alpha: 0.4),
+                    Colors.black.withValues(alpha: 0.7),
                   ],
                 ),
               ),
@@ -277,9 +278,9 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(AppLocalizations.of(context)!.tournamentListTitle, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)),
+                              Text(AppLocalizations.of(context).tournamentListTitle, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)),
                               Text(
-                                AppLocalizations.of(context)!.tournamentListCount(filteredTournaments.length), 
+                                AppLocalizations.of(context).tournamentListCount(filteredTournaments.length), 
                                 style: const TextStyle(color: Colors.white70, fontSize: 13),
                               ),
                             ],
@@ -320,10 +321,10 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: AppColors.gold.withOpacity(0.8), width: 1.5),
+                        border: Border.all(color: AppColors.gold.withValues(alpha: 0.8), width: 1.5),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.redAccent.withOpacity(0.4),
+                            color: Colors.redAccent.withValues(alpha: 0.4),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -334,9 +335,9 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.35),
+                              color: Colors.black.withValues(alpha: 0.35),
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white.withOpacity(0.3)),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
                             ),
                             child: const Icon(Icons.live_tv_rounded, color: Colors.white, size: 20),
                           ),
@@ -414,16 +415,16 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.55),
+                      color: Colors.black.withValues(alpha: 0.55),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                     ),
                     child: TextField(
                       controller: _searchController,
                       style: const TextStyle(color: Colors.white, fontSize: 14),
                       decoration: InputDecoration(
                         hintText: "Rechercher une ville, club, catégorie...",
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
                         prefixIcon: const Icon(Icons.search_rounded, color: AppColors.gold, size: 20),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
@@ -469,10 +470,10 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                               _handleCountryFilter(item['id']!);
                             }
                           },
-                          backgroundColor: Colors.black.withOpacity(0.6),
+                          backgroundColor: Colors.black.withValues(alpha: 0.6),
                           selectedColor: AppColors.gold,
                           side: BorderSide(
-                            color: isSelected ? AppColors.gold : Colors.white.withOpacity(0.35),
+                            color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.35),
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(18),
@@ -498,13 +499,26 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 3),
                         child: ChoiceChip(
-                          label: Text(
-                            cat,
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : (cat == 'Terminés' ? Colors.grey : Colors.white70),
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              fontSize: 11,
-                            ),
+                          label: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (cat == 'Terminés') ...[
+                                Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 13,
+                                  color: isSelected ? Colors.white : AppColors.gold,
+                                ),
+                                const SizedBox(width: 4),
+                              ],
+                              Text(
+                                cat,
+                                style: TextStyle(
+                                  color: isSelected ? Colors.white : Colors.white70,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
                           ),
                           selected: isSelected,
                           onSelected: (selected) {
@@ -512,10 +526,12 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                               setState(() => _selectedCategoryFilter = cat);
                             }
                           },
-                          backgroundColor: Colors.black.withOpacity(0.4),
-                          selectedColor: AppColors.coral,
+                          backgroundColor: Colors.black.withValues(alpha: 0.4),
+                          selectedColor: cat == 'Terminés' ? AppColors.gold.withValues(alpha: 0.85) : AppColors.coral,
                           side: BorderSide(
-                            color: isSelected ? AppColors.coral : Colors.white.withOpacity(0.2),
+                            color: isSelected
+                                ? (cat == 'Terminés' ? AppColors.gold : AppColors.coral)
+                                : (cat == 'Terminés' ? AppColors.gold.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.2)),
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -564,7 +580,7 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                                     const SizedBox(height: 16),
                                     Text(
                                       "Chargement des tournois officiels...",
-                                      style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
+                                      style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 14),
                                     ),
                                   ],
                                 ),
@@ -576,10 +592,10 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.emoji_events_outlined, size: 48, color: Colors.white.withOpacity(0.4)),
+                                      Icon(Icons.emoji_events_outlined, size: 48, color: Colors.white.withValues(alpha: 0.4)),
                                       const SizedBox(height: 12),
                                       Text(
-                                        AppLocalizations.of(context)!.tournamentListEmpty,
+                                        AppLocalizations.of(context).tournamentListEmpty,
                                         style: const TextStyle(color: Colors.white70, fontSize: 15),
                                         textAlign: TextAlign.center,
                                       ),
@@ -670,10 +686,10 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
             margin: const EdgeInsets.only(bottom: 16),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: tournament.isPassed ? Colors.grey.withOpacity(0.08) : Colors.white.withOpacity(0.12),
+              color: tournament.isPassed ? Colors.grey.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: tournament.isPassed ? Colors.white.withOpacity(0.05) : Colors.white.withOpacity(0.2), 
+                color: tournament.isPassed ? Colors.white.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.2), 
                 width: 1.2
               ),
             ),
@@ -684,9 +700,9 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: AppColors.coral.withOpacity(0.2),
+                  color: AppColors.coral.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.coral.withOpacity(0.5)),
+                  border: Border.all(color: AppColors.coral.withValues(alpha: 0.5)),
                 ),
                 child: Center(
                   child: Icon(
@@ -720,7 +736,7 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.12),
+                              color: Colors.white.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(flag, style: const TextStyle(fontSize: 10)),
@@ -731,9 +747,9 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                             decoration: BoxDecoration(
-                              color: AppColors.gold.withOpacity(0.18),
+                              color: AppColors.gold.withValues(alpha: 0.18),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppColors.gold.withOpacity(0.6), width: 1),
+                              border: Border.all(color: AppColors.gold.withValues(alpha: 0.6), width: 1),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -820,7 +836,7 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                             const SizedBox(width: 4),
                             Text(
                               "Inscriptions & Contact JAT dispos",
-                              style: TextStyle(color: AppColors.gold.withOpacity(0.9), fontSize: 10.5, fontWeight: FontWeight.bold),
+                              style: TextStyle(color: AppColors.gold.withValues(alpha: 0.9), fontSize: 10.5, fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
