@@ -1044,6 +1044,10 @@ class AppState extends ChangeNotifier {
   String get selectedCourtFilter => _selectedCourtFilter;
   String _selectedCourtCountry = 'ALL';
   String get selectedCourtCountry => _selectedCourtCountry;
+  bool _courtFilterHasNet = false;
+  bool get courtFilterHasNet => _courtFilterHasNet;
+  bool _courtFilterHasLights = false;
+  bool get courtFilterHasLights => _courtFilterHasLights;
 
   void setCourtFilter(String filter) {
     _selectedCourtFilter = filter;
@@ -1052,6 +1056,24 @@ class AppState extends ChangeNotifier {
 
   void setCourtCountry(String country) {
     _selectedCourtCountry = country;
+    notifyListeners();
+  }
+
+  void toggleCourtNetFilter() {
+    _courtFilterHasNet = !_courtFilterHasNet;
+    notifyListeners();
+  }
+
+  void toggleCourtLightsFilter() {
+    _courtFilterHasLights = !_courtFilterHasLights;
+    notifyListeners();
+  }
+
+  void resetCourtFilters() {
+    _selectedCourtFilter = 'ALL';
+    _selectedCourtCountry = 'ALL';
+    _courtFilterHasNet = false;
+    _courtFilterHasLights = false;
     notifyListeners();
   }
 
@@ -1073,15 +1095,19 @@ class AppState extends ChangeNotifier {
 
       // Access Type filter
       if (_selectedCourtFilter == 'BEACH_FREE') {
-        return c.accessType == 'BEACH_FREE';
+        if (c.accessType != 'BEACH_FREE') return false;
       } else if (_selectedCourtFilter == 'CLUB_FACILITY') {
-        return c.accessType == 'CLUB_ONLY' || c.accessType == 'RENTAL' || c.accessType == 'PUBLIC_FREE';
+        if (c.accessType != 'CLUB_ONLY' && c.accessType != 'RENTAL' && c.accessType != 'PUBLIC_FREE') return false;
       } else if (_selectedCourtFilter == 'RENTAL') {
-        return c.accessType == 'RENTAL';
+        if (c.accessType != 'RENTAL') return false;
       } else if (_selectedCourtFilter == 'CLUB_ONLY') {
-        return c.accessType == 'CLUB_ONLY';
+        if (c.accessType != 'CLUB_ONLY') return false;
       }
       
+      // Feature filters
+      if (_courtFilterHasNet && !c.hasNet) return false;
+      if (_courtFilterHasLights && !c.hasLights) return false;
+
       if (_filterFree) {
         return c.isFree;
       }

@@ -1,11 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:ui';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:geocoding/geocoding.dart';
 import '../theme/colors.dart';
 import '../providers/app_state.dart';
 import '../models/court.dart';
@@ -32,6 +33,7 @@ class _MapScreenState extends State<MapScreen> {
   List<dynamic> _searchResults = [];
   bool _isSearching = false;
   MapType _currentMapType = MapType.normal;
+  Timer? _searchDebounce;
   
   // Track center for crosshair functionality
   LatLng? _currentCenter;
@@ -45,22 +47,51 @@ class _MapScreenState extends State<MapScreen> {
     return str;
   }
 
+  String _getCourtFlag(CourtModel court) {
+    final c = court.country.toLowerCase();
+    final city = court.city.toLowerCase();
+    if (c.contains('espagne') || c.contains('spain')) return '🇪🇸';
+    if (c.contains('italie') || c.contains('italy')) return '🇮🇹';
+    if (c.contains('reunion') || c.contains('réunion') || city.contains('saint-pierre') || city.contains('saint-gilles') || city.contains('saint-paul') || city.contains('saint-leu')) return '🇷🇪';
+    if (c.contains('guadeloupe') || city.contains('le gosier') || city.contains('sainte-anne') || city.contains('baie-mahault')) return '🇬🇵';
+    if (c.contains('martinique') || city.contains('schoelcher') || city.contains('fort-de-france') || city.contains('diamant')) return '🇲🇶';
+    if (c.contains('caledonie') || c.contains('calédonie') || city.contains('noumea') || city.contains('nouméa')) return '🇳🇨';
+    if (c.contains('bresil') || c.contains('brésil') || c.contains('brazil')) return '🇧🇷';
+    if (c.contains('portugal')) return '🇵🇹';
+    return '🇫🇷';
+  }
+
   void _searchLocation(String query) {
+    _searchDebounce?.cancel();
     if (query.trim().isEmpty) {
       setState(() => _searchResults = []);
       return;
     }
-    
-    final cleanQuery = _removeAccents(query.trim()).toLowerCase();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) _executeSearch(query.trim());
+    });
+  }
+
+  void _executeSearch(String query) {
+    final cleanQuery = _removeAccents(query).toLowerCase();
+    final tokens = cleanQuery.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    if (tokens.isEmpty) {
+      setState(() => _searchResults = []);
+      return;
+    }
+
     final courts = context.read<AppState>().courts;
-    
     final matchingCourts = courts.where((court) {
       final nameNorm = _removeAccents(court.name).toLowerCase();
       final cityNorm = _removeAccents(court.city).toLowerCase();
+      final countryNorm = _removeAccents(court.country).toLowerCase();
       final descNorm = _removeAccents(court.description ?? '').toLowerCase();
-      return nameNorm.contains(cleanQuery) || 
-             cityNorm.contains(cleanQuery) ||
-             descNorm.contains(cleanQuery);
+
+      return tokens.every((tok) =>
+          nameNorm.contains(tok) ||
+          cityNorm.contains(tok) ||
+          countryNorm.contains(tok) ||
+          descNorm.contains(tok));
     }).toList();
 
     // Tri par pertinence et distance
@@ -78,9 +109,9 @@ class _MapScreenState extends State<MapScreen> {
         // 1. Terrains correspondants (jusqu'à 4)
         ...matchingCourts.take(4),
         // 2. Option de Saisie / Déclaration manuelle immédiate
-        {"isManualAdd": true, "query": query.trim()},
+        {"isManualAdd": true, "query": query},
         // 3. Option de recherche globale de ville OpenStreetMap
-        {"isExternal": true, "query": query.trim()},
+        {"isExternal": true, "query": query},
       ];
     });
   }
@@ -107,12 +138,12 @@ class _MapScreenState extends State<MapScreen> {
       }
       if (mounted) {
         setState(() => _isSearching = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.mapSearchError)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).mapSearchError)));
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSearching = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.mapSearchGenericError(e.toString()))));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).mapSearchGenericError(e.toString()))));
       }
     }
   }
@@ -128,6 +159,7 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _mapController?.dispose();
     _searchController.dispose();
     super.dispose();
@@ -174,13 +206,34 @@ class _MapScreenState extends State<MapScreen> {
             heroTag: "my_location_btn",
             backgroundColor: AppColors.coral,
             child: const Icon(Icons.my_location, color: Colors.white),
-            onPressed: () {
+            onPressed: () async {
               final pos = context.read<AppState>().currentPosition;
               if (pos != null && _mapController != null) {
                 _mapController!.animateCamera(CameraUpdate.newLatLngZoom(
                   LatLng(pos.latitude, pos.longitude),
                   15.0,
                 ));
+              } else {
+                try {
+                  final p = await Geolocator.getCurrentPosition(
+                    locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+                  ).timeout(const Duration(seconds: 4));
+                  if (mounted && _mapController != null) {
+                    _mapController!.animateCamera(CameraUpdate.newLatLngZoom(
+                      LatLng(p.latitude, p.longitude),
+                      15.0,
+                    ));
+                  }
+                } catch (_) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Activez la géolocalisation pour vous centrer sur la carte."),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                }
               }
             },
           ),
@@ -193,7 +246,7 @@ class _MapScreenState extends State<MapScreen> {
               backgroundColor: AppColors.coral,
               elevation: 8,
               icon: const Icon(Icons.add_location_alt, color: Colors.white, size: 28),
-              label: Text(AppLocalizations.of(context)!.mapAddCourtBtn, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+              label: Text(AppLocalizations.of(context).mapAddCourtBtn, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
             ),
           ),
         ],
@@ -238,7 +291,7 @@ class _MapScreenState extends State<MapScreen> {
               _currentCenter = position.target;
             },
             onTap: (latlng) {
-              _showSuggestCourtDialog(context, specificLocation: latlng);
+              FocusScope.of(context).unfocus();
             },
             onLongPress: (latlng) {
               _showSuggestCourtDialog(context, specificLocation: latlng);
@@ -265,9 +318,9 @@ class _MapScreenState extends State<MapScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
+                          color: Colors.black.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -277,12 +330,12 @@ class _MapScreenState extends State<MapScreen> {
                               children: [
                                 const Icon(Icons.map, color: Colors.white, size: 20),
                                 const SizedBox(width: 8),
-                                Text(AppLocalizations.of(context)!.mapFindCourtTitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
+                                Text(AppLocalizations.of(context).mapFindCourtTitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
                                 const Spacer(),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                   decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(12)),
-                                  child: Text(AppLocalizations.of(context)!.mapCourtsCount(courts.length), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
+                                  child: Text(AppLocalizations.of(context).mapCourtsCount(courts.length), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
                                 ),
                               ],
                             ),
@@ -294,7 +347,7 @@ class _MapScreenState extends State<MapScreen> {
                                 hintText: "Rechercher une ville, un terrain...",
                                 hintStyle: const TextStyle(color: Colors.white54),
                                 filled: true,
-                                fillColor: Colors.white.withOpacity(0.1),
+                                fillColor: Colors.white.withValues(alpha: 0.1),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                                 prefixIcon: const Icon(Icons.search, color: Colors.white54),
                               ),
@@ -303,12 +356,18 @@ class _MapScreenState extends State<MapScreen> {
                                 final query = value.trim();
                                 if (query.isEmpty) return;
                                 final cleanQuery = _removeAccents(query).toLowerCase();
+                                final tokens = cleanQuery.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
                                 final courts = context.read<AppState>().courts;
                                 final matchingCourts = courts.where((court) {
                                   final nameNorm = _removeAccents(court.name).toLowerCase();
                                   final cityNorm = _removeAccents(court.city).toLowerCase();
+                                  final countryNorm = _removeAccents(court.country).toLowerCase();
                                   final descNorm = _removeAccents(court.description ?? '').toLowerCase();
-                                  return nameNorm.contains(cleanQuery) || cityNorm.contains(cleanQuery) || descNorm.contains(cleanQuery);
+                                  return tokens.every((tok) =>
+                                      nameNorm.contains(tok) ||
+                                      cityNorm.contains(tok) ||
+                                      countryNorm.contains(tok) ||
+                                      descNorm.contains(tok));
                                 }).toList();
 
                                 if (matchingCourts.isNotEmpty) {
@@ -338,11 +397,11 @@ class _MapScreenState extends State<MapScreen> {
                                       children: [
                                         _buildMapFilterChip(
                                           label: "Tous 🌍",
-                                          isSelected: appState.selectedCourtFilter == 'ALL' && appState.selectedCourtCountry == 'ALL',
-                                          onTap: () {
-                                            appState.setCourtFilter('ALL');
-                                            appState.setCourtCountry('ALL');
-                                          },
+                                          isSelected: appState.selectedCourtFilter == 'ALL' &&
+                                              appState.selectedCourtCountry == 'ALL' &&
+                                              !appState.courtFilterHasNet &&
+                                              !appState.courtFilterHasLights,
+                                          onTap: () => appState.resetCourtFilters(),
                                         ),
                                         _buildMapFilterChip(
                                           label: "🏖️ Plages libres",
@@ -357,6 +416,16 @@ class _MapScreenState extends State<MapScreen> {
                                           onTap: () {
                                             appState.setCourtFilter(appState.selectedCourtFilter == 'CLUB_FACILITY' ? 'ALL' : 'CLUB_FACILITY');
                                           },
+                                        ),
+                                        _buildMapFilterChip(
+                                          label: "🥅 Filet sur place",
+                                          isSelected: appState.courtFilterHasNet,
+                                          onTap: () => appState.toggleCourtNetFilter(),
+                                        ),
+                                        _buildMapFilterChip(
+                                          label: "💡 Éclairage",
+                                          isSelected: appState.courtFilterHasLights,
+                                          onTap: () => appState.toggleCourtLightsFilter(),
                                         ),
                                         _buildMapFilterChip(
                                           label: "🇫🇷 France",
@@ -396,12 +465,12 @@ class _MapScreenState extends State<MapScreen> {
                                 margin: const EdgeInsets.only(top: 10),
                                 constraints: const BoxConstraints(maxHeight: 290),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF0F1B29).withOpacity(0.96),
+                                  color: const Color(0xFF0F1B29).withValues(alpha: 0.96),
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: AppColors.gold.withOpacity(0.5), width: 1.2),
+                                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.5), width: 1.2),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.6),
+                                      color: Colors.black.withValues(alpha: 0.6),
                                       blurRadius: 16,
                                       offset: const Offset(0, 6),
                                     ),
@@ -411,7 +480,7 @@ class _MapScreenState extends State<MapScreen> {
                                   padding: const EdgeInsets.symmetric(vertical: 6),
                                   shrinkWrap: true,
                                   itemCount: _searchResults.length,
-                                  separatorBuilder: (ctx, i) => Divider(color: Colors.white.withOpacity(0.08), height: 1),
+                                  separatorBuilder: (ctx, i) => Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
                                   itemBuilder: (ctx, i) {
                                     final item = _searchResults[i];
                                     
@@ -427,7 +496,7 @@ class _MapScreenState extends State<MapScreen> {
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                           decoration: BoxDecoration(
-                                            color: AppColors.coral.withOpacity(0.12),
+                                            color: AppColors.coral.withValues(alpha: 0.12),
                                             borderRadius: BorderRadius.circular(10),
                                           ),
                                           child: Row(
@@ -479,7 +548,7 @@ class _MapScreenState extends State<MapScreen> {
                                         leading: Container(
                                           padding: const EdgeInsets.all(6),
                                           decoration: BoxDecoration(
-                                            color: Colors.blueAccent.withOpacity(0.2),
+                                            color: Colors.blueAccent.withValues(alpha: 0.2),
                                             borderRadius: BorderRadius.circular(8),
                                           ),
                                           child: const Icon(Icons.travel_explore, color: Colors.lightBlueAccent, size: 18),
@@ -509,7 +578,7 @@ class _MapScreenState extends State<MapScreen> {
                                       leading: Container(
                                         padding: const EdgeInsets.all(6),
                                         decoration: BoxDecoration(
-                                          color: AppColors.coral.withOpacity(0.2),
+                                          color: AppColors.coral.withValues(alpha: 0.2),
                                           borderRadius: BorderRadius.circular(8),
                                         ),
                                         child: const Icon(Icons.sports_tennis_rounded, color: AppColors.coral, size: 18),
@@ -531,7 +600,7 @@ class _MapScreenState extends State<MapScreen> {
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                                             decoration: BoxDecoration(
-                                              color: Colors.white.withOpacity(0.1),
+                                              color: Colors.white.withValues(alpha: 0.1),
                                               borderRadius: BorderRadius.circular(4),
                                             ),
                                             child: Text(
@@ -577,9 +646,9 @@ class _MapScreenState extends State<MapScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.gold : Colors.white.withOpacity(0.12),
+            color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: isSelected ? AppColors.gold : Colors.white.withOpacity(0.25)),
+            border: Border.all(color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.25)),
           ),
           child: Center(
             child: Text(
@@ -598,12 +667,7 @@ class _MapScreenState extends State<MapScreen> {
 
   Widget _buildCourtDetails(BuildContext context, CourtModel court) {
     // Flags
-    String flag = '🇫🇷';
-    if (court.country.toLowerCase().contains('espagne') || court.country.toLowerCase().contains('spain')) {
-      flag = '🇪🇸';
-    } else if (court.country.toLowerCase().contains('italie') || court.country.toLowerCase().contains('italy')) {
-      flag = '🇮🇹';
-    }
+    final String flag = _getCourtFlag(court);
 
     // Access Type Pill details
     Color accessColor;
@@ -638,9 +702,9 @@ class _MapScreenState extends State<MapScreen> {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.88),
+              color: Colors.black.withValues(alpha: 0.88),
               borderRadius: const BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
-              border: Border.all(color: Colors.white.withOpacity(0.25), width: 1.5),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.5),
             ),
             child: SingleChildScrollView(
               child: Column(
@@ -676,7 +740,7 @@ class _MapScreenState extends State<MapScreen> {
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.2), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.gold.withOpacity(0.5))),
+                      decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.gold.withValues(alpha: 0.5))),
                       child: const Text("SABLE FIN", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 10)),
                     )
                   ],
@@ -687,9 +751,9 @@ class _MapScreenState extends State<MapScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: accessColor.withOpacity(0.2),
+                    color: accessColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: accessColor.withOpacity(0.7), width: 1.5),
+                    border: Border.all(color: accessColor.withValues(alpha: 0.7), width: 1.5),
                   ),
                   child: Row(
                     children: [
@@ -710,9 +774,9 @@ class _MapScreenState extends State<MapScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
+                    color: Colors.white.withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.white.withOpacity(0.12)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
                   ),
                   child: Row(
                     children: [
@@ -776,9 +840,9 @@ class _MapScreenState extends State<MapScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
+                      color: Colors.white.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                     ),
                     child: Row(
                       children: [
@@ -788,12 +852,12 @@ class _MapScreenState extends State<MapScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(AppLocalizations.of(context)!.mapLostFoundBtn, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                              Text(AppLocalizations.of(context).mapLostFoundBtn, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                               StreamBuilder<QuerySnapshot>(
                                 stream: FirebaseFirestore.instance.collection('courts').doc(court.id).collection('lost_and_found').snapshots(),
                                 builder: (context, snapshot) {
                                   int count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                                  return Text(AppLocalizations.of(context)!.mapLostFoundCount(count), style: const TextStyle(color: Colors.white54, fontSize: 11));
+                                  return Text(AppLocalizations.of(context).mapLostFoundCount(count), style: const TextStyle(color: Colors.white54, fontSize: 11));
                                 }
                               ),
                             ],
@@ -870,7 +934,7 @@ class _MapScreenState extends State<MapScreen> {
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.white,
-                          side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
@@ -884,7 +948,7 @@ class _MapScreenState extends State<MapScreen> {
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.white,
-                          side: BorderSide(color: AppColors.gold.withOpacity(0.3)),
+                          side: BorderSide(color: AppColors.gold.withValues(alpha: 0.3)),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
@@ -936,24 +1000,24 @@ class _MapScreenState extends State<MapScreen> {
                             width: double.infinity,
                             child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.redAccent.withOpacity(0.9),
+                                backgroundColor: Colors.redAccent.withValues(alpha: 0.9),
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               ),
                               icon: const Icon(Icons.delete_forever),
-                              label: Text(AppLocalizations.of(context)!.mapAdminDeleteCourtBtn, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                              label: Text(AppLocalizations.of(context).mapAdminDeleteCourtBtn, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                               onPressed: () {
                                 showDialog(
                                   context: context,
                                   builder: (ctx) => AlertDialog(
                                     backgroundColor: Colors.grey[900],
-                                    title: Text(AppLocalizations.of(context)!.mapAdminDeleteTitle, style: const TextStyle(color: Colors.white)),
-                                    content: Text(AppLocalizations.of(context)!.mapAdminDeleteContent(court.name), style: const TextStyle(color: Colors.white70)),
+                                    title: Text(AppLocalizations.of(context).mapAdminDeleteTitle, style: const TextStyle(color: Colors.white)),
+                                    content: Text(AppLocalizations.of(context).mapAdminDeleteContent(court.name), style: const TextStyle(color: Colors.white70)),
                                     actions: [
                                       TextButton(
                                         onPressed: () => Navigator.pop(ctx),
-                                        child: Text(AppLocalizations.of(context)!.mapBtnCancel, style: const TextStyle(color: Colors.white54)),
+                                        child: Text(AppLocalizations.of(context).mapBtnCancel, style: const TextStyle(color: Colors.white54)),
                                       ),
                                       ElevatedButton(
                                         style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
@@ -967,7 +1031,7 @@ class _MapScreenState extends State<MapScreen> {
                                             debugPrint("Erreur suppression: $e");
                                           }
                                         },
-                                        child: Text(AppLocalizations.of(context)!.mapBtnDelete, style: const TextStyle(color: Colors.white)),
+                                        child: Text(AppLocalizations.of(context).mapBtnDelete, style: const TextStyle(color: Colors.white)),
                                       ),
                                     ],
                                   ),
@@ -994,7 +1058,7 @@ class _MapScreenState extends State<MapScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: isAvailable ? Colors.white.withOpacity(0.1) : Colors.white.withOpacity(0.04),
+        color: isAvailable ? Colors.white.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: isAvailable ? Colors.white38 : Colors.white12),
       ),
@@ -1082,9 +1146,9 @@ class _MapScreenState extends State<MapScreen> {
                   bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F1B29).withOpacity(0.96),
+                  color: const Color(0xFF0F1B29).withValues(alpha: 0.96),
                   borderRadius: const BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
-                  border: Border.all(color: AppColors.gold.withOpacity(0.4), width: 1.5),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 1.5),
                 ),
                 child: isCreating
                     // ✍️ VUE 1 : Formulaire de Déclaration Immédiat (Fluide & Réactif)
@@ -1113,7 +1177,7 @@ class _MapScreenState extends State<MapScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: createType == 'perdu' ? Colors.redAccent.withOpacity(0.2) : Colors.green.withOpacity(0.2),
+                                    color: createType == 'perdu' ? Colors.redAccent.withValues(alpha: 0.2) : Colors.green.withValues(alpha: 0.2),
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
@@ -1140,7 +1204,7 @@ class _MapScreenState extends State<MapScreen> {
                             Container(
                               padding: const EdgeInsets.all(3),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.08),
+                                color: Colors.white.withValues(alpha: 0.08),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
@@ -1188,7 +1252,7 @@ class _MapScreenState extends State<MapScreen> {
                                     : "Décrivez l'objet trouvé (ex: Lunettes de soleil Oakley retrouvées au bord du court...)",
                                 hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
                                 filled: true,
-                                fillColor: Colors.white.withOpacity(0.06),
+                                fillColor: Colors.white.withValues(alpha: 0.06),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                               ),
                             ),
@@ -1291,7 +1355,7 @@ class _MapScreenState extends State<MapScreen> {
                                     child: Column(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        Icon(Icons.beach_access_rounded, size: 48, color: Colors.white.withOpacity(0.2)),
+                                        Icon(Icons.beach_access_rounded, size: 48, color: Colors.white.withValues(alpha: 0.2)),
                                         const SizedBox(height: 12),
                                         const Text(
                                           "Aucun objet signalé sur ce terrain",
@@ -1327,10 +1391,10 @@ class _MapScreenState extends State<MapScreen> {
                                       margin: const EdgeInsets.only(bottom: 12),
                                       padding: const EdgeInsets.all(14),
                                       decoration: BoxDecoration(
-                                        color: isLost ? Colors.redAccent.withOpacity(0.08) : Colors.green.withOpacity(0.08),
+                                        color: isLost ? Colors.redAccent.withValues(alpha: 0.08) : Colors.green.withValues(alpha: 0.08),
                                         borderRadius: BorderRadius.circular(16),
                                         border: Border.all(
-                                          color: isLost ? Colors.redAccent.withOpacity(0.35) : Colors.green.withOpacity(0.35),
+                                          color: isLost ? Colors.redAccent.withValues(alpha: 0.35) : Colors.green.withValues(alpha: 0.35),
                                         ),
                                       ),
                                       child: Column(
@@ -1359,7 +1423,7 @@ class _MapScreenState extends State<MapScreen> {
                                             style: const TextStyle(color: Colors.white, fontSize: 14.5, height: 1.25),
                                           ),
                                           const SizedBox(height: 12),
-                                          Divider(color: Colors.white.withOpacity(0.08), height: 1),
+                                          Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
                                           const SizedBox(height: 10),
 
                                           // 👤 Profil du signaleur + Contact MP / Résolution
@@ -1367,7 +1431,7 @@ class _MapScreenState extends State<MapScreen> {
                                             children: [
                                               CircleAvatar(
                                                 radius: 13,
-                                                backgroundColor: AppColors.coral.withOpacity(0.3),
+                                                backgroundColor: AppColors.coral.withValues(alpha: 0.3),
                                                 backgroundImage: reporterPhoto != null && reporterPhoto.isNotEmpty
                                                     ? NetworkImage(reporterPhoto)
                                                     : null,
@@ -1449,7 +1513,7 @@ class _MapScreenState extends State<MapScreen> {
                                 Expanded(
                                   child: ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.redAccent.withOpacity(0.85),
+                                      backgroundColor: Colors.redAccent.withValues(alpha: 0.85),
                                       foregroundColor: Colors.white,
                                       padding: const EdgeInsets.symmetric(vertical: 14),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -1499,8 +1563,33 @@ class _MapScreenState extends State<MapScreen> {
   void _showSuggestCourtDialog(BuildContext context, {LatLng? specificLocation, String? initialName, String? initialCity}) {
     final TextEditingController nameCtrl = TextEditingController(text: initialName ?? '');
     final TextEditingController cityCtrl = TextEditingController(text: initialCity ?? '');
+    String accessType = 'BEACH_FREE';
+    bool hasNet = true;
+    bool hasLights = false;
+    int courtCount = 2;
+    String detectedCountry = 'France';
     bool isSaving = false;
     String? errorMessage;
+
+    final locationToSave = specificLocation ?? _currentCenter ?? context.read<AppState>().mapCenter;
+
+    // Tentative de géocodage inverse automatique pour pré-remplir la ville et le pays
+    if (cityCtrl.text.isEmpty) {
+      placemarkFromCoordinates(locationToSave.latitude, locationToSave.longitude).then((places) {
+        if (places.isNotEmpty) {
+          final p = places.first;
+          final locality = p.locality?.isNotEmpty == true
+              ? p.locality!
+              : (p.subAdministrativeArea?.isNotEmpty == true ? p.subAdministrativeArea! : '');
+          if (locality.isNotEmpty && cityCtrl.text.isEmpty) {
+            cityCtrl.text = locality;
+          }
+          if (p.country != null && p.country!.isNotEmpty) {
+            detectedCountry = p.country!;
+          }
+        }
+      }).catchError((_) {});
+    }
 
     showModalBottomSheet(
       context: context,
@@ -1513,133 +1602,276 @@ class _MapScreenState extends State<MapScreen> {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
               child: Container(
-                padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom + 24, top: 28, left: 28, right: 28),
+                padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom + 24, top: 28, left: 24, right: 24),
                 decoration: BoxDecoration(
-                  color: Colors.grey[900]!.withOpacity(0.95), // Lighter than black to stand out
+                  color: const Color(0xFF0F1B29).withValues(alpha: 0.96),
                   borderRadius: const BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
-                  border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 1.5),
                 ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(AppLocalizations.of(context)!.mapProposeCourtTitle, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 16),
-                Text(
-                  specificLocation == null 
-                    ? "Le terrain sera ajouté au centre exact de votre écran (+)."
-                    : "Le terrain sera ajouté à l'endroit que vous avez touché.",
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: nameCtrl,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: "Nom du terrain ou de la plage",
-                    hintStyle: const TextStyle(color: Colors.white38),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.05),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                    prefixIcon: const Icon(Icons.beach_access, color: Colors.white54),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.coral.withValues(alpha: 0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.add_location_alt_rounded, color: AppColors.coral, size: 22),
+                              ),
+                              const SizedBox(width: 10),
+                              const Text("Déclarer un spot", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+                            ],
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white70),
+                            onPressed: () => Navigator.pop(ctx),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        specificLocation == null
+                            ? "Le spot sera positionné au centre du viseur (+)."
+                            : "Le spot sera positionné à l'emplacement touché.",
+                        style: const TextStyle(color: Colors.white60, fontSize: 13),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Nom du terrain
+                      TextField(
+                        controller: nameCtrl,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: "Nom du terrain ou de la plage (ex: Plage des Catalans)",
+                          hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                          filled: true,
+                          fillColor: Colors.white.withValues(alpha: 0.06),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                          prefixIcon: const Icon(Icons.sports_tennis, color: AppColors.gold),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Ville
+                      TextField(
+                        controller: cityCtrl,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: "Ville (ex: Marseille, Saint-Gilles...)",
+                          hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                          filled: true,
+                          fillColor: Colors.white.withValues(alpha: 0.06),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                          prefixIcon: const Icon(Icons.location_city, color: Colors.white54),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Type d'accès
+                      const Text("Type d'accès :", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildChoiceChip(
+                              label: "🏖️ Plage libre",
+                              isSelected: accessType == 'BEACH_FREE',
+                              onTap: () => setModalState(() => accessType = 'BEACH_FREE'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildChoiceChip(
+                              label: "🏢 Club / Complexe",
+                              isSelected: accessType == 'CLUB_ONLY',
+                              onTap: () => setModalState(() => accessType = 'CLUB_ONLY'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Filet & Lignes
+                      const Text("Filet et matériel :", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildChoiceChip(
+                              label: "🥅 Filet en place ✓",
+                              isSelected: hasNet,
+                              onTap: () => setModalState(() => hasNet = true),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildChoiceChip(
+                              label: "🎒 Amener son kit",
+                              isSelected: !hasNet,
+                              onTap: () => setModalState(() => hasNet = false),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Nombre de terrains & Éclairage
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text("Nb de terrains :", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [1, 2, 4, 6].map((cCount) {
+                                    final sel = courtCount == cCount;
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 6),
+                                      child: InkWell(
+                                        onTap: () => setModalState(() => courtCount = cCount),
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: sel ? AppColors.gold : Colors.white.withValues(alpha: 0.08),
+                                            borderRadius: BorderRadius.circular(10),
+                                            border: Border.all(color: sel ? AppColors.gold : Colors.white24),
+                                          ),
+                                          child: Text(
+                                            "$cCount",
+                                            style: TextStyle(
+                                              color: sel ? Colors.black : Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text("Éclairage :", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 8),
+                              _buildChoiceChip(
+                                label: hasLights ? "💡 Oui" : "💡 Non",
+                                isSelected: hasLights,
+                                onTap: () => setModalState(() => hasLights = !hasLights),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+
+                      if (errorMessage != null) ...[
+                        const SizedBox(height: 12),
+                        Text(errorMessage!, style: const TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold)),
+                      ],
+                      const SizedBox(height: 20),
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.coral,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                          onPressed: isSaving ? null : () async {
+                            final name = nameCtrl.text.trim();
+                            final city = cityCtrl.text.trim();
+
+                            if (name.isEmpty || city.isEmpty) {
+                              setModalState(() => errorMessage = "Veuillez renseigner le nom et la ville.");
+                              return;
+                            }
+
+                            setModalState(() {
+                              errorMessage = null;
+                              isSaving = true;
+                            });
+
+                            try {
+                              await FirebaseFirestore.instance.collection('courts').add({
+                                "name": name,
+                                "city": city,
+                                "country": detectedCountry,
+                                "latitude": locationToSave.latitude,
+                                "longitude": locationToSave.longitude,
+                                "accessType": accessType,
+                                "isFree": accessType == 'BEACH_FREE',
+                                "hasNet": hasNet,
+                                "hasLights": hasLights,
+                                "hasShowers": false,
+                                "hasBar": false,
+                                "courtCount": courtCount,
+                                "createdAt": FieldValue.serverTimestamp(),
+                              });
+
+                              if (context.mounted) {
+                                await context.read<AppState>().loadData();
+                              }
+
+                              if (context.mounted) {
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                  content: Text(AppLocalizations.of(context).mapProposeCourtSuccess),
+                                  backgroundColor: Colors.green,
+                                ));
+                              }
+                            } catch (e) {
+                              debugPrint("Erreur lors de l'ajout: $e");
+                              if (context.mounted) {
+                                setModalState(() => errorMessage = "Erreur de connexion. Veuillez réessayer.");
+                              }
+                            } finally {
+                              if (context.mounted) {
+                                setModalState(() => isSaving = false);
+                              }
+                            }
+                          },
+                          child: isSaving
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : Text(AppLocalizations.of(context).mapProposeCourtBtn, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: cityCtrl,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: "Ville (ex: Marseille)",
-                    hintStyle: const TextStyle(color: Colors.white38),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.05),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                    prefixIcon: const Icon(Icons.location_city, color: Colors.white54),
-                  ),
-                ),
-                if (errorMessage != null) ...[
-                  const SizedBox(height: 12),
-                  Text(errorMessage!, style: const TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.bold)),
-                ],
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.coral,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    onPressed: isSaving ? null : () async {
-                      final name = nameCtrl.text.trim();
-                      final city = cityCtrl.text.trim();
-                      
-                      if (name.isEmpty || city.isEmpty) {
-                        setModalState(() => errorMessage = "Veuillez remplir tous les champs.");
-                        return;
-                      }
-                      
-                      setModalState(() {
-                        errorMessage = null;
-                        isSaving = true;
-                      });
-                      
-                      try {
-                        final locationToSave = specificLocation ?? _currentCenter ?? context.read<AppState>().mapCenter;
-                        
-                        await FirebaseFirestore.instance.collection('courts').add({
-                          "name": name,
-                          "latitude": locationToSave.latitude,
-                          "longitude": locationToSave.longitude,
-                          "isFree": true,
-                          "hasLighting": false,
-                          "hasParking": false,
-                          "city": city,
-                        });
-                        
-                        await context.read<AppState>().loadData();
-                        
-                        if (context.mounted) {
-                          Navigator.pop(ctx); // Close dialog first
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(AppLocalizations.of(context)!.mapProposeCourtSuccess),
-                            backgroundColor: Colors.green,
-                          ));
-                        }
-                      } catch (e) {
-                        debugPrint("Erreur lors de l'ajout: $e");
-                        if (context.mounted) {
-                          setModalState(() => errorMessage = "Erreur de connexion. Veuillez réessayer.");
-                        }
-                      } finally {
-                        if (context.mounted) {
-                          setModalState(() => isSaving = false);
-                        }
-                      }
-                    },
-                    child: isSaving 
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : Text(AppLocalizations.of(context)!.mapProposeCourtBtn, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
+              ),
             ),
-          )));
-        }
+          );
+        },
       ),
     );
   }
 
   void _shareCourt(CourtModel court) {
+    final flag = _getCourtFlag(court);
     final text = "🏖️ *Spot Beach Tennis : ${court.name}* 🎾\n"
-        "📍 Ville : ${court.city.isNotEmpty ? court.city : court.country} (${court.country})\n"
+        "📍 Ville : $flag ${court.city.isNotEmpty ? court.city : court.country} (${court.country})\n"
         "🏷️ Accès : ${court.accessType == 'BEACH_FREE' ? 'Plage libre (Amener son kit portable)' : (court.accessType == 'CLUB_ONLY' ? 'Réservé Adhérents Club' : 'Location à l\'heure')}\n"
         "🥅 Filet : ${court.hasNet ? 'Filet permanent en place ✓' : 'Amener son kit portable'}\n"
         "🗺️ Itinéraire GPS : https://www.google.com/maps/search/?api=1&query=${court.latitude},${court.longitude}\n\n"
         "Retrouve ce spot et organise des parties sur BeachMatch ! 🏖️📲";
-    Share.share(text);
+    SharePlus.instance.share(ShareParams(text: text));
   }
 
   Widget _buildChoiceChip({required String label, required bool isSelected, required VoidCallback onTap}) {
@@ -1649,7 +1881,7 @@ class _MapScreenState extends State<MapScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.gold : Colors.white.withOpacity(0.08),
+          color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: isSelected ? AppColors.gold : Colors.white24),
         ),
@@ -1685,7 +1917,7 @@ class _MapScreenState extends State<MapScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF141923),
                   borderRadius: const BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
-                  border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
                 ),
                 child: SingleChildScrollView(
                   child: Column(
@@ -1748,7 +1980,7 @@ class _MapScreenState extends State<MapScreen> {
                           hintText: "Ex: Filet manquant / nouveau numéro de club / éclairage présent...",
                           hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.06),
+                          fillColor: Colors.white.withValues(alpha: 0.06),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                         ),
                       ),
