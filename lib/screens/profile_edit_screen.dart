@@ -46,6 +46,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _isLookingForPartner = user?.isLookingForPartner ?? false;
     _preferredPosition = user?.preferredPosition;
     _availability = user?.availability;
+    _isLicenceVerified = (user?.licenceNumber != null && user!.licenceNumber!.trim().isNotEmpty);
+    _verifiedEloScore = user?.eloScore ?? 0;
   }
 
   @override
@@ -70,7 +72,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context)!.profileEditPhotoError(e.toString()))),
+          SnackBar(content: Text(AppLocalizations.of(context).profileEditPhotoError(e.toString()))),
         );
       }
     }
@@ -83,7 +85,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     });
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.profileEditPhotoDeleted)),
+        SnackBar(content: Text(AppLocalizations.of(context).profileEditPhotoDeleted)),
       );
     }
   }
@@ -97,17 +99,17 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         decoration: BoxDecoration(
           color: const Color(0xFF141923),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(AppLocalizations.of(context)!.profileEditPhotoTitle, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(AppLocalizations.of(context).profileEditPhotoTitle, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.photo_library, color: AppColors.gold),
-              title: Text(AppLocalizations.of(context)!.profileEditPhotoGallery, style: const TextStyle(color: Colors.white)),
+              title: Text(AppLocalizations.of(context).profileEditPhotoGallery, style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickImage(ImageSource.gallery);
@@ -115,7 +117,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.camera_alt, color: AppColors.gold),
-              title: Text(AppLocalizations.of(context)!.profileEditPhotoCamera, style: const TextStyle(color: Colors.white)),
+              title: Text(AppLocalizations.of(context).profileEditPhotoCamera, style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickImage(ImageSource.camera);
@@ -124,7 +126,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             if (_selectedImageBytes != null || (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty))
               ListTile(
                 leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
-                title: Text(AppLocalizations.of(context)!.profileEditPhotoRemove, style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                title: Text(AppLocalizations.of(context).profileEditPhotoRemove, style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                 onTap: () {
                   Navigator.pop(ctx);
                   _removePhoto();
@@ -167,13 +169,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(AppLocalizations.of(context)!.profileEditLicenceSuccess), backgroundColor: Colors.green),
+              SnackBar(content: Text(AppLocalizations.of(context).profileEditLicenceSuccess), backgroundColor: Colors.green),
             );
           }
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(AppLocalizations.of(context)!.profileEditLicenceNotFound), backgroundColor: Colors.orange),
+              SnackBar(content: Text(AppLocalizations.of(context).profileEditLicenceNotFound), backgroundColor: Colors.orange),
             );
           }
         }
@@ -183,7 +185,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context)!.profileEditLicenceError(e.toString())), backgroundColor: Colors.red),
+          SnackBar(content: Text(AppLocalizations.of(context).profileEditLicenceError(e.toString())), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -206,14 +208,17 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         photoUrl = await ref.getDownloadURL();
       }
 
+      final currentLicence = _licenceController.text.trim();
+      final licenceToSave = currentLicence.isNotEmpty ? currentLicence : null;
+
       await appState.updateProfile(
         displayName: _nameController.text.trim(),
         location: _locationController.text.trim(),
         level: _selectedLevel,
         photoUrl: photoUrl,
-        licenceNumber: _isLicenceVerified ? _licenceController.text.trim() : null,
+        licenceNumber: licenceToSave,
         ranking: _rankingController.text.trim().isNotEmpty ? _rankingController.text.trim() : null,
-        eloScore: _isLicenceVerified ? _verifiedEloScore : null,
+        eloScore: (_isLicenceVerified && _verifiedEloScore > 0) ? _verifiedEloScore : appState.currentUser?.eloScore,
         preferredPosition: _preferredPosition,
         availability: _availability,
       );
@@ -227,7 +232,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.profileEditSaveError(e.toString()))));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).profileEditSaveError(e.toString()))));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -237,225 +242,314 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(AppLocalizations.of(context)!.profileEditTitle, style: const TextStyle(color: AppColors.textMain)),
-        backgroundColor: Colors.white,
-        iconTheme: const IconThemeData(color: AppColors.textMain),
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Avatar
-              Center(
-                child: GestureDetector(
-                  onTap: _showPhotoOptionsBottomSheet,
-                  child: Stack(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          // Background Image
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/beach_tennis_ball_1785052281869.jpg',
+              fit: BoxFit.cover,
+              cacheWidth: 1080,
+            ),
+          ),
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.65),
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                // Top AppBar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Row(
                     children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Colors.grey[200],
-                        backgroundImage: _selectedImageBytes != null 
-                            ? MemoryImage(_selectedImageBytes!) 
-                            : (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty ? NetworkImage(_existingPhotoUrl!) : null) as ImageProvider?,
-                        child: (_selectedImageBytes == null && (_existingPhotoUrl == null || _existingPhotoUrl!.isEmpty))
-                            ? const Icon(Icons.person, size: 50, color: Colors.grey)
-                            : null,
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
                       ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                          child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
-                        ),
-                      )
+                      const SizedBox(width: 4),
+                      Text(
+                        AppLocalizations.of(context).profileEditTitle,
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 32),
-              
-              Text(AppLocalizations.of(context)!.profileEditName, style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _nameController,
-                readOnly: _isLicenceVerified,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: _isLicenceVerified ? Colors.grey[200] : Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                ),
-                validator: (val) => val == null || val.isEmpty ? "Requis" : null,
-              ),
-              const SizedBox(height: 16),
-              
-              Text(AppLocalizations.of(context)!.profileEditLicence, style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _licenceController,
-                      decoration: InputDecoration(
-                        hintText: "Ex: 1234567A",
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _isVerifying ? null : _verifyLicence,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    child: _isVerifying 
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : Text(AppLocalizations.of(context)!.profileEditVerifyBtn),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              Text(AppLocalizations.of(context)!.profileEditCity, style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _locationController,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                ),
-                validator: (val) => val == null || val.isEmpty ? "Requis" : null,
-              ),
-              const SizedBox(height: 16),
-              
-              Text(AppLocalizations.of(context)!.profileEditFft, style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _rankingController,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                  hintText: 'Optionnel',
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              Text(AppLocalizations.of(context)!.profileEditLevel, style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: List.generate(5, (index) {
-                  final level = index + 1;
-                  final isSelected = _selectedLevel == level;
-                  return ChoiceChip(
-                    label: Text(AppLocalizations.of(context)!.profileEditLevelBtn(level), style: TextStyle(color: isSelected ? Colors.white : AppColors.textMain)),
-                    selected: isSelected,
-                    selectedColor: AppColors.primary,
-                    onSelected: (selected) {
-                      if (selected) setState(() => _selectedLevel = level);
-                    },
-                  );
-                }),
-              ),
-              const SizedBox(height: 24),
-              Text(AppLocalizations.of(context)!.profileEditPosition, style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: _preferredPosition,
-                decoration: InputDecoration(filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none)),
-                items: [
-                  AppLocalizations.of(context)!.profileEditPosLeft, 
-                  AppLocalizations.of(context)!.profileEditPosRight, 
-                  AppLocalizations.of(context)!.profileEditPosAny
-                ].map((val) => DropdownMenuItem(value: val, child: Text(val))).toList(),
-                onChanged: (val) => setState(() => _preferredPosition = val),
-                hint: Text(AppLocalizations.of(context)!.profileEditSelect),
-              ),
-              const SizedBox(height: 16),
-              Text(AppLocalizations.of(context)!.profileEditAvailability, style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: _availability,
-                decoration: InputDecoration(filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none)),
-                items: [
-                  AppLocalizations.of(context)!.profileEditAvailEvening, 
-                  AppLocalizations.of(context)!.profileEditAvailWeek, 
-                  AppLocalizations.of(context)!.profileEditAvailAll, 
-                  AppLocalizations.of(context)!.profileEditAvailVar
-                ].map((val) => DropdownMenuItem(value: val, child: Text(val))).toList(),
-                onChanged: (val) => setState(() => _availability = val),
-                hint: Text(AppLocalizations.of(context)!.profileEditSelect),
-              ),
-              const SizedBox(height: 24),
-              // NEW: Partner Finder Switch
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey[200]!),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(color: AppColors.coral.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                      child: const Icon(Icons.handshake, color: AppColors.coral),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Form(
+                      key: _formKey,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(AppLocalizations.of(context)!.profileEditLookingForPartner, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          const SizedBox(height: 4),
-                          Text(AppLocalizations.of(context)!.profileEditLookingForPartnerSub, style: const TextStyle(color: Colors.black54, fontSize: 12)),
+                          // Avatar
+                          Center(
+                            child: GestureDetector(
+                              onTap: _showPhotoOptionsBottomSheet,
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    width: 100,
+                                    height: 100,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.white24,
+                                      border: Border.all(color: AppColors.gold, width: 3),
+                                      boxShadow: [
+                                        BoxShadow(color: AppColors.gold.withValues(alpha: 0.3), blurRadius: 15, spreadRadius: 2)
+                                      ],
+                                      image: _selectedImageBytes != null
+                                          ? DecorationImage(image: MemoryImage(_selectedImageBytes!), fit: BoxFit.cover)
+                                          : (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty
+                                              ? DecorationImage(image: NetworkImage(_existingPhotoUrl!), fit: BoxFit.cover)
+                                              : null),
+                                    ),
+                                    child: (_selectedImageBytes == null && (_existingPhotoUrl == null || _existingPhotoUrl!.isEmpty))
+                                        ? const Icon(Icons.person, size: 50, color: Colors.white70)
+                                        : null,
+                                  ),
+                                  Positioned(
+                                    bottom: 0,
+                                    right: 0,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle),
+                                      child: const Icon(Icons.camera_alt, color: Colors.black, size: 16),
+                                    ),
+                                  )
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+
+                          // Nom et Prénom
+                          Text(AppLocalizations.of(context).profileEditName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _nameController,
+                            readOnly: _isLicenceVerified,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: _isLicenceVerified ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.15),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
+                            ),
+                            validator: (val) => val == null || val.isEmpty ? "Requis" : null,
+                          ),
+                          const SizedBox(height: 18),
+
+                          // N° Licence
+                          Text(AppLocalizations.of(context).profileEditLicence, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _licenceController,
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                  decoration: InputDecoration(
+                                    hintText: "Ex: 1234567A",
+                                    hintStyle: const TextStyle(color: Colors.white54),
+                                    filled: true,
+                                    fillColor: Colors.white.withValues(alpha: 0.15),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              ElevatedButton(
+                                onPressed: _isVerifying ? null : _verifyLicence,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.gold,
+                                  foregroundColor: Colors.black,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                ),
+                                child: _isVerifying 
+                                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                                    : Text(AppLocalizations.of(context).profileEditVerifyBtn, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
+
+                          // Ville / Club
+                          Text(AppLocalizations.of(context).profileEditCity, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _locationController,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: Colors.white.withValues(alpha: 0.15),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
+                            ),
+                            validator: (val) => val == null || val.isEmpty ? "Requis" : null,
+                          ),
+                          const SizedBox(height: 18),
+
+                          // Classement FFT Ten'Up
+                          Text(AppLocalizations.of(context).profileEditFft, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _rankingController,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: Colors.white.withValues(alpha: 0.15),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
+                              hintText: 'Optionnel (ex: 250, NC)',
+                              hintStyle: const TextStyle(color: Colors.white54),
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+
+                          // Niveau auto-évalué
+                          Text(AppLocalizations.of(context).profileEditLevel, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: List.generate(5, (index) {
+                              final level = index + 1;
+                              final isSelected = _selectedLevel == level;
+                              return ChoiceChip(
+                                label: Text(AppLocalizations.of(context).profileEditLevelBtn(level), style: TextStyle(color: isSelected ? Colors.white : Colors.white70, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                selected: isSelected,
+                                selectedColor: AppColors.coral,
+                                backgroundColor: Colors.white.withValues(alpha: 0.12),
+                                onSelected: (selected) {
+                                  if (selected) setState(() => _selectedLevel = level);
+                                },
+                              );
+                            }),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Côté de jeu
+                          Text(AppLocalizations.of(context).profileEditPosition, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            initialValue: _preferredPosition,
+                            dropdownColor: const Color(0xFF1E2638),
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: Colors.white.withValues(alpha: 0.15),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                            ),
+                            items: [
+                              AppLocalizations.of(context).profileEditPosLeft, 
+                              AppLocalizations.of(context).profileEditPosRight, 
+                              AppLocalizations.of(context).profileEditPosAny
+                            ].map((val) => DropdownMenuItem(value: val, child: Text(val, style: const TextStyle(color: Colors.white)))).toList(),
+                            onChanged: (val) => setState(() => _preferredPosition = val),
+                            hint: Text(AppLocalizations.of(context).profileEditSelect, style: const TextStyle(color: Colors.white54)),
+                          ),
+                          const SizedBox(height: 18),
+
+                          // Disponibilités
+                          Text(AppLocalizations.of(context).profileEditAvailability, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            initialValue: _availability,
+                            dropdownColor: const Color(0xFF1E2638),
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: Colors.white.withValues(alpha: 0.15),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                            ),
+                            items: [
+                              AppLocalizations.of(context).profileEditAvailEvening, 
+                              AppLocalizations.of(context).profileEditAvailWeek, 
+                              AppLocalizations.of(context).profileEditAvailAll, 
+                              AppLocalizations.of(context).profileEditAvailVar
+                            ].map((val) => DropdownMenuItem(value: val, child: Text(val, style: const TextStyle(color: Colors.white)))).toList(),
+                            onChanged: (val) => setState(() => _availability = val),
+                            hint: Text(AppLocalizations.of(context).profileEditSelect, style: const TextStyle(color: Colors.white54)),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Partner Finder Switch
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(color: AppColors.coral.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
+                                  child: const Icon(Icons.handshake, color: AppColors.coral),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(AppLocalizations.of(context).profileEditLookingForPartner, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                                      const SizedBox(height: 4),
+                                      Text(AppLocalizations.of(context).profileEditLookingForPartnerSub, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                    ],
+                                  ),
+                                ),
+                                Switch(
+                                  value: _isLookingForPartner,
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _isLookingForPartner = val;
+                                    });
+                                  },
+                                  activeThumbColor: AppColors.coral,
+                                )
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+
+                          // Bouton Enregistrer
+                          ElevatedButton(
+                            onPressed: _isSaving ? null : _saveProfile,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.coral,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              elevation: 4,
+                            ),
+                            child: _isSaving 
+                                ? const CircularProgressIndicator(color: Colors.white)
+                                : Text(AppLocalizations.of(context).profileEditSaveBtn, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          ),
+                          const SizedBox(height: 40),
                         ],
                       ),
                     ),
-                    Switch(
-                      value: _isLookingForPartner,
-                      onChanged: (val) {
-                        setState(() {
-                          _isLookingForPartner = val;
-                        });
-                      },
-                      activeColor: AppColors.coral,
-                    )
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 32),
-
-              ElevatedButton(
-                onPressed: _isSaving ? null : _saveProfile,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: _isSaving 
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : Text(AppLocalizations.of(context)!.profileEditSaveBtn, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
