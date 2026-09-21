@@ -21,6 +21,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final TextEditingController _moderationSearchCtrl = TextEditingController();
   String _moderationSearchQuery = '';
 
+  String _normalize(String s) {
+    return s
+        .toLowerCase()
+        .replaceAll(RegExp(r'[éèêë]'), 'e')
+        .replaceAll(RegExp(r'[àâä]'), 'a')
+        .replaceAll(RegExp(r'[îï]'), 'i')
+        .replaceAll(RegExp(r'[ôö]'), 'o')
+        .replaceAll(RegExp(r'[ùûü]'), 'u')
+        .replaceAll(RegExp(r'[ç]'), 'c')
+        .replaceAll(RegExp(r'[^a-z0-9]'), ' ')
+        .trim();
+  }
+
+  bool _matchesTokens(String text, List<String> tokens) {
+    if (tokens.isEmpty) return true;
+    final norm = _normalize(text);
+    return tokens.every((token) => norm.contains(token));
+  }
+
   void _showAddNewsDialog({NewsItemModel? existingNews}) {
     final titleCtrl = TextEditingController(text: existingNews?.title);
     final descCtrl = TextEditingController(text: existingNews?.description);
@@ -100,12 +119,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       'isLive': isLive,
                     };
 
+                    final nav = Navigator.of(context);
                     if (existingNews == null) {
                       await _firestore.collection('news').add(data);
                     } else {
                       await _firestore.collection('news').doc(existingNews.id).update(data);
                     }
-                    Navigator.pop(context);
+                    nav.pop();
                   },
                   child: const Text("Enregistrer", style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
@@ -122,11 +142,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   void _banUser(String userId, String reportId) async {
+    final messenger = ScaffoldMessenger.of(context);
     try {
       await _firestore.collection('users').doc(userId).update({'isBanned': true});
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Utilisateur banni avec succès !')));
+      messenger.showSnackBar(const SnackBar(content: Text('Utilisateur banni avec succès !')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      messenger.showSnackBar(SnackBar(content: Text('Erreur : $e')));
     }
   }
 
@@ -437,14 +458,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         final allDocs = snapshot.data!.docs;
         final courts = allDocs.map((doc) => CourtModel.fromMap(doc.data() as Map<String, dynamic>, doc.id)).toList();
 
-        final filtered = _moderationSearchQuery.isEmpty
+        final tokens = _normalize(_moderationSearchQuery).split(' ').where((t) => t.isNotEmpty).toList();
+        final filtered = tokens.isEmpty
             ? courts
-            : courts.where((c) {
-                final name = c.name.toLowerCase();
-                final city = c.city.toLowerCase();
-                final country = c.country.toLowerCase();
-                return name.contains(_moderationSearchQuery) || city.contains(_moderationSearchQuery) || country.contains(_moderationSearchQuery);
-              }).toList();
+            : courts.where((c) => _matchesTokens("${c.name} ${c.city} ${c.country} ${c.description ?? ''}", tokens)).toList();
 
         if (filtered.isEmpty) {
           return const Center(child: Text("Aucun terrain trouvé.", style: TextStyle(color: Colors.white70)));
@@ -505,11 +522,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF141923),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
-            const SizedBox(width: 8),
-            const Expanded(child: Text("Supprimer le terrain ?", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold))),
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Expanded(child: Text("Supprimer le terrain ?", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold))),
           ],
         ),
         content: Text(
@@ -525,20 +542,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
             onPressed: () async {
               Navigator.pop(ctx);
+              final messenger = ScaffoldMessenger.of(context);
+              final appState = context.read<AppState>();
               try {
                 await _firestore.collection('courts').doc(court.id).delete();
-                if (mounted) {
-                  await context.read<AppState>().loadData();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Terrain '${court.name}' supprimé avec succès !"), backgroundColor: Colors.green),
-                  );
-                }
+                await appState.loadData();
+                messenger.showSnackBar(
+                  SnackBar(content: Text("Terrain '${court.name}' supprimé avec succès !"), backgroundColor: Colors.green),
+                );
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Erreur: $e"), backgroundColor: Colors.redAccent),
-                  );
-                }
+                messenger.showSnackBar(
+                  SnackBar(content: Text("Erreur: $e"), backgroundColor: Colors.redAccent),
+                );
               }
             },
             child: const Text("Supprimer"),
@@ -558,14 +573,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         final allDocs = snapshot.data!.docs;
         final tourns = allDocs.map((doc) => TournamentModel.fromMap(doc.data() as Map<String, dynamic>, doc.id)).toList();
 
-        final filtered = _moderationSearchQuery.isEmpty
+        final tokens = _normalize(_moderationSearchQuery).split(' ').where((t) => t.isNotEmpty).toList();
+        final filtered = tokens.isEmpty
             ? tourns
-            : tourns.where((t) {
-                final name = t.name.toLowerCase();
-                final club = t.club.toLowerCase();
-                final loc = t.location.toLowerCase();
-                return name.contains(_moderationSearchQuery) || club.contains(_moderationSearchQuery) || loc.contains(_moderationSearchQuery);
-              }).toList();
+            : tourns.where((t) => _matchesTokens("${t.name} ${t.club} ${t.location} ${t.category}", tokens)).toList();
 
         if (filtered.isEmpty) {
           return const Center(child: Text("Aucun tournoi trouvé.", style: TextStyle(color: Colors.white70)));
@@ -618,11 +629,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF141923),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
-            const SizedBox(width: 8),
-            const Expanded(child: Text("Supprimer le tournoi ?", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold))),
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Expanded(child: Text("Supprimer le tournoi ?", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold))),
           ],
         ),
         content: Text(
@@ -638,20 +649,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
             onPressed: () async {
               Navigator.pop(ctx);
+              final messenger = ScaffoldMessenger.of(context);
+              final appState = context.read<AppState>();
               try {
                 await _firestore.collection('tournaments').doc(tournament.id).delete();
-                if (mounted) {
-                  await context.read<AppState>().loadData();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Tournoi '${tournament.name}' supprimé avec succès !"), backgroundColor: Colors.green),
-                  );
-                }
+                await appState.loadData();
+                messenger.showSnackBar(
+                  SnackBar(content: Text("Tournoi '${tournament.name}' supprimé avec succès !"), backgroundColor: Colors.green),
+                );
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Erreur: $e"), backgroundColor: Colors.redAccent),
-                  );
-                }
+                messenger.showSnackBar(
+                  SnackBar(content: Text("Erreur: $e"), backgroundColor: Colors.redAccent),
+                );
               }
             },
             child: const Text("Supprimer"),
@@ -720,12 +729,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           icon: const Icon(Icons.check_circle_outline, color: Colors.greenAccent, size: 22),
                           tooltip: "Marquer comme traité (Supprimer)",
                           onPressed: () async {
+                            final messenger = ScaffoldMessenger.of(context);
                             await doc.reference.delete();
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Suggestion traitée et archivée ! ✓")),
-                              );
-                            }
+                            messenger.showSnackBar(
+                              const SnackBar(content: Text("Suggestion traitée et archivée ! ✓")),
+                            );
                           },
                         ),
                       ],
@@ -818,13 +826,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 return ClubModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
               }).toList();
 
-              final clubs = _presidentSearchQuery.isEmpty
+              final tokens = _normalize(_presidentSearchQuery).split(' ').where((t) => t.isNotEmpty).toList();
+              final clubs = tokens.isEmpty
                   ? allClubs
-                  : allClubs.where((club) {
-                      final name = club.name.toLowerCase();
-                      final loc = club.location.toLowerCase();
-                      return name.contains(_presidentSearchQuery) || loc.contains(_presidentSearchQuery);
-                    }).toList();
+                  : allClubs.where((club) => _matchesTokens("${club.name} ${club.location}", tokens)).toList();
 
               if (clubs.isEmpty) {
                 return Center(
@@ -853,6 +858,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 itemCount: clubs.length,
                 itemBuilder: (context, index) {
                   final club = clubs[index];
+                  final displayLoc = (club.location.isEmpty || club.location.toLowerCase().contains('recherche'))
+                      ? 'France'
+                      : club.location;
+
                   return Card(
                     color: Colors.white.withValues(alpha: 0.1),
                     margin: const EdgeInsets.only(bottom: 10),
@@ -870,7 +879,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(club.location, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                          Text(displayLoc, style: const TextStyle(color: Colors.white54, fontSize: 12)),
                           const SizedBox(height: 4),
                           Text(
                             club.presidentEmails.isEmpty
@@ -1009,15 +1018,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   icon: const Icon(Icons.save, size: 18),
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: Colors.black),
                   onPressed: () async {
+                    final nav = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
                     await _firestore.collection('clubs').doc(club.id).update({
                       'presidentEmails': emails,
                     });
-                    if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Présidents mis à jour !")),
-                      );
-                    }
+                    nav.pop();
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text("Présidents mis à jour !")),
+                    );
                   },
                   label: const Text("Enregistrer", style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
@@ -1030,7 +1039,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   // ─── BEACHSCORE ADMIN TAB ────────────────────────────────────────────────
-
   Widget _buildBeachScoreTab() {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore.collection('pro_matches').orderBy('date', descending: true).snapshots(),
@@ -1084,7 +1092,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     const SizedBox(height: 6),
                     // Équipes
                     Text(team1, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    Text('vs', style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                    const Text('vs', style: TextStyle(color: Colors.white38, fontSize: 11)),
                     Text(team2, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 10),
                     // Boutons actions
