@@ -68,5 +68,18 @@
 		</array>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<!-- Apple App Store Mandatory Permission Descriptions -->
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>BeachMatch utilise votre position pour localiser les terrains de beach tennis autour de vous et calculer les distances réelles sur le radar.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>BeachMatch utilise votre position pour afficher les spots de beach tennis et les tournois les plus proches de vous.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>BeachMatch a besoin d'accéder à vos photos pour vous permettre de choisir votre photo de profil ou d'ajouter une photo d'un terrain.</string>
+		<key>NSCameraUsageDescription</key>
+		<string>BeachMatch a besoin d'accéder à votre appareil photo pour prendre votre photo de profil ou photographier un spot de beach tennis.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>BeachMatch a besoin d'accéder à votre micro pour vous permettre d'enregistrer et d'envoyer des messages vocaux dans le chat.</string>
+		<key>io.flutter.embedded_views_preview</key>
+		<true/>
 	</dict>
 </plist>

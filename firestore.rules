@@ -115,6 +115,20 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
+    // PROPOSITIONS DE PARTENARIAT (envoyées via bouton "Faire équipe")
+    // Création par utilisateur connecté
+    // Lecture par l'expéditeur ou le destinataire
+    // Suppression par l'expéditeur
+    match /partner_proposals/{proposalId} {
+      allow read: if request.auth != null && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.targetUserId == request.auth.uid
+      );
+      allow create: if request.auth != null;
+      allow delete: if request.auth != null && resource.data.senderId == request.auth.uid;
+      allow update: if false;
+    }
+
     // CLUBS
     // Lecture par tout utilisateur connecté
     match /clubs/{clubId} {

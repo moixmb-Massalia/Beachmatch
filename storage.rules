@@ -1,0 +1,11 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      // Tout le monde peut lire les photos de profil, bannières et images de tournois
+      allow read: if true;
+      // Seuls les utilisateurs authentifiés peuvent téléverser des images
+      allow write: if request.auth != null;
+    }
+  }
+}

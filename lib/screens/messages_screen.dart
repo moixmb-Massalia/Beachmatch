@@ -7,12 +7,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../models/user.dart';
 import '../models/club.dart';
+import '../models/tournament.dart';
 import '../providers/app_state.dart';
 import '../theme/colors.dart';
 import '../services/chat_service.dart';
 import 'chat_detail_screen.dart';
 import 'clubs/club_detail_screen.dart';
 import 'clubs/group_chat_detail_screen.dart';
+import 'tournaments/tournament_detail_screen.dart';
+import 'tournaments/tournament_chat_screen.dart';
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
@@ -22,7 +25,7 @@ class MessagesScreen extends StatefulWidget {
 }
 
 class _MessagesScreenState extends State<MessagesScreen> {
-  String _selectedFilter = 'all'; // 'all', 'clubs', 'players'
+  String _selectedFilter = 'all'; // 'all', 'tournaments', 'clubs', 'players'
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   Timer? _debounceTimer;
@@ -266,14 +269,19 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       ),
                       const SizedBox(height: 14),
                       // Filter Pills
-                      Row(
-                        children: [
-                          _buildFilterChip("all", "Tous 💬"),
-                          const SizedBox(width: 8),
-                          _buildFilterChip("clubs", "👥 Clubs"),
-                          const SizedBox(width: 8),
-                          _buildFilterChip("players", "🎾 Joueurs"),
-                        ],
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildFilterChip("all", "Tous 💬"),
+                            const SizedBox(width: 8),
+                            _buildFilterChip("tournaments", "🏆 Tournois"),
+                            const SizedBox(width: 8),
+                            _buildFilterChip("clubs", "👥 Clubs"),
+                            const SizedBox(width: 8),
+                            _buildFilterChip("players", "🎾 Joueurs"),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 10),
                       // Search Bar
@@ -335,9 +343,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       // 1. Filter according to selected tab
                       final chatsByCategory = allChats.where((doc) {
                         final data = doc.data() as Map<String, dynamic>;
-                        final isGroup = data['isGroup'] == true;
+                        final isTournament = data['isTournament'] == true || doc.id.startsWith('tournament_');
+                        final isGroup = data['isGroup'] == true && !isTournament;
+                        if (_selectedFilter == 'tournaments') return isTournament;
                         if (_selectedFilter == 'clubs') return isGroup;
-                        if (_selectedFilter == 'players') return !isGroup;
+                        if (_selectedFilter == 'players') return !isGroup && !isTournament;
                         return true;
                       }).toList();
 
@@ -347,11 +357,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       final filteredChats = chatsByCategory.where((doc) {
                         if (searchTokens.isEmpty) return true;
                         final chatData = doc.data() as Map<String, dynamic>;
-                        final isGroup = chatData['isGroup'] == true;
+                        final isTournament = chatData['isTournament'] == true || doc.id.startsWith('tournament_');
+                        final isGroup = chatData['isGroup'] == true && !isTournament;
                         final lastMessage = chatData['lastMessage'] as String? ?? "";
 
-                        if (isGroup) {
-                          final groupName = chatData['groupName'] as String? ?? "Groupe";
+                        if (isTournament || isGroup) {
+                          final groupName = chatData['groupName'] as String? ?? (isTournament ? "Tournoi" : "Groupe");
                           return _matchesTokens("$groupName $lastMessage", searchTokens);
                         } else {
                           final users = List<String>.from(chatData['users'] ?? []);
@@ -392,18 +403,22 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                       ),
                                       const SizedBox(height: 16),
                                       Text(
-                                        _selectedFilter == 'clubs'
-                                            ? "Aucun chat de club actif"
-                                            : _selectedFilter == 'players'
-                                                ? "Aucun message privé"
-                                                : "Aucune conversation",
+                                        _selectedFilter == 'tournaments'
+                                            ? "Aucun chat de tournoi actif"
+                                            : _selectedFilter == 'clubs'
+                                                ? "Aucun chat de club actif"
+                                                : _selectedFilter == 'players'
+                                                    ? "Aucun message privé"
+                                                    : "Aucune conversation",
                                         style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                                       ),
                                       const SizedBox(height: 8),
-                                      const Text(
-                                        "Rejoignez un club ou proposez une partie à un joueur pour lancer la discussion !",
+                                      Text(
+                                        _selectedFilter == 'tournaments'
+                                            ? "Accédez à un tournoi pour participer à ses sondages et échanger !"
+                                            : "Rejoignez un club ou proposez une partie à un joueur pour lancer la discussion !",
                                         textAlign: TextAlign.center,
-                                        style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.4),
+                                        style: const TextStyle(color: Colors.white60, fontSize: 13, height: 1.4),
                                       ),
                                     ],
                                   ),
@@ -480,15 +495,29 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         itemCount: filteredChats.length,
                         itemBuilder: (context, index) {
                           final chatData = filteredChats[index].data() as Map<String, dynamic>;
-                          final isGroup = chatData['isGroup'] == true;
+                          final chatId = filteredChats[index].id;
+                          final isTournament = chatData['isTournament'] == true || chatId.startsWith('tournament_');
+                          final isGroup = chatData['isGroup'] == true && !isTournament;
                           final users = List<String>.from(chatData['users'] ?? []);
                           final lastMessage = chatData['lastMessage'] as String? ?? "";
-                          final chatId = filteredChats[index].id;
                           final lastTimestamp = chatData['lastTimestamp'] as Timestamp?;
                           final unreadBy = List<String>.from(chatData['unreadBy'] ?? []);
                           final isUnread = unreadBy.contains(currentUser.id);
 
-                          if (isGroup) {
+                          if (isTournament) {
+                            final tournamentName = chatData['groupName'] as String? ?? "Tournoi";
+                            final tournamentId = chatData['tournamentId'] as String? ?? chatId.replaceFirst('tournament_', '');
+                            return _buildTournamentMessageItem(
+                              context,
+                              currentUser,
+                              tournamentName,
+                              tournamentId,
+                              lastMessage,
+                              lastTimestamp,
+                              isUnread,
+                              appState,
+                            );
+                          } else if (isGroup) {
                             final groupName = chatData['groupName'] as String? ?? "Groupe";
                             final groupIcon = chatData['groupIcon'] as String?;
                             final clubId = chatId.replaceFirst('club_', '');
@@ -1118,6 +1147,296 @@ class _MessagesScreenState extends State<MessagesScreen> {
     ),
   );
 }
+
+  Widget _buildTournamentMessageItem(
+    BuildContext context,
+    UserModel currentUser,
+    String tournamentName,
+    String tournamentId,
+    String lastMessage,
+    Timestamp? lastTimestamp,
+    bool isUnread,
+    AppState appState,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Dismissible(
+            key: Key('tournament_$tournamentId'),
+            direction: DismissDirection.endToStart,
+            confirmDismiss: (direction) async {
+              return await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: const Color(0xFF16253B),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  title: const Row(
+                    children: [
+                      Icon(Icons.delete_outline, color: AppColors.coral),
+                      SizedBox(width: 8),
+                      Text("Supprimer la discussion", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  content: Text(
+                    "Voulez-vous retirer le chat de '$tournamentName' de votre boîte de réception ?",
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text("Annuler", style: TextStyle(color: Colors.white60)),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text("Supprimer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              );
+            },
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 24.0),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(CupertinoIcons.trash_fill, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text("Supprimer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            onDismissed: (direction) {
+              ChatService().deleteChat(currentUser.id, '', isGroup: true, tournamentId: tournamentId);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("Chat '$tournamentName' retiré de vos messages."),
+                  backgroundColor: const Color(0xFF16253B),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: isUnread ? Colors.white.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.09),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isUnread ? AppColors.gold.withValues(alpha: 0.8) : AppColors.gold.withValues(alpha: 0.28),
+                  width: isUnread ? 1.5 : 1.0,
+                ),
+              ),
+              child: InkWell(
+                onTap: () async {
+                  TournamentModel? tourney;
+                  try {
+                    tourney = appState.tournaments.firstWhere((t) => t.id == tournamentId);
+                  } catch (_) {}
+                  if (tourney == null) {
+                    final doc = await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).get();
+                    if (doc.exists && doc.data() != null) {
+                      tourney = TournamentModel.fromFirestore(doc);
+                    } else {
+                      tourney = TournamentModel(
+                        id: tournamentId,
+                        name: tournamentName,
+                        club: '',
+                        location: '',
+                        dateString: '',
+                        distance: 0.0,
+                        category: 'Tournoi',
+                      );
+                    }
+                  }
+                  if (context.mounted) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TournamentChatScreen(tournament: tourney!),
+                      ),
+                    );
+                  }
+                },
+                child: Row(
+                  children: [
+                    // Tournament avatar with golden trophy
+                    Stack(
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const LinearGradient(
+                              colors: [AppColors.gold, AppColors.goldDark],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.85), width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.gold.withValues(alpha: 0.35),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.emoji_events_rounded, color: Color(0xFF0F172A), size: 26),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(colors: [AppColors.coral, Color(0xFFF4A535)]),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 1.5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.25),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(Icons.chat_bubble_rounded, size: 9, color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 14),
+                    // Title & Last message
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  tournamentName,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              // Bouton "Voir l'épreuve"
+                              GestureDetector(
+                                onTap: () async {
+                                  TournamentModel? tourney;
+                                  try {
+                                    tourney = appState.tournaments.firstWhere((t) => t.id == tournamentId);
+                                  } catch (_) {}
+                                  if (tourney == null) {
+                                    final doc = await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).get();
+                                    if (doc.exists && doc.data() != null) {
+                                      tourney = TournamentModel.fromFirestore(doc);
+                                    } else {
+                                      tourney = TournamentModel(
+                                        id: tournamentId,
+                                        name: tournamentName,
+                                        club: '',
+                                        location: '',
+                                        dateString: '',
+                                        distance: 0.0,
+                                        category: 'Tournoi',
+                                      );
+                                    }
+                                  }
+                                  if (context.mounted) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => TournamentDetailScreen(tournament: tourney!),
+                                      ),
+                                    );
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.gold.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+                                  ),
+                                  child: const Text(
+                                    "Voir l'épreuve",
+                                    style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.gold.withValues(alpha: 0.25),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  "CHAT TOURNOI",
+                                  style: TextStyle(color: AppColors.gold, fontSize: 9, fontWeight: FontWeight.w900),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  lastMessage.isNotEmpty ? lastMessage : "Accéder au chat du tournoi",
+                                  style: TextStyle(
+                                    color: isUnread ? Colors.white : Colors.white70,
+                                    fontSize: 13,
+                                    fontWeight: isUnread ? FontWeight.w600 : FontWeight.normal,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (lastTimestamp != null) ...[
+                                const SizedBox(width: 6),
+                                Text(
+                                  _formatChatTimestamp(lastTimestamp),
+                                  style: TextStyle(
+                                    color: isUnread ? AppColors.gold : Colors.white60,
+                                    fontSize: 11,
+                                    fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _NewMessageModal extends StatefulWidget {

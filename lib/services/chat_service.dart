@@ -18,6 +18,10 @@ class ChatService {
 
   String _getClubChatRoomId(String clubId) => getClubChatRoomId(clubId);
 
+  String getTournamentChatRoomId(String tournamentId) {
+    return tournamentId.startsWith('tournament_') ? tournamentId : 'tournament_$tournamentId';
+  }
+
   // Send a message (1-on-1)
   Future<void> sendMessage(String senderId, String receiverId, String text, {String? imageUrl, Map<String, dynamic>? replyTo}) async {
     final String chatRoomId = _getChatRoomId(senderId, receiverId);
@@ -97,6 +101,65 @@ class ChatService {
         .add(message);
   }
 
+  // Send a message to a Tournament Group Chat
+  Future<void> sendTournamentMessage(
+    String tournamentId,
+    String senderId,
+    String senderName,
+    String text,
+    String tournamentName, {
+    String? imageUrl,
+    String? videoUrl,
+    Map<String, dynamic>? poll,
+    Map<String, dynamic>? replyTo,
+  }) async {
+    final String chatRoomId = getTournamentChatRoomId(tournamentId);
+
+    final message = {
+      'senderId': senderId,
+      'senderName': senderName,
+      'text': text,
+      'timestamp': FieldValue.serverTimestamp(),
+      if (imageUrl != null) 'imageUrl': imageUrl,
+      if (videoUrl != null) 'videoUrl': videoUrl,
+      if (poll != null) 'poll': poll,
+      if (replyTo != null) 'replyTo': replyTo,
+    };
+
+    String lastMsg = text;
+    if (imageUrl != null && text.isEmpty) lastMsg = "📷 Photo";
+    if (videoUrl != null && text.isEmpty) lastMsg = "🎥 Vidéo";
+    if (poll != null) lastMsg = "📊 Sondage: ${poll['question']}";
+
+    // Update the recent chat doc for tournament
+    await _firestore.collection('chats').doc(chatRoomId).set({
+      'isGroup': true,
+      'isTournament': true,
+      'tournamentId': tournamentId,
+      'groupName': tournamentName,
+      'lastMessage': lastMsg,
+      'lastTimestamp': FieldValue.serverTimestamp(),
+      'users': FieldValue.arrayUnion([senderId]),
+    }, SetOptions(merge: true));
+
+    await _firestore
+        .collection('chats')
+        .doc(chatRoomId)
+        .collection('messages')
+        .add(message);
+  }
+
+  // Get stream of tournament messages
+  Stream<QuerySnapshot> getTournamentMessages(String tournamentId) {
+    final String chatRoomId = getTournamentChatRoomId(tournamentId);
+    return _firestore
+        .collection('chats')
+        .doc(chatRoomId)
+        .collection('messages')
+        .orderBy('timestamp', descending: false)
+        .snapshots();
+  }
+
   // Mark chat as read
   Future<void> markAsRead(String currentUserId, String otherUserId) async {
     final String chatRoomId = _getChatRoomId(currentUserId, otherUserId);
@@ -141,10 +204,12 @@ class ChatService {
   }
 
   // Delete chat conversation (masquage non-destructif pour l'autre utilisateur)
-  Future<void> deleteChat(String userId1, String userId2, {bool isGroup = false, String? clubId}) async {
-    final String chatRoomId = isGroup 
-        ? _getClubChatRoomId(clubId!)
-        : _getChatRoomId(userId1, userId2);
+  Future<void> deleteChat(String userId1, String userId2, {bool isGroup = false, String? clubId, String? tournamentId}) async {
+    final String chatRoomId = tournamentId != null
+        ? getTournamentChatRoomId(tournamentId)
+        : (isGroup 
+            ? _getClubChatRoomId(clubId!)
+            : _getChatRoomId(userId1, userId2));
     
     try {
       final doc = await _firestore.collection('chats').doc(chatRoomId).get();
@@ -154,8 +219,8 @@ class ChatService {
       final List<dynamic> users = List.from(data['users'] ?? []);
       users.remove(userId1);
 
-      if (isGroup) {
-        // Pour un club, on retire l'utilisateur de la liste
+      if (isGroup || tournamentId != null) {
+        // Pour un club ou un tournoi, on retire l'utilisateur de la liste
         await _firestore.collection('chats').doc(chatRoomId).update({
           'users': FieldValue.arrayRemove([userId1]),
           'unreadBy': FieldValue.arrayRemove([userId1]),
@@ -186,6 +251,18 @@ class ChatService {
       'isGroup': true,
       'groupName': clubName,
       'groupIcon': clubBannerUrl,
+      'users': FieldValue.arrayUnion([userId]),
+    }, SetOptions(merge: true));
+  }
+
+  // Join a Tournament Group Chat
+  Future<void> joinTournamentChat(String userId, String tournamentId, String tournamentName) async {
+    final String chatRoomId = getTournamentChatRoomId(tournamentId);
+    await _firestore.collection('chats').doc(chatRoomId).set({
+      'isGroup': true,
+      'isTournament': true,
+      'tournamentId': tournamentId,
+      'groupName': tournamentName,
       'users': FieldValue.arrayUnion([userId]),
     }, SetOptions(merge: true));
   }
