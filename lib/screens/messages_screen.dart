@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
@@ -24,11 +25,75 @@ class _MessagesScreenState extends State<MessagesScreen> {
   String _selectedFilter = 'all'; // 'all', 'clubs', 'players'
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  Timer? _debounceTimer;
+
+  // In-memory cache for user profiles to eliminate FutureBuilder latency
+  final Map<String, UserModel> _cachedUsers = {};
+  final Set<String> _pendingUserFetches = {};
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) {
+        setState(() {
+          _searchQuery = value.trim();
+        });
+      }
+    });
+  }
+
+  String _normalize(String s) {
+    return s
+        .toLowerCase()
+        .replaceAll(RegExp(r'[éèêë]'), 'e')
+        .replaceAll(RegExp(r'[àâä]'), 'a')
+        .replaceAll(RegExp(r'[îï]'), 'i')
+        .replaceAll(RegExp(r'[ôö]'), 'o')
+        .replaceAll(RegExp(r'[ùûü]'), 'u')
+        .replaceAll(RegExp(r'[ç]'), 'c')
+        .trim();
+  }
+
+  bool _matchesTokens(String text, List<String> tokens) {
+    if (tokens.isEmpty) return true;
+    final norm = _normalize(text);
+    return tokens.every((token) => norm.contains(token));
+  }
+
+  UserModel? _resolveUser(String userId, AppState appState) {
+    if (_cachedUsers.containsKey(userId)) {
+      return _cachedUsers[userId];
+    }
+    try {
+      final player = appState.players.firstWhere((p) => p.id == userId);
+      _cachedUsers[userId] = player;
+      return player;
+    } catch (_) {}
+
+    if (!_pendingUserFetches.contains(userId)) {
+      _pendingUserFetches.add(userId);
+      FirebaseFirestore.instance.collection('users').doc(userId).get().then((doc) {
+        _pendingUserFetches.remove(userId);
+        if (doc.exists && doc.data() != null) {
+          final user = UserModel.fromMap(doc.data()!, doc.id);
+          if (mounted) {
+            setState(() {
+              _cachedUsers[userId] = user;
+            });
+          }
+        }
+      }).catchError((_) {
+        _pendingUserFetches.remove(userId);
+      });
+    }
+    return null;
   }
 
   String _formatChatTimestamp(Timestamp? timestamp) {
@@ -71,7 +136,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = context.watch<AppState>().currentUser;
+    final appState = context.watch<AppState>();
+    final currentUser = appState.currentUser;
     final ChatService chatService = ChatService();
 
     if (currentUser == null) return const Scaffold(body: Center(child: Text("Non connecté")));
@@ -219,16 +285,17 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         ),
                         child: TextField(
                           controller: _searchController,
-                          onChanged: (value) => setState(() => _searchQuery = value.trim()),
+                          onChanged: _onSearchChanged,
                           style: const TextStyle(color: Colors.white, fontSize: 13),
                           decoration: InputDecoration(
                             hintText: "Rechercher une conversation...",
                             hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
                             prefixIcon: const Icon(CupertinoIcons.search, color: Colors.white70, size: 18),
-                            suffixIcon: _searchQuery.isNotEmpty
+                            suffixIcon: _searchController.text.isNotEmpty
                                 ? IconButton(
                                     icon: const Icon(CupertinoIcons.clear_circled_solid, color: Colors.white60, size: 18),
                                     onPressed: () {
+                                      _debounceTimer?.cancel();
                                       _searchController.clear();
                                       setState(() => _searchQuery = '');
                                     },
@@ -265,8 +332,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         return bTime.compareTo(aTime);
                       });
 
-                      // Filter according to selected tab
-                      final chats = allChats.where((doc) {
+                      // 1. Filter according to selected tab
+                      final chatsByCategory = allChats.where((doc) {
                         final data = doc.data() as Map<String, dynamic>;
                         final isGroup = data['isGroup'] == true;
                         if (_selectedFilter == 'clubs') return isGroup;
@@ -274,7 +341,30 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         return true;
                       }).toList();
 
-                      if (chats.isEmpty) {
+                      // 2. Pre-filter by search query (multi-token & accent-insensitive)
+                      final searchTokens = _normalize(_searchQuery).split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+
+                      final filteredChats = chatsByCategory.where((doc) {
+                        if (searchTokens.isEmpty) return true;
+                        final chatData = doc.data() as Map<String, dynamic>;
+                        final isGroup = chatData['isGroup'] == true;
+                        final lastMessage = chatData['lastMessage'] as String? ?? "";
+
+                        if (isGroup) {
+                          final groupName = chatData['groupName'] as String? ?? "Groupe";
+                          return _matchesTokens("$groupName $lastMessage", searchTokens);
+                        } else {
+                          final users = List<String>.from(chatData['users'] ?? []);
+                          final otherUserId = users.firstWhere((id) => id != currentUser.id, orElse: () => currentUser.id);
+                          final otherUser = _resolveUser(otherUserId, appState);
+                          if (otherUser != null) {
+                            return _matchesTokens("${otherUser.displayName} ${otherUser.location} $lastMessage", searchTokens);
+                          }
+                          return _matchesTokens(lastMessage, searchTokens);
+                        }
+                      }).toList();
+
+                      if (chatsByCategory.isEmpty) {
                         return Center(
                           child: Padding(
                             padding: const EdgeInsets.all(32.0),
@@ -324,15 +414,76 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         );
                       }
 
+                      if (filteredChats.isEmpty) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32.0),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(24),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                child: Container(
+                                  padding: const EdgeInsets.all(28),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(16),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.coral.withValues(alpha: 0.2),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(CupertinoIcons.search, color: AppColors.gold, size: 36),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      const Text(
+                                        "Aucun résultat trouvé",
+                                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        "Aucune discussion ne correspond à '$_searchQuery'.",
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(color: Colors.white60, fontSize: 13, height: 1.4),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      ElevatedButton.icon(
+                                        onPressed: () {
+                                          _debounceTimer?.cancel();
+                                          _searchController.clear();
+                                          setState(() => _searchQuery = '');
+                                        },
+                                        icon: const Icon(CupertinoIcons.clear, size: 16),
+                                        label: const Text("Effacer la recherche"),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppColors.coral,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
                       return ListView.builder(
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-                        itemCount: chats.length,
+                        itemCount: filteredChats.length,
                         itemBuilder: (context, index) {
-                          final chatData = chats[index].data() as Map<String, dynamic>;
+                          final chatData = filteredChats[index].data() as Map<String, dynamic>;
                           final isGroup = chatData['isGroup'] == true;
                           final users = List<String>.from(chatData['users'] ?? []);
                           final lastMessage = chatData['lastMessage'] as String? ?? "";
-                          final chatId = chats[index].id;
+                          final chatId = filteredChats[index].id;
                           final lastTimestamp = chatData['lastTimestamp'] as Timestamp?;
                           final unreadBy = List<String>.from(chatData['unreadBy'] ?? []);
                           final isUnread = unreadBy.contains(currentUser.id);
@@ -341,31 +492,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             final groupName = chatData['groupName'] as String? ?? "Groupe";
                             final groupIcon = chatData['groupIcon'] as String?;
                             final clubId = chatId.replaceFirst('club_', '');
-                            if (_searchQuery.isNotEmpty) {
-                              final q = _searchQuery.toLowerCase();
-                              final matchName = groupName.toLowerCase().contains(q);
-                              final matchMsg = lastMessage.toLowerCase().contains(q);
-                              if (!matchName && !matchMsg) return const SizedBox.shrink();
-                            }
                             return _buildGroupMessageItem(context, currentUser, groupName, groupIcon, lastMessage, clubId, lastTimestamp, isUnread);
                           } else {
                             final otherUserId = users.firstWhere((id) => id != currentUser.id, orElse: () => currentUser.id);
-                            return FutureBuilder<DocumentSnapshot>(
-                              future: FirebaseFirestore.instance.collection('users').doc(otherUserId).get(),
-                              builder: (context, userSnapshot) {
-                                if (!userSnapshot.hasData || !userSnapshot.data!.exists || userSnapshot.data!.data() == null) {
-                                  return const SizedBox.shrink();
-                                }
-                                final otherUser = UserModel.fromMap(userSnapshot.data!.data() as Map<String, dynamic>, otherUserId);
-                                if (_searchQuery.isNotEmpty) {
-                                  final q = _searchQuery.toLowerCase();
-                                  final matchName = otherUser.displayName.toLowerCase().contains(q);
-                                  final matchMsg = lastMessage.toLowerCase().contains(q);
-                                  if (!matchName && !matchMsg) return const SizedBox.shrink();
-                                }
-                                return _buildMessageItem(context, currentUser, otherUser, lastMessage, chatId, lastTimestamp, isUnread);
-                              },
-                            );
+                            final otherUser = _resolveUser(otherUserId, appState);
+                            if (otherUser != null) {
+                              return _buildMessageItem(context, currentUser, otherUser, lastMessage, chatId, lastTimestamp, isUnread);
+                            } else {
+                              return _buildLoadingMessageItem(lastMessage, lastTimestamp, isUnread);
+                            }
                           }
                         },
                       );
@@ -410,6 +545,68 @@ class _MessagesScreenState extends State<MessagesScreen> {
             color: Colors.white,
             fontSize: 12,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingMessageItem(String lastMessage, Timestamp? lastTimestamp, bool isUnread) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
+                  child: const Center(
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.coral),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 120,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        lastMessage.isNotEmpty ? lastMessage : "Discussion...",
+                        style: const TextStyle(color: Colors.white54, fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -935,11 +1132,20 @@ class _NewMessageModal extends StatefulWidget {
 class _NewMessageModalState extends State<_NewMessageModal> {
   final TextEditingController _searchCtrl = TextEditingController();
   String _filter = '';
+  Timer? _debounceTimer;
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _onFilterChanged(String val) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 200), () {
+      if (mounted) setState(() => _filter = val.trim());
+    });
   }
 
   String _normalize(String s) {
@@ -1035,16 +1241,17 @@ class _NewMessageModalState extends State<_NewMessageModal> {
                 child: TextField(
                   controller: _searchCtrl,
                   autofocus: false,
-                  onChanged: (val) => setState(() => _filter = val.trim()),
+                  onChanged: _onFilterChanged,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: "Rechercher par nom, ville...",
                     hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
                     prefixIcon: const Icon(CupertinoIcons.search, color: AppColors.coral, size: 20),
-                    suffixIcon: _filter.isNotEmpty
+                    suffixIcon: _searchCtrl.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(CupertinoIcons.clear_circled_solid, color: Colors.white54, size: 18),
                             onPressed: () {
+                              _debounceTimer?.cancel();
                               _searchCtrl.clear();
                               setState(() => _filter = '');
                             },
@@ -1070,6 +1277,7 @@ class _NewMessageModalState extends State<_NewMessageModal> {
 
                     final docs = snapshot.data?.docs ?? [];
                     final blockedIds = widget.currentUser.blockedUserIds;
+                    final tokens = _normalize(_filter).split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
 
                     final users = docs
                         .where((doc) {
@@ -1081,11 +1289,9 @@ class _NewMessageModalState extends State<_NewMessageModal> {
                         })
                         .map((doc) => UserModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
                         .where((user) {
-                          if (_filter.isEmpty) return true;
-                          final q = _normalize(_filter);
-                          final nameMatch = _normalize(user.displayName).contains(q);
-                          final locMatch = _normalize(user.location).contains(q);
-                          return nameMatch || locMatch;
+                          if (tokens.isEmpty) return true;
+                          final haystack = _normalize("${user.displayName} ${user.location}");
+                          return tokens.every((token) => haystack.contains(token));
                         })
                         .toList();
 
