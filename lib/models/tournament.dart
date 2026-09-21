@@ -21,6 +21,7 @@ class TournamentModel {
   final String? scheduleDetails;
   
   final String? country;
+  final String? clubId;
   
   // Geocoding cache in-memory & Firestore
   double? latitude;
@@ -70,6 +71,7 @@ class TournamentModel {
     this.price,
     this.scheduleDetails,
     this.country,
+    this.clubId,
     this.latitude,
     this.longitude,
   });
@@ -121,9 +123,10 @@ class TournamentModel {
       contactEmail: data['contactEmail'],
       registrationType: data['registrationType'],
       registrationUrl: data['registrationUrl'],
-      price: data['price'] != null ? data['price'].toString() : null,
+      price: data['price']?.toString(),
       scheduleDetails: data['scheduleDetails'],
       country: data['country'],
+      clubId: data['clubId'],
       latitude: lat,
       longitude: lng,
     );
@@ -137,6 +140,7 @@ class TournamentModel {
       'dateString': dateString,
       'distance': distance,
       'category': category,
+      if (clubId != null) 'clubId': clubId,
       if (address != null) 'address': address,
       if (balls != null) 'balls': balls,
       if (referee != null) 'referee': referee,

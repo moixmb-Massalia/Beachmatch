@@ -44,7 +44,13 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
     final t = widget.initialTournament;
     _nameController = TextEditingController(text: t?.name ?? '');
     _dateController = TextEditingController(text: t?.dateString ?? '');
-    _addressController = TextEditingController(text: t?.location ?? '');
+    
+    // Auto-fill address from club location if empty
+    String defaultLocation = t?.location ?? '';
+    if (defaultLocation.isEmpty && widget.club.location.isNotEmpty && !widget.club.location.toLowerCase().contains('recherche')) {
+      defaultLocation = widget.club.location;
+    }
+    _addressController = TextEditingController(text: defaultLocation);
     _priceController = TextEditingController(text: t?.price ?? '');
     _phoneController = TextEditingController(text: t?.contactPhone ?? '');
     _emailController = TextEditingController(text: t?.contactEmail ?? '');
@@ -64,6 +70,45 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
     super.dispose();
   }
 
+  Future<void> _pickDateRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 2),
+      initialDateRange: DateTimeRange(
+        start: now,
+        end: now.add(const Duration(days: 1)),
+      ),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppColors.gold,
+              onPrimary: Colors.black,
+              surface: Color(0xFF1E293B),
+              onSurface: Colors.white,
+            ),
+            dialogTheme: const DialogThemeData(backgroundColor: Color(0xFF1E293B)),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final startStr = "${picked.start.day.toString().padLeft(2, '0')}/${picked.start.month.toString().padLeft(2, '0')}/${picked.start.year}";
+      final endStr = "${picked.end.day.toString().padLeft(2, '0')}/${picked.end.month.toString().padLeft(2, '0')}/${picked.end.year}";
+      setState(() {
+        if (picked.start == picked.end) {
+          _dateController.text = startStr;
+        } else {
+          _dateController.text = "$startStr - $endStr";
+        }
+      });
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -77,6 +122,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
       
       final tournamentData = {
         'id': id,
+        'clubId': widget.club.id,
         'name': _nameController.text.trim(),
         'club': widget.club.name.isNotEmpty ? widget.club.name : (widget.initialTournament?.club ?? 'Club Officiel'),
         'location': _addressController.text.trim(),
@@ -99,6 +145,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
 
       if (mounted) {
         await context.read<AppState>().loadData();
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(isEditing ? "Tournoi modifié avec succès ! ✓" : "Tournoi créé avec succès ! 🏆"),
@@ -126,22 +173,37 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text(isEditing ? "Modifier le Tournoi" : "Nouveau Tournoi", style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text(
-              isEditing ? "Modifiez les informations officielles de cet événement." : "Créez un événement officiel pour votre club.",
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/beach_court_aerial_1785052250131.jpg',
+              fit: BoxFit.cover,
             ),
-            const SizedBox(height: 24),
+          ),
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.85),
+            ),
+          ),
+          SafeArea(
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Text(
+                    isEditing ? "Modifiez les informations officielles de cet événement." : "Créez un événement officiel pour votre club.",
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  const SizedBox(height: 24),
             
             TextFormField(
               controller: _nameController,
@@ -152,7 +214,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
                 hintText: "Ex: Open d'été BT 250",
                 hintStyle: const TextStyle(color: Colors.white38),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.08),
+                fillColor: Colors.white.withValues(alpha: 0.08),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
               ),
               validator: (val) => val == null || val.isEmpty ? "Requis" : null,
@@ -160,14 +222,14 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
             const SizedBox(height: 16),
             
             DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               dropdownColor: const Color(0xFF141923),
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               decoration: InputDecoration(
                 labelText: "Catégorie FFT",
                 labelStyle: const TextStyle(color: Colors.white70),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.08),
+                fillColor: Colors.white.withValues(alpha: 0.08),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
               ),
               items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(color: Colors.white)))).toList(),
@@ -185,10 +247,15 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
               decoration: InputDecoration(
                 labelText: "Dates du tournoi",
                 labelStyle: const TextStyle(color: Colors.white70),
-                hintText: "Ex: 24 - 25 Août 2026",
+                hintText: "Ex: 24/08/2026 - 25/08/2026",
                 hintStyle: const TextStyle(color: Colors.white38),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.08),
+                fillColor: Colors.white.withValues(alpha: 0.08),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.calendar_month_rounded, color: AppColors.gold),
+                  tooltip: "Choisir sur le calendrier",
+                  onPressed: _pickDateRange,
+                ),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
               ),
               validator: (val) => val == null || val.isEmpty ? "Requis" : null,
@@ -204,7 +271,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
                 hintText: "Ex: Marseille, Barcelone, Plage du Prado...",
                 hintStyle: const TextStyle(color: Colors.white38),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.08),
+                fillColor: Colors.white.withValues(alpha: 0.08),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
               ),
               validator: (val) => val == null || val.isEmpty ? "Requis" : null,
@@ -220,7 +287,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
                 hintText: "Ex: 25 € / joueur",
                 hintStyle: const TextStyle(color: Colors.white38),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.08),
+                fillColor: Colors.white.withValues(alpha: 0.08),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
               ),
             ),
@@ -236,7 +303,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
                 hintText: "Numéro de contact",
                 hintStyle: const TextStyle(color: Colors.white38),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.08),
+                fillColor: Colors.white.withValues(alpha: 0.08),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
               ),
             ),
@@ -252,7 +319,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
                 hintText: "Adresse email du club",
                 hintStyle: const TextStyle(color: Colors.white38),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.08),
+                fillColor: Colors.white.withValues(alpha: 0.08),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
               ),
             ),
@@ -267,7 +334,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
                 hintText: "Nom du juge-arbitre officiel",
                 hintStyle: const TextStyle(color: Colors.white38),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.08),
+                fillColor: Colors.white.withValues(alpha: 0.08),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
               ),
             ),
@@ -295,6 +362,9 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  ],
+),
+);
+}
 }
