@@ -13,6 +13,8 @@ import '../../widgets/club_invite_dialog.dart';
 import '../../widgets/beach_weather_widget.dart';
 import 'group_chat_detail_screen.dart';
 import 'president_dashboard_screen.dart';
+import '../../models/user.dart';
+import '../public_profile_screen.dart';
 
 class ClubDetailScreen extends StatefulWidget {
   final ClubModel club;
@@ -106,7 +108,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
             ListTile(
               leading: Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: AppColors.coral.withOpacity(0.15), shape: BoxShape.circle),
+                decoration: BoxDecoration(color: AppColors.coral.withValues(alpha: 0.15), shape: BoxShape.circle),
                 child: const Icon(Icons.photo_library, color: AppColors.coral),
               ),
               title: const Text("Choisir dans la galerie", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -118,7 +120,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
             ListTile(
               leading: Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.15), shape: BoxShape.circle),
+                decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.15), shape: BoxShape.circle),
                 child: const Icon(Icons.camera_alt, color: AppColors.primary),
               ),
               title: const Text("Prendre une photo", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -196,9 +198,9 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
           margin: EdgeInsets.only(bottom: marginBottom),
           padding: padding ?? const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.18),
+            color: Colors.white.withValues(alpha: 0.18),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.2),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.2),
           ),
           child: child,
         ),
@@ -237,7 +239,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
           ),
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.50),
+              color: Colors.black.withValues(alpha: 0.50),
             ),
           ),
           SafeArea(
@@ -272,7 +274,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                       if (!isPresident && !isAppAdmin)
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: isMember ? Colors.white.withOpacity(0.25) : AppColors.coral,
+                            backgroundColor: isMember ? Colors.white.withValues(alpha: 0.25) : AppColors.coral,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -288,9 +290,9 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: AppColors.gold.withOpacity(0.2),
+                            color: AppColors.gold.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppColors.gold.withOpacity(0.6)),
+                            border: Border.all(color: AppColors.gold.withValues(alpha: 0.6)),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
@@ -336,10 +338,10 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                                           begin: Alignment.topLeft,
                                           end: Alignment.bottomRight,
                                         ),
-                                        border: Border.all(color: Colors.white.withOpacity(0.8), width: 2.5),
+                                        border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 2.5),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: const Color(0xFFE8604C).withOpacity(0.4),
+                                            color: const Color(0xFFE8604C).withValues(alpha: 0.4),
                                             blurRadius: 15,
                                             spreadRadius: 2,
                                           )
@@ -379,7 +381,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                                         height: 84,
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
-                                          color: Colors.black.withOpacity(0.5),
+                                          color: Colors.black.withValues(alpha: 0.5),
                                         ),
                                         child: const Center(
                                           child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
@@ -397,7 +399,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                                             border: Border.all(color: Colors.white, width: 1.5),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: Colors.black.withOpacity(0.3),
+                                                color: Colors.black.withValues(alpha: 0.3),
                                                 blurRadius: 4,
                                                 offset: const Offset(0, 2),
                                               ),
@@ -473,7 +475,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: AppColors.gold.withOpacity(0.3),
+                                    color: AppColors.gold.withValues(alpha: 0.3),
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(Icons.admin_panel_settings, color: AppColors.gold, size: 22),
@@ -536,6 +538,8 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                                 icon: Icons.group,
                                 title: "Membres",
                                 value: "${widget.club.memberIds.length} joueur${widget.club.memberIds.length > 1 ? 's' : ''}",
+                                onTap: () => _showMembersBottomSheet(context),
+                                subtitleHint: "Voir la liste →",
                               ),
                             ),
                           ],
@@ -578,7 +582,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                               borderRadius: BorderRadius.circular(20),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppColors.coral.withOpacity(0.4),
+                                  color: AppColors.coral.withValues(alpha: 0.4),
                                   blurRadius: 15,
                                   offset: const Offset(0, 4),
                                 )
@@ -623,24 +627,317 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
     );
   }
 
-  Widget _buildInfoCard({required IconData icon, required String title, required String value}) {
-    return _buildGlassCard(
+  Future<List<UserModel>> _fetchClubMembers() async {
+    final appState = Provider.of<AppState>(context, listen: false);
+    final allKnown = {for (var p in appState.players) p.id: p};
+    if (appState.currentUser != null) {
+      allKnown[appState.currentUser!.id] = appState.currentUser!;
+    }
+
+    final List<UserModel> result = [];
+    final List<String> missingIds = [];
+
+    for (final id in widget.club.memberIds) {
+      if (allKnown.containsKey(id)) {
+        result.add(allKnown[id]!);
+      } else {
+        missingIds.add(id);
+      }
+    }
+
+    if (missingIds.isNotEmpty) {
+      for (int i = 0; i < missingIds.length; i += 30) {
+        final chunk = missingIds.sublist(i, (i + 30 > missingIds.length) ? missingIds.length : i + 30);
+        try {
+          final snap = await FirebaseFirestore.instance
+              .collection('users')
+              .where(FieldPath.documentId, whereIn: chunk)
+              .get();
+          for (final doc in snap.docs) {
+            result.add(UserModel.fromMap(doc.data(), doc.id));
+          }
+        } catch (e) {
+          debugPrint("Erreur chargement membres club: $e");
+        }
+      }
+    }
+
+    // Sort: President first, then by eloScore desc, then displayName
+    result.sort((a, b) {
+      final aIsAdmin = widget.club.adminId == a.id;
+      final bIsAdmin = widget.club.adminId == b.id;
+      if (aIsAdmin && !bIsAdmin) return -1;
+      if (!aIsAdmin && bIsAdmin) return 1;
+      if (b.eloScore != a.eloScore) return b.eloScore.compareTo(a.eloScore);
+      return a.displayName.compareTo(b.displayName);
+    });
+
+    return result;
+  }
+
+  void _showMembersBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.65,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (sheetContext, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF161F30),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.coral.withValues(alpha: 0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.group_rounded, color: AppColors.coral, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Membres de ${widget.club.name}",
+                                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                "${widget.club.memberIds.length} joueur${widget.club.memberIds.length > 1 ? 's' : ''} inscrit${widget.club.memberIds.length > 1 ? 's' : ''}",
+                                style: const TextStyle(color: Colors.white60, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white54),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(color: Colors.white12, height: 1),
+                  Expanded(
+                    child: FutureBuilder<List<UserModel>>(
+                      future: _fetchClubMembers(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator(color: AppColors.coral));
+                        }
+                        final members = snapshot.data ?? [];
+                        if (members.isEmpty) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24.0),
+                              child: Text(
+                                "Aucun membre inscrit dans ce club pour l'instant.",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.white60, fontSize: 14),
+                              ),
+                            ),
+                          );
+                        }
+
+                        return ListView.separated(
+                          controller: scrollController,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          itemCount: members.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final player = members[index];
+                            final bool isClubAdmin = widget.club.adminId == player.id;
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: isClubAdmin ? AppColors.gold.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.1),
+                                  width: 1,
+                                ),
+                              ),
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                                leading: Stack(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 22,
+                                      backgroundColor: AppColors.coral.withValues(alpha: 0.3),
+                                      backgroundImage: (player.photoUrl != null && player.photoUrl!.isNotEmpty)
+                                          ? NetworkImage(player.photoUrl!)
+                                          : null,
+                                      child: (player.photoUrl == null || player.photoUrl!.isEmpty)
+                                          ? Text(
+                                              player.displayName.isNotEmpty ? player.displayName[0].toUpperCase() : '?',
+                                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                            )
+                                          : null,
+                                    ),
+                                    if (isClubAdmin)
+                                      Positioned(
+                                        bottom: -2,
+                                        right: -2,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(2),
+                                          decoration: const BoxDecoration(
+                                            color: AppColors.gold,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(Icons.star, size: 10, color: Colors.black),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                title: Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        player.displayName,
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (isClubAdmin) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.gold.withValues(alpha: 0.2),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+                                        ),
+                                        child: const Text("Admin 👑", style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold)),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                subtitle: Padding(
+                                  padding: const EdgeInsets.only(top: 4.0),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          "Niv. ${player.level}",
+                                          style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        "${player.eloScore} pts",
+                                        style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold),
+                                      ),
+                                      if (player.isLookingForPartner) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.tealAccent.withValues(alpha: 0.2),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: const Text(
+                                            "Cherche part.",
+                                            style: TextStyle(color: Colors.tealAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white38, size: 14),
+                                onTap: () {
+                                  Navigator.pop(ctx);
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => PublicProfileScreen(player: player)),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    VoidCallback? onTap,
+    String? subtitleHint,
+  }) {
+    final card = _buildGlassCard(
       marginBottom: 0,
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: AppColors.coral.withOpacity(0.3), shape: BoxShape.circle),
-            child: Icon(icon, color: Colors.white, size: 18),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: AppColors.coral.withValues(alpha: 0.3), shape: BoxShape.circle),
+                child: Icon(icon, color: Colors.white, size: 18),
+              ),
+              if (onTap != null)
+                const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white54, size: 13),
+            ],
           ),
           const SizedBox(height: 10),
           Text(title, style: const TextStyle(color: Colors.white70, fontSize: 12)),
           const SizedBox(height: 4),
           Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis),
+          if (subtitleHint != null) ...[
+            const SizedBox(height: 4),
+            Text(subtitleHint, style: const TextStyle(color: AppColors.coral, fontSize: 11, fontWeight: FontWeight.w600)),
+          ],
         ],
       ),
     );
+
+    if (onTap != null) {
+      return GestureDetector(
+        onTap: onTap,
+        child: card,
+      );
+    }
+    return card;
   }
 }

@@ -7,9 +7,13 @@ import '../models/user.dart';
 import 'chat_detail_screen.dart';
 import 'public_profile_screen.dart';
 import 'create_match_screen.dart';
+import 'fft_rankings_screen.dart';
 import 'package:share_plus/share_plus.dart';
+
 class PlayersScreen extends StatefulWidget {
-  const PlayersScreen({super.key});
+  final bool isEmbedded;
+
+  const PlayersScreen({super.key, this.isEmbedded = false});
 
   @override
   State<PlayersScreen> createState() => _PlayersScreenState();
@@ -17,6 +21,7 @@ class PlayersScreen extends StatefulWidget {
 
 class _PlayersScreenState extends State<PlayersScreen> {
   int _selectedTabIndex = 0;
+  String _selectedLevelFilter = "Tous";
 
   @override
   Widget build(BuildContext context) {
@@ -42,8 +47,20 @@ class _PlayersScreenState extends State<PlayersScreen> {
     }
 
     final filteredLocalPlayers = allPlayers.where((p) {
+      if (currentUser != null && currentUser.id == p.id) {
+        return false;
+      }
       final q = query.trim();
       if (q.isEmpty) {
+        if (_selectedLevelFilter == "Mes amis") {
+          return currentUser != null && currentUser.friendsIds.contains(p.id);
+        } else if (_selectedLevelFilter == "Niveau 1-3") {
+          if (p.level < 1 || p.level > 3) return false;
+        } else if (_selectedLevelFilter == "Niveau 4-6") {
+          if (p.level < 4 || p.level > 6) return false;
+        } else if (_selectedLevelFilter == "Niveau 7+") {
+          if (p.level < 7) return false;
+        }
         if (currentUser != null && currentUser.friendsIds.contains(p.id)) {
           return false;
         }
@@ -56,54 +73,38 @@ class _PlayersScreenState extends State<PlayersScreen> {
       return nameMatches || licMatches || locMatches;
     }).toList();
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          // Background Image
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/beach_sunset_players_1785052273648.jpg',
-              fit: BoxFit.cover,
-            ),
-          ),
-          Positioned.fill(
-            child: Container(
-              color: Colors.black.withOpacity(0.55),
-            ),
-          ),
-
-          SafeArea(
-            child: Column(
+    final mainContent = Column(
+      children: [
+        if (!widget.isEmbedded)
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Row(
               children: [
-                // Header
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppColors.coral,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(Icons.sports_tennis, color: Colors.white, size: 24),
-                      ),
-                      const SizedBox(width: 14),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text("Trouver un partenaire", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)),
-                          Text(
-                            query.isEmpty 
-                                ? "${allPlayers.length} membres inscrits" 
-                                : "${filteredLocalPlayers.length} membres · ${fftResults.length} résultats FFT", 
-                            style: const TextStyle(color: Colors.white70, fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    ],
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.coral,
+                    borderRadius: BorderRadius.circular(16),
                   ),
+                  child: const Icon(Icons.sports_tennis, color: Colors.white, size: 24),
                 ),
+                const SizedBox(width: 14),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Trouver un partenaire", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)),
+                    Text(
+                      query.isEmpty 
+                          ? "${allPlayers.length} membres inscrits" 
+                          : "${filteredLocalPlayers.length} membres · ${fftResults.length} résultats FFT", 
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
 
                 // Search Bar Glass (Only show in first tab)
                 if (_selectedTabIndex == 0)
@@ -115,9 +116,9 @@ class _PlayersScreenState extends State<PlayersScreen> {
                         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
                           ),
                           child: TextField(
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -156,7 +157,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     padding: const EdgeInsets.all(4),
@@ -202,6 +203,41 @@ class _PlayersScreenState extends State<PlayersScreen> {
                   ),
                 ),
 
+                // Level Filter Chips (Only show in first tab when not searching)
+                if (_selectedTabIndex == 0 && query.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: ["Tous", "Niveau 1-3", "Niveau 4-6", "Niveau 7+", "Mes amis"].map((filter) {
+                          final isSelected = _selectedLevelFilter == filter;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(filter),
+                              selected: isSelected,
+                              onSelected: (selected) {
+                                if (selected) {
+                                  setState(() => _selectedLevelFilter = filter);
+                                }
+                              },
+                              selectedColor: AppColors.gold,
+                              backgroundColor: Colors.white.withValues(alpha: 0.12),
+                              labelStyle: TextStyle(
+                                color: isSelected ? Colors.black : Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              showCheckmark: false,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+
                 Expanded(
                   child: _selectedTabIndex == 1 
                       ? _buildPartnerFinder(context, allPlayers, currentUser)
@@ -218,29 +254,94 @@ class _PlayersScreenState extends State<PlayersScreen> {
                             ],
                           ),
                         )
-                      : Scrollbar(
-                          child: ListView(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            children: [
-                              // Friends Section (Only when no search query)
-                              if (query.isEmpty && myFriends.isNotEmpty) ...[
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
-                                  child: Text("MES AMIS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.coral, letterSpacing: 1.1)),
-                                ),
-                                ...myFriends.map((p) => _buildLocalPlayerCard(context, p, isFriend: true)),
-                                const SizedBox(height: 16),
-                              ],
+                      : RefreshIndicator(
+                          color: AppColors.coral,
+                          backgroundColor: const Color(0xFF1E2638),
+                          onRefresh: () async {
+                            await context.read<AppState>().loadData();
+                          },
+                          child: Scrollbar(
+                            child: ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              children: [
+                                // FFT Rankings Banner (Opens FftRankingsScreen)
+                                if (query.isEmpty) ...[
+                                  GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(context, MaterialPageRoute(builder: (_) => const FftRankingsScreen()));
+                                    },
+                                    child: Container(
+                                      margin: const EdgeInsets.only(bottom: 16),
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [Color(0xFF1E3A8A), Color(0xFF0284C7)],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(20),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.2),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(10),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white.withValues(alpha: 0.2),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(Icons.emoji_events_rounded, color: AppColors.gold, size: 24),
+                                          ),
+                                          const SizedBox(width: 14),
+                                          const Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  "Classement Officiel FFT",
+                                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 15),
+                                                ),
+                                                SizedBox(height: 2),
+                                                Text(
+                                                  "Consulter le Top 200 Hommes & Dames",
+                                                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 14),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                // Friends Section (Only when no search query and when filter allows)
+                                if (query.isEmpty && (_selectedLevelFilter == "Tous" || _selectedLevelFilter == "Mes amis") && myFriends.isNotEmpty) ...[
+                                  const Padding(
+                                    padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
+                                    child: Text("MES AMIS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.coral, letterSpacing: 1.1)),
+                                  ),
+                                  ...myFriends.map((p) => _buildLocalPlayerCard(context, p, isFriend: true)),
+                                  const SizedBox(height: 16),
+                                ],
 
-                              // Local Registered Players Section
-                              if (filteredLocalPlayers.isNotEmpty) ...[
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
-                                  child: Text(query.isEmpty ? "AUTRES JOUEURS" : "MEMBRES DE L'APPLICATION", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.gold, letterSpacing: 1.1)),
-                                ),
-                                ...filteredLocalPlayers.map((p) => _buildLocalPlayerCard(context, p, isFriend: currentUser?.friendsIds.contains(p.id) ?? false)),
-                                const SizedBox(height: 16),
-                              ],
+                                // Local Registered Players Section
+                                if (filteredLocalPlayers.isNotEmpty && _selectedLevelFilter != "Mes amis") ...[
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
+                                    child: Text(query.isEmpty ? "AUTRES JOUEURS" : "MEMBRES DE L'APPLICATION", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.gold, letterSpacing: 1.1)),
+                                  ),
+                                  ...filteredLocalPlayers.map((p) => _buildLocalPlayerCard(context, p, isFriend: currentUser?.friendsIds.contains(p.id) ?? false)),
+                                  const SizedBox(height: 16),
+                                ],
 
                             // Official FFT Ranking Database Results Section
                             if (fftResults.isNotEmpty) ...[
@@ -250,7 +351,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                                   const SizedBox(width: 8),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
+                                    decoration: BoxDecoration(color: Colors.greenAccent.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
                                     child: Text("${fftResults.length}", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
                                   )
                                 ],
@@ -258,13 +359,36 @@ class _PlayersScreenState extends State<PlayersScreen> {
                               const SizedBox(height: 8),
                               ...fftResults.map((p) => _buildFFTPlayerCard(context, p)),
                             ],
-                            ],
-                          ),
+                          ],
                         ),
+                      ),
+                    ),
                 ),
                 const SizedBox(height: 80), // Navigation spacing
               ],
+            );
+
+    if (widget.isEmbedded) {
+      return mainContent;
+    }
+
+    return Scaffold(
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/beach_sunset_players_1785052273648.jpg',
+              fit: BoxFit.cover,
+              cacheWidth: 1080,
             ),
+          ),
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.55),
+            ),
+          ),
+          SafeArea(
+            child: mainContent,
           ),
         ],
       ),
@@ -280,9 +404,9 @@ class _PlayersScreenState extends State<PlayersScreen> {
           margin: const EdgeInsets.only(bottom: 12),
           padding: padding ?? const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.18),
+            color: Colors.white.withValues(alpha: 0.18),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.2),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.2),
           ),
           child: child,
         ),
@@ -326,8 +450,8 @@ class _PlayersScreenState extends State<PlayersScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
                           decoration: BoxDecoration(
                             color: (player.ranking != null && player.ranking!.isNotEmpty && player.ranking != 'NC')
-                                ? AppColors.gold.withOpacity(0.2)
-                                : Colors.white.withOpacity(0.08),
+                                ? AppColors.gold.withValues(alpha: 0.2)
+                                : Colors.white.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
                               color: (player.ranking != null && player.ranking!.isNotEmpty && player.ranking != 'NC')
@@ -437,7 +561,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                 height: 50,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.greenAccent.withOpacity(0.2),
+                  color: Colors.greenAccent.withValues(alpha: 0.2),
                   border: Border.all(color: Colors.greenAccent, width: 1.5),
                 ),
                 child: Center(child: Text(initial, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))),
@@ -521,9 +645,9 @@ class _PlayersScreenState extends State<PlayersScreen> {
                 children: [
                   ElevatedButton.icon(
                     onPressed: () {
-                      Share.share(
-                        "Salut $fullName ! Viens me rejoindre sur l'application BeachMatch pour trouver des partenaires de Beach Tennis et participer aux tournois : https://beachmatch.app/download",
-                      );
+                      SharePlus.instance.share(ShareParams(
+                        text: "Salut $fullName ! Viens me rejoindre sur l'application BeachMatch pour trouver des partenaires de Beach Tennis et participer aux tournois : https://beachmatch.app/download",
+                      ));
                     },
                     icon: const Icon(Icons.share, size: 14),
                     label: const Text("Inviter sur BeachMatch", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
@@ -552,91 +676,221 @@ class _PlayersScreenState extends State<PlayersScreen> {
 
     final lookingForPartnerPlayers = allPlayers.where((p) => p.isLookingForPartner && p.id != currentUser.id).toList();
 
-    if (lookingForPartnerPlayers.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.group_off, size: 60, color: Colors.white60),
-            const SizedBox(height: 16),
-            const Text("Aucun joueur disponible", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            const Text("Revenez plus tard !", style: TextStyle(color: Colors.white70, fontSize: 13)),
-          ],
-        ),
-      );
-    }
+    return RefreshIndicator(
+      color: AppColors.coral,
+      backgroundColor: const Color(0xFF1E2638),
+      onRefresh: () async {
+        await context.read<AppState>().loadData();
+      },
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        children: [
+          _buildMyPartnerStatusCard(context, currentUser),
+          const SizedBox(height: 18),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 10),
+            child: Row(
+              children: [
+                const Text(
+                  "JOUEURS QUI RECHERCHENT UN PARTENAIRE",
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.coral, letterSpacing: 1.1),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(color: AppColors.coral.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
+                  child: Text("${lookingForPartnerPlayers.length}", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.coral)),
+                ),
+              ],
+            ),
+          ),
+          if (lookingForPartnerPlayers.isEmpty)
+            _buildGlassCard(
+              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+              child: const Column(
+                children: [
+                  Icon(Icons.people_outline_rounded, size: 48, color: Colors.white54),
+                  SizedBox(height: 12),
+                  Text(
+                    "Aucun autre joueur disponible actuellement",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    "Votre profil est visible par la communauté si votre statut est activé. Revenez régulièrement !",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.3),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...lookingForPartnerPlayers.map((player) => _buildPartnerPlayerCard(context, player, currentUser)),
+        ],
+      ),
+    );
+  }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: lookingForPartnerPlayers.length,
-      itemBuilder: (context, index) {
-        final player = lookingForPartnerPlayers[index];
-        bool isFriend = currentUser.friendsIds.contains(player.id);
-        
-        return Container(
-          margin: const EdgeInsets.only(bottom: 16),
+  Widget _buildMyPartnerStatusCard(BuildContext context, UserModel currentUser) {
+    final bool isLooking = currentUser.isLookingForPartner;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
+            gradient: LinearGradient(
+              colors: isLooking
+                  ? [AppColors.coral.withValues(alpha: 0.35), AppColors.gold.withValues(alpha: 0.25)]
+                  : [Colors.white.withValues(alpha: 0.15), Colors.white.withValues(alpha: 0.08)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.coral.withOpacity(0.5), width: 1.5),
+            border: Border.all(
+              color: isLooking ? AppColors.coral : Colors.white24,
+              width: 1.5,
+            ),
           ),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 30,
-                backgroundColor: AppColors.coral,
-                backgroundImage: player.photoUrl != null ? NetworkImage(player.photoUrl!) : null,
-                child: player.photoUrl == null ? Text(player.displayName.isNotEmpty ? player.displayName[0].toUpperCase() : "?", style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)) : null,
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isLooking ? AppColors.coral : Colors.white12,
+                ),
+                child: Icon(
+                  isLooking ? Icons.handshake_rounded : Icons.pause_circle_outline_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(player.displayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-                    const SizedBox(height: 4),
-                    Text("Niveau ${player.level} • ${player.location}", style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                    if (player.eloScore > 0)
-                      Text("${player.eloScore} pts FFT", style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.bold)),
+                    Row(
+                      children: [
+                        const Text(
+                          "Mon statut de recherche",
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isLooking ? Colors.greenAccent : Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isLooking
+                          ? "Actif · Votre profil apparaît dans cette liste"
+                          : "En pause · Activez pour recevoir des invitations",
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
                   ],
                 ),
               ),
-              if (!isFriend)
-                ElevatedButton(
-                  onPressed: () {
-                    context.read<AppState>().addFriend(player.id);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.coral,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  child: const Text("Inviter", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                )
-              else
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ChatDetailScreen(otherUser: player),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white24,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  icon: const Icon(Icons.chat_bubble, color: Colors.white, size: 16),
-                  label: const Text("Message", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
+              const SizedBox(width: 8),
+              Switch.adaptive(
+                value: isLooking,
+                activeTrackColor: AppColors.coral,
+                onChanged: (val) {
+                  context.read<AppState>().toggleLookingForPartner();
+                },
+              ),
             ],
           ),
-        );
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPartnerPlayerCard(BuildContext context, UserModel player, UserModel currentUser) {
+    bool isFriend = currentUser.friendsIds.contains(player.id);
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(player: player)));
       },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.coral.withValues(alpha: 0.4), width: 1.2),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 26,
+              backgroundColor: AppColors.coral,
+              backgroundImage: (player.photoUrl != null && player.photoUrl!.isNotEmpty) ? NetworkImage(player.photoUrl!) : null,
+              child: (player.photoUrl == null || player.photoUrl!.isEmpty)
+                  ? Text(player.displayName.isNotEmpty ? player.displayName[0].toUpperCase() : "?", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))
+                  : null,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(player.displayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 3),
+                  Text("Niveau ${player.level} • ${player.location.isNotEmpty ? player.location : 'France'}", style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                  if (player.eloScore > 0)
+                    Text("${player.eloScore} pts FFT", style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (!isFriend)
+              ElevatedButton(
+                onPressed: () {
+                  context.read<AppState>().addFriend(player.id);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.coral,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  elevation: 0,
+                ),
+                child: const Text("Inviter", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+              )
+            else
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChatDetailScreen(otherUser: player),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white24,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.chat_bubble, color: Colors.white, size: 14),
+                label: const Text("Message", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

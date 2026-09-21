@@ -8,7 +8,9 @@ import 'club_detail_screen.dart';
 import 'dart:ui';
 
 class ClubListScreen extends StatefulWidget {
-  const ClubListScreen({super.key});
+  final bool isEmbedded;
+
+  const ClubListScreen({super.key, this.isEmbedded = false});
 
   @override
   State<ClubListScreen> createState() => _ClubListScreenState();
@@ -30,8 +32,87 @@ class _ClubListScreenState extends State<ClubListScreen> {
     return beachPhotos[hash.abs() % beachPhotos.length];
   }
 
+  String _normalize(String s) {
+    return s
+        .toLowerCase()
+        .replaceAll(RegExp(r'[éèêë]'), 'e')
+        .replaceAll(RegExp(r'[àâä]'), 'a')
+        .replaceAll(RegExp(r'[îï]'), 'i')
+        .replaceAll(RegExp(r'[ôö]'), 'o')
+        .replaceAll(RegExp(r'[ùûü]'), 'u')
+        .replaceAll(RegExp(r'[ç]'), 'c')
+        .replaceAll(RegExp(r'[^a-z0-9]'), ' ')
+        .trim();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final content = Column(
+      children: [
+        _buildSearchBar(),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('clubs').orderBy('name').snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: AppColors.coral));
+              }
+              if (snapshot.hasError) {
+                return const Center(child: Text("Erreur de chargement", style: TextStyle(color: Colors.white)));
+              }
+              
+              var clubs = snapshot.data?.docs.map((doc) => ClubModel.fromMap(doc.data() as Map<String, dynamic>, doc.id)).toList() ?? [];
+
+              if (_searchQuery.trim().isNotEmpty) {
+                final queryTokens = _normalize(_searchQuery)
+                    .split(RegExp(r'\s+'))
+                    .where((t) => t.isNotEmpty)
+                    .toList();
+
+                clubs = clubs.where((club) {
+                  final haystack = _normalize('${club.name} ${club.location} ${club.description}');
+                  return queryTokens.every((token) => haystack.contains(token));
+                }).toList();
+              }
+
+              if (clubs.isEmpty) {
+                return const Center(
+                  child: Text(
+                    "Aucun club trouvé.",
+                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                  ),
+                );
+              }
+
+              return RefreshIndicator(
+                color: AppColors.coral,
+                backgroundColor: const Color(0xFF141D30),
+                onRefresh: () async {
+                  HapticFeedback.mediumImpact();
+                  SoundService.playRacketPop();
+                  await Future.delayed(const Duration(milliseconds: 500));
+                  if (context.mounted) setState(() {});
+                },
+                child: ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                  padding: const EdgeInsets.only(top: 8, left: 16, right: 16, bottom: 100),
+                  itemCount: clubs.length,
+                  itemBuilder: (context, index) {
+                    final club = clubs[index];
+                    return _buildClubCard(context, club);
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+
+    if (widget.isEmbedded) {
+      return content;
+    }
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(
@@ -41,67 +122,16 @@ class _ClubListScreenState extends State<ClubListScreen> {
             child: Image.asset(
               'assets/images/beach_sunset_players_1785052273648.jpg',
               fit: BoxFit.cover,
+              cacheWidth: 1080,
             ),
           ),
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.50),
+              color: Colors.black.withValues(alpha: 0.50),
             ),
           ),
           SafeArea(
-            child: Column(
-              children: [
-                _buildSearchBar(),
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance.collection('clubs').orderBy('name').snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator(color: AppColors.coral));
-                      }
-                      if (snapshot.hasError) {
-                        return const Center(child: Text("Erreur de chargement", style: TextStyle(color: Colors.white)));
-                      }
-                      
-                      var clubs = snapshot.data?.docs.map((doc) => ClubModel.fromMap(doc.data() as Map<String, dynamic>, doc.id)).toList() ?? [];
-
-                      if (_searchQuery.isNotEmpty) {
-                        clubs = clubs.where((club) => club.name.toLowerCase().contains(_searchQuery.toLowerCase()) || club.location.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
-                      }
-
-                      if (clubs.isEmpty) {
-                        return const Center(
-                          child: Text(
-                            "Aucun club trouvé.",
-                            style: TextStyle(color: Colors.white70, fontSize: 16),
-                          ),
-                        );
-                      }
-
-                      return RefreshIndicator(
-                        color: AppColors.coral,
-                        backgroundColor: const Color(0xFF141D30),
-                        onRefresh: () async {
-                          HapticFeedback.mediumImpact();
-                          SoundService.playRacketPop();
-                          await Future.delayed(const Duration(milliseconds: 500));
-                          if (context.mounted) setState(() {});
-                        },
-                        child: ListView.builder(
-                          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                          padding: const EdgeInsets.only(top: 8, left: 16, right: 16, bottom: 100),
-                          itemCount: clubs.length,
-                          itemBuilder: (context, index) {
-                            final club = clubs[index];
-                            return _buildClubCard(context, club);
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
+            child: content,
           ),
         ],
       ),
@@ -117,9 +147,9 @@ class _ClubListScreenState extends State<ClubListScreen> {
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.20),
+              color: Colors.white.withValues(alpha: 0.20),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.2),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.2),
             ),
             child: TextField(
               controller: _searchController,
@@ -131,7 +161,7 @@ class _ClubListScreenState extends State<ClubListScreen> {
               },
               decoration: InputDecoration(
                 hintText: 'Rechercher un club, une ville...',
-                hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
                 prefixIcon: const Icon(Icons.search, color: AppColors.gold),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
@@ -155,9 +185,7 @@ class _ClubListScreenState extends State<ClubListScreen> {
   }
 
   Widget _buildClubCard(BuildContext context, ClubModel club) {
-    final displayLocation = (club.location.isEmpty || club.location.toLowerCase().contains('recherche'))
-        ? 'France'
-        : club.location;
+    final displayLocation = club.location.trim().isNotEmpty ? club.location.trim() : 'France';
 
     return GestureDetector(
       onTap: () {
@@ -171,9 +199,9 @@ class _ClubListScreenState extends State<ClubListScreen> {
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.18),
+              color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.2),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.2),
             ),
             child: Row(
               children: [
@@ -188,10 +216,10 @@ class _ClubListScreenState extends State<ClubListScreen> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    border: Border.all(color: Colors.white.withOpacity(0.8), width: 2),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 2),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFE8604C).withOpacity(0.35),
+                        color: const Color(0xFFE8604C).withValues(alpha: 0.35),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -256,9 +284,9 @@ class _ClubListScreenState extends State<ClubListScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: AppColors.coral.withOpacity(0.25),
+                          color: AppColors.coral.withValues(alpha: 0.25),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.coral.withOpacity(0.5)),
+                          border: Border.all(color: AppColors.coral.withValues(alpha: 0.5)),
                         ),
                         child: Text(
                           "${club.memberIds.length} membre${club.memberIds.length > 1 ? 's' : ''}",
