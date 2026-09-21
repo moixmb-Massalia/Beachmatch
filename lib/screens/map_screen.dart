@@ -192,21 +192,23 @@ class _MapScreenState extends State<MapScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          FloatingActionButton(
+          FloatingActionButton.small(
             heroTag: "map_type_btn",
-            backgroundColor: Colors.white,
-            child: const Icon(Icons.layers, color: AppColors.coral),
+            backgroundColor: const Color(0xFF16253B),
+            elevation: 4,
+            child: const Icon(Icons.layers_rounded, color: AppColors.gold, size: 20),
             onPressed: () {
               setState(() {
                 _currentMapType = _currentMapType == MapType.normal ? MapType.satellite : MapType.normal;
               });
             },
           ),
-          const SizedBox(height: 16),
-          FloatingActionButton(
+          const SizedBox(height: 10),
+          FloatingActionButton.small(
             heroTag: "my_location_btn",
-            backgroundColor: AppColors.coral,
-            child: const Icon(Icons.my_location, color: Colors.white),
+            backgroundColor: const Color(0xFF16253B),
+            elevation: 4,
+            child: const Icon(Icons.my_location_rounded, color: AppColors.coral, size: 20),
             onPressed: () async {
               final pos = context.read<AppState>().currentPosition;
               if (pos != null && _mapController != null) {
@@ -238,16 +240,19 @@ class _MapScreenState extends State<MapScreen> {
               }
             },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Padding(
-            padding: const EdgeInsets.only(bottom: 90.0), // Above the bottom nav bar
+            padding: const EdgeInsets.only(bottom: 115.0), // Above the bottom nav bar with clean clearance
             child: FloatingActionButton.extended(
               heroTag: "suggest_court_btn",
               onPressed: () => _showSuggestCourtDialog(context),
               backgroundColor: AppColors.coral,
               elevation: 8,
-              icon: const Icon(Icons.add_location_alt, color: Colors.white, size: 28),
-              label: Text(AppLocalizations.of(context).mapAddCourtBtn, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+              icon: const Icon(Icons.add_location_alt_rounded, color: Colors.white, size: 22),
+              label: Text(
+                AppLocalizations.of(context).mapAddCourtBtn,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14.5),
+              ),
             ),
           ),
         ],
