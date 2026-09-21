@@ -111,21 +111,20 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
             onPressed: () async {
               Navigator.pop(ctx);
+              final messenger = ScaffoldMessenger.of(context);
+              final nav = Navigator.of(context);
+              final appState = context.read<AppState>();
               try {
                 await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournament.id).delete();
-                if (mounted) {
-                  await context.read<AppState>().loadData();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Tournoi '${widget.tournament.name}' supprimé avec succès !"), backgroundColor: Colors.green),
-                  );
-                  Navigator.pop(context); // Retour à la liste
-                }
+                await appState.loadData();
+                messenger.showSnackBar(
+                  SnackBar(content: Text("Tournoi '${widget.tournament.name}' supprimé avec succès !"), backgroundColor: Colors.green),
+                );
+                nav.pop(); // Retour à la liste
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Erreur lors de la suppression: $e"), backgroundColor: Colors.redAccent),
-                  );
-                }
+                messenger.showSnackBar(
+                  SnackBar(content: Text("Erreur lors de la suppression: $e"), backgroundColor: Colors.redAccent),
+                );
               }
             },
             child: const Text("Supprimer"),
@@ -198,6 +197,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
             child: Image.asset(
               'assets/images/beach_court_aerial_1785052250131.jpg',
               fit: BoxFit.cover,
+              cacheWidth: 1080,
             ),
           ),
           Positioned.fill(
@@ -207,8 +207,8 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.4),
-                    Colors.black.withOpacity(0.75),
+                    Colors.black.withValues(alpha: 0.4),
+                    Colors.black.withValues(alpha: 0.75),
                   ],
                 ),
               ),
@@ -275,13 +275,13 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                       _buildGlassCard(
                         child: Column(
                           children: [
-                            _buildInfoRow(CupertinoIcons.calendar, AppLocalizations.of(context)!.tournamentDetailDates, widget.tournament.dateString),
+                            _buildInfoRow(CupertinoIcons.calendar, AppLocalizations.of(context).tournamentDetailDates, widget.tournament.dateString),
                             if (widget.tournament.address != null) ...[
                               const Divider(color: Colors.white12, height: 24),
-                              _buildInfoRow(CupertinoIcons.map_pin_ellipse, AppLocalizations.of(context)!.tournamentDetailAddress, widget.tournament.address!),
+                              _buildInfoRow(CupertinoIcons.map_pin_ellipse, AppLocalizations.of(context).tournamentDetailAddress, widget.tournament.address!),
                             ],
                             const Divider(color: Colors.white12, height: 24),
-                            _buildInfoRow(CupertinoIcons.location, AppLocalizations.of(context)!.tournamentDetailCity, locationWithDistance),
+                            _buildInfoRow(CupertinoIcons.location, AppLocalizations.of(context).tournamentDetailCity, locationWithDistance),
                           ],
                         ),
                       ),
@@ -292,21 +292,21 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                       const SizedBox(height: 24),
 
                       // Event Details
-                      Text(AppLocalizations.of(context)!.tournamentDetailEventDetails, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      Text(AppLocalizations.of(context).tournamentDetailEventDetails, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 16),
                       _buildGlassCard(
                         child: Column(
                           children: [
                             if (widget.tournament.scheduleDetails != null) ...[
-                              _buildInfoRow(CupertinoIcons.time, AppLocalizations.of(context)!.tournamentDetailEvents, widget.tournament.scheduleDetails!),
+                              _buildInfoRow(CupertinoIcons.time, AppLocalizations.of(context).tournamentDetailEvents, widget.tournament.scheduleDetails!),
                               const Divider(color: Colors.white12, height: 24),
                             ],
                             if (widget.tournament.balls != null) ...[
-                              _buildInfoRow(CupertinoIcons.circle_grid_hex, AppLocalizations.of(context)!.tournamentDetailBalls, widget.tournament.balls!),
+                              _buildInfoRow(CupertinoIcons.circle_grid_hex, AppLocalizations.of(context).tournamentDetailBalls, widget.tournament.balls!),
                               const Divider(color: Colors.white12, height: 24),
                             ],
                             if (widget.tournament.price != null) ...[
-                              _buildInfoRow(CupertinoIcons.money_euro_circle, AppLocalizations.of(context)!.tournamentDetailPrice, widget.tournament.price!),
+                              _buildInfoRow(CupertinoIcons.money_euro_circle, AppLocalizations.of(context).tournamentDetailPrice, widget.tournament.price!),
                             ],
                           ],
                         ),
@@ -322,7 +322,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                             side: const BorderSide(color: Color(0xFF25D366), width: 1.5), // WhatsApp green
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            backgroundColor: const Color(0xFF25D366).withOpacity(0.1),
+                            backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.1),
                           ),
                           icon: const Icon(Icons.share_rounded, color: Color(0xFF25D366), size: 20),
                           label: const Text("Partager ce tournoi (WhatsApp / Amis)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
@@ -336,9 +336,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                         Container(
                           padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
-                            color: AppColors.gold.withOpacity(0.12),
+                            color: AppColors.gold.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppColors.gold.withOpacity(0.4), width: 1.5),
+                            border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 1.5),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -377,7 +377,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                                   Expanded(
                                     child: ElevatedButton.icon(
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.redAccent.withOpacity(0.9),
+                                        backgroundColor: Colors.redAccent.withValues(alpha: 0.9),
                                         foregroundColor: Colors.white,
                                         padding: const EdgeInsets.symmetric(vertical: 12),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -666,9 +666,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           ),
           child: child,
         ),
@@ -1225,6 +1225,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                             status: 'OPEN',
                           );
 
+                          final messenger = ScaffoldMessenger.of(context);
                           try {
                             await FirebaseFirestore.instance
                                 .collection('tournament_partner_requests')
@@ -1235,11 +1236,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                               _showPartnerRequestCreatedDialog(reqModel);
                             }
                           } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("Erreur d'enregistrement : $e"), backgroundColor: Colors.redAccent),
-                              );
-                            }
+                            messenger.showSnackBar(
+                              SnackBar(content: Text("Erreur d'enregistrement : $e"), backgroundColor: Colors.redAccent),
+                            );
                           }
                         },
                         child: Text(
@@ -1385,6 +1384,20 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
               icon: const Icon(Icons.send_rounded, color: AppColors.coral, size: 18),
               label: const Text("Envoyer une proposition BeachMatch", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               onPressed: () {
+                final currentUser = context.read<AppState>().currentUser;
+                final senderId = currentUser?.id ?? FirebaseAuth.instance.currentUser?.uid ?? 'guest';
+                final senderName = currentUser?.displayName ?? 'Un joueur';
+
+                FirebaseFirestore.instance.collection('partner_proposals').add({
+                  'targetUserId': req.userId,
+                  'senderId': senderId,
+                  'senderName': senderName,
+                  'tournamentId': widget.tournament.id,
+                  'tournamentName': widget.tournament.name,
+                  'draw': req.draw,
+                  'createdAt': FieldValue.serverTimestamp(),
+                });
+
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(

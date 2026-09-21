@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -149,7 +148,11 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
     setState(() {
       // 1. SET 1
       if (_currentSet == 1) {
-        if (team == 1) _set1Team1++; else _set1Team2++;
+        if (team == 1) {
+          _set1Team1++;
+        } else {
+          _set1Team2++;
+        }
         _servingTeam = _servingTeam == 1 ? 2 : 1;
 
         final set1Winner = _checkSetWinner(_set1Team1, _set1Team2);
@@ -167,7 +170,11 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
       }
       // 2. SET 2
       else if (_currentSet == 2) {
-        if (team == 1) _set2Team1++; else _set2Team2++;
+        if (team == 1) {
+          _set2Team1++;
+        } else {
+          _set2Team2++;
+        }
         _servingTeam = _servingTeam == 1 ? 2 : 1;
 
         final set2Winner = _checkSetWinner(_set2Team1, _set2Team2);
@@ -188,7 +195,7 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
               const SnackBar(
                 content: Text("⚡ 1 Set Partout ! Début du Super Tie-Break décisif (10 points gagnants)."),
                 backgroundColor: AppColors.coral,
-                duration: const Duration(seconds: 4),
+                duration: Duration(seconds: 4),
               ),
             );
           }
@@ -198,7 +205,11 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
       else if (_currentSet == 3) {
         _set3Team1 ??= 0;
         _set3Team2 ??= 0;
-        if (team == 1) _set3Team1 = _set3Team1! + 1; else _set3Team2 = _set3Team2! + 1;
+        if (team == 1) {
+          _set3Team1 = _set3Team1! + 1;
+        } else {
+          _set3Team2 = _set3Team2! + 1;
+        }
 
         // Au Super TB, le service change tous les 2 points (après le 1er point)
         final totalPoints = _set3Team1! + _set3Team2!;
@@ -289,14 +300,14 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("🏆 Victoire officielle de :", style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+            Text("🏆 Victoire officielle de :", style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
             const SizedBox(height: 6),
             Text(winnerName, style: const TextStyle(color: AppColors.gold, fontSize: 20, fontWeight: FontWeight.w900)),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.08),
+                color: Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -330,7 +341,7 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
         backgroundColor: const Color(0xFF0F1B29),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: AppColors.gold.withOpacity(0.5), width: 1.5),
+          side: BorderSide(color: AppColors.gold.withValues(alpha: 0.5), width: 1.5),
         ),
         title: Row(
           children: [
@@ -347,7 +358,7 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
             hintText: "Ex: Dupont / Martin",
             hintStyle: const TextStyle(color: Colors.white38),
             filled: true,
-            fillColor: Colors.white.withOpacity(0.08),
+            fillColor: Colors.white.withValues(alpha: 0.08),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
           ),
         ),
@@ -365,7 +376,11 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
               final newName = ctrl.text.trim();
               if (newName.isNotEmpty) {
                 setState(() {
-                  if (teamNum == 1) _team1Ctrl.text = newName; else _team2Ctrl.text = newName;
+                  if (teamNum == 1) {
+                    _team1Ctrl.text = newName;
+                  } else {
+                    _team2Ctrl.text = newName;
+                  }
                 });
                 _syncToFirestore();
               }
@@ -387,7 +402,7 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
         backgroundColor: const Color(0xFF0F1B29),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: AppColors.gold.withOpacity(0.5), width: 1.5),
+          side: BorderSide(color: AppColors.gold.withValues(alpha: 0.5), width: 1.5),
         ),
         title: const Text("Terrain / Court", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
         content: TextField(
@@ -398,7 +413,7 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
             hintText: "Ex: Court Central, Court 1...",
             hintStyle: const TextStyle(color: Colors.white38),
             filled: true,
-            fillColor: Colors.white.withOpacity(0.08),
+            fillColor: Colors.white.withValues(alpha: 0.08),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
           ),
         ),
@@ -482,7 +497,7 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF141D30),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withOpacity(0.12)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
                 ),
                 child: Row(
                   children: [
@@ -492,9 +507,9 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.06),
+                          color: Colors.white.withValues(alpha: 0.06),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.gold.withOpacity(0.4)),
+                          border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -518,9 +533,9 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10),
                         decoration: BoxDecoration(
-                          color: AppColors.coral.withOpacity(0.15),
+                          color: AppColors.coral.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.coral.withOpacity(0.5)),
+                          border: Border.all(color: AppColors.coral.withValues(alpha: 0.5)),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
@@ -553,17 +568,17 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [const Color(0xFF0F1B29).withOpacity(0.98), const Color(0xFF16253B).withOpacity(0.95)],
+                    colors: [const Color(0xFF0F1B29).withValues(alpha: 0.98), const Color(0xFF16253B).withValues(alpha: 0.95)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
-                    color: _winner != null ? AppColors.gold : AppColors.coral.withOpacity(0.5),
+                    color: _winner != null ? AppColors.gold : AppColors.coral.withValues(alpha: 0.5),
                     width: 1.5,
                   ),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 16, offset: const Offset(0, 6)),
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 16, offset: const Offset(0, 6)),
                   ],
                 ),
                 child: Column(
@@ -580,7 +595,7 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    Divider(color: Colors.white.withOpacity(0.1), height: 1),
+                    Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
                     const SizedBox(height: 14),
 
                     // Ligne ÉQUIPE 1 (Clic direct pour renommer)
@@ -650,7 +665,7 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
-                        side: BorderSide(color: AppColors.gold.withOpacity(0.5)),
+                        side: BorderSide(color: AppColors.gold.withValues(alpha: 0.5)),
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
@@ -740,9 +755,9 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: isCurrent ? AppColors.coral : Colors.white.withOpacity(0.06),
+        color: isCurrent ? AppColors.coral : Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: isCurrent ? AppColors.coral : Colors.white.withOpacity(0.15)),
+        border: Border.all(color: isCurrent ? AppColors.coral : Colors.white.withValues(alpha: 0.15)),
       ),
       child: Text(
         label,
@@ -768,10 +783,10 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: isWinner ? AppColors.gold.withOpacity(0.15) : Colors.white.withOpacity(0.04),
+        color: isWinner ? AppColors.gold.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isWinner ? AppColors.gold : (isServing ? AppColors.coral.withOpacity(0.6) : Colors.transparent),
+          color: isWinner ? AppColors.gold : (isServing ? AppColors.coral.withValues(alpha: 0.6) : Colors.transparent),
           width: 1.2,
         ),
       ),
@@ -802,7 +817,7 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Icon(Icons.edit_rounded, color: Colors.white.withOpacity(0.4), size: 13),
+                  Icon(Icons.edit_rounded, color: Colors.white.withValues(alpha: 0.4), size: 13),
                 ],
               ),
             ),
@@ -827,10 +842,10 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
       height: 34,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: isActiveSet ? AppColors.coral.withOpacity(0.3) : Colors.white.withOpacity(0.08),
+        color: isActiveSet ? AppColors.coral.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isActiveSet ? AppColors.coral : Colors.white.withOpacity(0.2),
+          color: isActiveSet ? AppColors.coral : Colors.white.withValues(alpha: 0.2),
           width: isActiveSet ? 1.5 : 1,
         ),
       ),
@@ -855,9 +870,9 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withOpacity(0.6), width: 1.5),
+        border: Border.all(color: color.withValues(alpha: 0.6), width: 1.5),
       ),
       child: Column(
         children: [
@@ -888,7 +903,7 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
               ),
             ),
           ),
-          Divider(color: color.withOpacity(0.3), height: 1),
+          Divider(color: color.withValues(alpha: 0.3), height: 1),
           Material(
             color: Colors.transparent,
             child: InkWell(
