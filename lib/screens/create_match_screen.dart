@@ -8,6 +8,7 @@ import '../theme/colors.dart';
 import '../providers/app_state.dart';
 import '../models/user.dart';
 import '../models/court.dart';
+import '../widgets/feature_discovery_bubble.dart';
 
 class CreateMatchScreen extends StatefulWidget {
   final UserModel? invitedPlayer;
@@ -213,6 +214,14 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const FeatureDiscoveryBubble(
+                    featureKey: 'create_match_tip',
+                    title: "Organisation de partie simplifiée",
+                    message: "Tapez une ville ou un club pour auto-compléter le terrain. Choisissez l'heure, le format (2v2 ou 1v1) et partagez l'invitation avec vos amis !",
+                    icon: Icons.sports_tennis_rounded,
+                    margin: EdgeInsets.only(bottom: 16),
+                  ),
+
                   // Invitation spéciale
                   if (widget.invitedPlayer != null)
                     Container(

@@ -15,6 +15,7 @@ import '../../theme/colors.dart';
 import '../../models/user.dart';
 import '../../widgets/club_invite_dialog.dart';
 import '../public_profile_screen.dart';
+import '../../widgets/feature_discovery_bubble.dart';
 
 class GroupChatDetailScreen extends StatefulWidget {
   final String clubId;
@@ -307,6 +308,14 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
       ),
       body: Column(
         children: [
+          const FeatureDiscoveryBubble(
+            featureKey: 'club_tavern_tip',
+            title: "La Taverne de votre Club 🍻",
+            message: "Échangez avec tous les membres du club, lancez des sondages (icône sondage en bas) et suivez les annonces officielles épinglées !",
+            icon: Icons.forum_rounded,
+            margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          ),
+
           // Bandeau Annonce Épinglée par le Président
           _buildPinnedAnnouncementBanner(currentUser),
           Expanded(

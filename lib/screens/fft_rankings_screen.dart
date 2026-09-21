@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:share_plus/share_plus.dart';
 import '../theme/colors.dart';
+import '../widgets/feature_discovery_bubble.dart';
 
 class FftRankingsScreen extends StatefulWidget {
   final bool isEmbedded;
@@ -292,6 +293,14 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                       ),
                     ),
                   ),
+                ),
+
+                const FeatureDiscoveryBubble(
+                  featureKey: 'fft_rankings_tip',
+                  title: "Classement National Officiel Ten'Up",
+                  message: "Retrouvez les 3 300+ joueurs et joueuses classés en France. Utilisez la recherche pour trouver un joueur par nom ou numéro de licence !",
+                  icon: Icons.search_rounded,
+                  margin: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                 ),
 
                 // Glass Tabs

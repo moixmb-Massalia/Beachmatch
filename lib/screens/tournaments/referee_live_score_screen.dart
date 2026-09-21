@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../theme/colors.dart';
 import '../../models/live_match_model.dart';
 import '../../models/tournament.dart';
+import '../../widgets/feature_discovery_bubble.dart';
 
 class RefereeLiveScoreScreen extends StatefulWidget {
   final TournamentModel tournament;
@@ -491,6 +492,14 @@ class _RefereeLiveScoreScreenState extends State<RefereeLiveScoreScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Column(
             children: [
+              const FeatureDiscoveryBubble(
+                featureKey: 'referee_scoring_tip',
+                title: "Console d'Arbitrage en Direct ⏱️",
+                message: "Touchez '+' pour attribuer un point. Les jeux, tie-breaks et sets sont calculés automatiquement et transmis en direct aux spectateurs !",
+                icon: Icons.scoreboard_rounded,
+                margin: EdgeInsets.only(bottom: 12),
+              ),
+
               // 📋 BANDEAU SUPÉRIEUR : Menu Déroulant Tour + Court (Modifiables en 1 Clic Direct)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),

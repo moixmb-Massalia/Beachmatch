@@ -18,6 +18,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:share_plus/share_plus.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/feature_discovery_bubble.dart';
 
 class MapScreen extends StatefulWidget {
   final CourtModel? initialCourt;
@@ -383,6 +384,14 @@ class _MapScreenState extends State<MapScreen> {
                                   _searchExternalCity(query);
                                 }
                               },
+                            ),
+
+                            const FeatureDiscoveryBubble(
+                              featureKey: 'map_filters',
+                              title: "Explorez les spots de Beach Tennis",
+                              message: "Filtrez en un clic entre plages libres gratuites et clubs avec filets ou éclairage. Touchez un marqueur pour voir la météo et les infos !",
+                              icon: Icons.map_rounded,
+                              margin: EdgeInsets.only(top: 8, bottom: 4),
                             ),
 
                             // Filtres rapides d'accès & pays

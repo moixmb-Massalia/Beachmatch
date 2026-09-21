@@ -12,6 +12,7 @@ import 'beach_score_hub_screen.dart';
 import '../../services/sound_service.dart';
 import '../../l10n/app_localizations.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../widgets/feature_discovery_bubble.dart';
 
 class TournamentListScreen extends StatefulWidget {
   final bool showHeader;
@@ -338,6 +339,14 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                       ],
                     ),
                   ),
+
+                const FeatureDiscoveryBubble(
+                  featureKey: 'tournaments_guide',
+                  title: "Guide des Compétitions FFT",
+                  message: "Filtrez par catégorie (BT 25 à BT 2000), trouvez un partenaire via 'SOS Partenaire' ou suivez les scores en direct sur BeachScore Live !",
+                  icon: Icons.emoji_events_rounded,
+                  margin: EdgeInsets.fromLTRB(20, 4, 20, 10),
+                ),
 
                 // 🔴 BANNIÈRE HERO INTERACTIVE BEACHSCORE LIVE (Option 1)
                 Padding(

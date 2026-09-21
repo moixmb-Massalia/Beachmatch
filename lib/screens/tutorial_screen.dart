@@ -18,29 +18,40 @@ class _TutorialScreenState extends State<TutorialScreen> {
 
   final List<Map<String, dynamic>> _pages = [
     {
-      'icon': Icons.waving_hand_rounded,
+      'icon': Icons.sports_tennis_rounded,
       'title': "Bienvenue !",
-      'description': "Bienvenue sur BeachMatch ! L'application ultime pour trouver des partenaires et des terrains de Beach Tennis."
-    },
-    {
-      'icon': CupertinoIcons.person_2_fill,
-      'title': "Trouve des joueurs",
-      'description': "Cherche des membres inscrits ou utilise la base de données officielle FFT via leur numéro de licence pour les trouver."
-    },
-    {
-      'icon': CupertinoIcons.sportscourt_fill,
-      'title': "Rejoins des matchs",
-      'description': "Inscris-toi aux parties en un clic depuis l'accueil, ou crée ton propre match pour inviter d'autres joueurs."
+      'subtitle': "La communauté n°1 du Beach Tennis",
+      'description': "Bienvenue sur BeachMatch ! Trouvez des terrains, organisez vos matchs entre passionnés et suivez la compétition officielle."
     },
     {
       'icon': CupertinoIcons.map_fill,
-      'title': "Explore la carte",
-      'description': "Découvre la carte interactive pour dénicher les terrains gratuits sur la plage ou les clubs éclairés près de chez toi."
+      'title': "Carte & Spots Plage",
+      'subtitle': "Terrains gratuits & Clubs",
+      'description': "Découvrez les terrains gratuits sur le sable ou les clubs officiels éclairés avec météo marine en temps réel et itinéraires."
     },
     {
-      'icon': CupertinoIcons.person_crop_circle_fill,
-      'title': "Complète ton profil",
-      'description': "Garde ton profil à jour avec ton classement et n'oublie pas de lier ta licence FFT. C'est parti !"
+      'icon': Icons.groups_rounded,
+      'title': "Organisez vos Matchs",
+      'subtitle': "Parties amicales & ELO",
+      'description': "Créez une partie en sélectionnant votre terrain en un clic, invitez vos partenaires, validez vos scores et progressez dans l'arène."
+    },
+    {
+      'icon': CupertinoIcons.calendar,
+      'title': "Tournois Homologués FFT",
+      'subtitle': "Du BT 25 au BT 2000",
+      'description': "Consultez le calendrier national officiel, lancez un 'SOS Partenaire' pour trouver un binôme et inscrivez votre équipe."
+    },
+    {
+      'icon': Icons.sports_rounded,
+      'title': "Live Scoring & Arbitrage",
+      'subtitle': "Suivi point par point",
+      'description': "Arbitrez facilement vos rencontres au bord du filet : scores en direct, tie-break, super tie-break et statistiques de jeu."
+    },
+    {
+      'icon': Icons.emoji_events_rounded,
+      'title': "Classement FFT & Tavernes",
+      'subtitle': "3 300+ Joueurs & Clubs",
+      'description': "Accédez au classement officiel Ten'Up de tous les licenciés français et échangez dans la Taverne interactive de votre club."
     },
   ];
 
@@ -50,23 +61,26 @@ class _TutorialScreenState extends State<TutorialScreen> {
     super.dispose();
   }
 
-  Future<void> _nextPage() async {
+  Future<void> _completeTutorial() async {
+    try {
+      await context.read<AppState>().markTutorialAsSeen();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur : ${e.toString()}"), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  void _nextPage() {
     if (_currentPage < _pages.length - 1) {
       _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeInOutCubic,
       );
     } else {
-      // Last page, complete tutorial
-      try {
-        await context.read<AppState>().markTutorialAsSeen();
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Erreur: ${e.toString()}")),
-          );
-        }
-      }
+      _completeTutorial();
     }
   }
 
@@ -83,12 +97,46 @@ class _TutorialScreenState extends State<TutorialScreen> {
             ),
           ),
           Positioned.fill(
-            child: Container(color: Colors.black.withValues(alpha: 0.5)),
+            child: Container(color: Colors.black.withValues(alpha: 0.58)),
           ),
-          
+
           SafeArea(
             child: Column(
               children: [
+                // Top Bar with Skip button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.sports_tennis, color: AppColors.gold, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            "BeachMatch Guide",
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      TextButton(
+                        onPressed: _completeTutorial,
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white70,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        ),
+                        child: const Text("Passer", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Carousel Slides
                 Expanded(
                   child: PageView.builder(
                     controller: _pageController,
@@ -101,53 +149,83 @@ class _TutorialScreenState extends State<TutorialScreen> {
                     itemBuilder: (context, index) {
                       final page = _pages[index];
                       return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // Glass Icon Container
+                            // Glass Icon Container with Glow
                             ClipRRect(
-                              borderRadius: BorderRadius.circular(40),
+                              borderRadius: BorderRadius.circular(44),
                               child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                                 child: Container(
-                                  padding: const EdgeInsets.all(24),
+                                  padding: const EdgeInsets.all(26),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.2),
+                                    color: Colors.white.withValues(alpha: 0.12),
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
+                                    border: Border.all(
+                                      color: AppColors.gold.withValues(alpha: 0.6),
+                                      width: 2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.gold.withValues(alpha: 0.3),
+                                        blurRadius: 20,
+                                        spreadRadius: 2,
+                                      )
+                                    ],
                                   ),
                                   child: Icon(
                                     page['icon'] as IconData,
-                                    size: 60,
+                                    size: 58,
                                     color: AppColors.gold,
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 40),
-                            
-                            // Glass Text Container
+                            const SizedBox(height: 32),
+
+                            // Glass Card with Content
                             ClipRRect(
-                              borderRadius: BorderRadius.circular(24),
+                              borderRadius: BorderRadius.circular(28),
                               child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                                 child: Container(
-                                  padding: const EdgeInsets.all(24),
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.3),
-                                    borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
+                                    color: const Color(0xFF0F1B29).withValues(alpha: 0.75),
+                                    borderRadius: BorderRadius.circular(28),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.2),
+                                      width: 1.2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.35),
+                                        blurRadius: 25,
+                                        offset: const Offset(0, 10),
+                                      ),
+                                    ],
                                   ),
                                   child: Column(
                                     children: [
                                       Text(
                                         page['title'] as String,
                                         style: const TextStyle(
-                                          fontSize: 28,
+                                          fontSize: 24,
                                           fontWeight: FontWeight.w900,
                                           color: Colors.white,
-                                          letterSpacing: 1.2,
+                                          letterSpacing: 0.5,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        page['subtitle'] as String,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.coral,
                                         ),
                                         textAlign: TextAlign.center,
                                       ),
@@ -155,7 +233,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
                                       Text(
                                         page['description'] as String,
                                         style: const TextStyle(
-                                          fontSize: 16,
+                                          fontSize: 14.5,
                                           height: 1.5,
                                           color: Colors.white70,
                                         ),
@@ -172,10 +250,10 @@ class _TutorialScreenState extends State<TutorialScreen> {
                     },
                   ),
                 ),
-                
-                // Indicators & Next Button
+
+                // Indicators & Action Button
                 Padding(
-                  padding: const EdgeInsets.all(32.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
                   child: Column(
                     children: [
                       Row(
@@ -183,21 +261,21 @@ class _TutorialScreenState extends State<TutorialScreen> {
                         children: List.generate(
                           _pages.length,
                           (index) => AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
+                            duration: const Duration(milliseconds: 250),
                             margin: const EdgeInsets.symmetric(horizontal: 4),
-                            height: 8,
-                            width: _currentPage == index ? 24 : 8,
+                            height: 7,
+                            width: _currentPage == index ? 26 : 7,
                             decoration: BoxDecoration(
-                              color: _currentPage == index ? AppColors.gold : Colors.white30,
+                              color: _currentPage == index ? AppColors.gold : Colors.white24,
                               borderRadius: BorderRadius.circular(4),
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
-                        height: 56,
+                        height: 54,
                         child: ElevatedButton(
                           onPressed: _nextPage,
                           style: ElevatedButton.styleFrom(
@@ -210,11 +288,11 @@ class _TutorialScreenState extends State<TutorialScreen> {
                             ),
                           ),
                           child: Text(
-                            _currentPage == _pages.length - 1 ? "C'est parti !" : "Suivant",
+                            _currentPage == _pages.length - 1 ? "C'est parti ! 🚀" : "Suivant",
                             style: const TextStyle(
-                              fontSize: 18,
+                              fontSize: 17,
                               fontWeight: FontWeight.bold,
-                              letterSpacing: 1.1,
+                              letterSpacing: 0.8,
                             ),
                           ),
                         ),

@@ -14,6 +14,7 @@ import '../l10n/app_localizations.dart';
 import '../widgets/home_radar_card.dart';
 import '../widgets/home_match_card.dart';
 import '../widgets/home_weekend_ritual_card.dart';
+import '../widgets/feature_discovery_bubble.dart';
 import 'create_match_screen.dart';
 import 'profile_screen.dart';
 
@@ -125,7 +126,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
                 children: [
                   _buildHeader(user),
-                  const SizedBox(height: 18),
+                  const FeatureDiscoveryBubble(
+                    featureKey: 'home_overview',
+                    title: "Bienvenue sur votre Accueil !",
+                    message: "Consultez la météo des plages en direct, découvrez les parties autour de vous et rejoignez vos partenaires en un clic.",
+                    icon: Icons.wb_sunny_rounded,
+                    margin: EdgeInsets.only(top: 14, bottom: 4),
+                  ),
+                  const SizedBox(height: 14),
                   HomeRadarCard(user: user, courts: courts),
                   const SizedBox(height: 14),
                   const HomeWeekendRitualCard(),
