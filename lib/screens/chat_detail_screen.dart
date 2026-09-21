@@ -13,6 +13,7 @@ import '../models/user.dart';
 import '../providers/app_state.dart';
 import '../services/chat_service.dart';
 import 'public_profile_screen.dart';
+import '../widgets/chat_enhancements.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final UserModel otherUser;
@@ -27,16 +28,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final TextEditingController _controller = TextEditingController();
   final ChatService _chatService = ChatService();
   bool _isSending = false;
+  Map<String, dynamic>? _replyingTo;
 
   void _sendMessage(String currentUserId) async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isSending) return;
 
-    setState(() => _isSending = true);
+    final reply = _replyingTo;
+    setState(() {
+      _isSending = true;
+      _replyingTo = null;
+    });
     _controller.clear();
 
     try {
-      await _chatService.sendMessage(currentUserId, widget.otherUser.id, text);
+      await _chatService.sendMessage(currentUserId, widget.otherUser.id, text, replyTo: reply);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -492,89 +498,158 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           final timestamp = msg['timestamp'] as Timestamp?;
                           final timeStr = timestamp != null ? DateFormat('HH:mm').format(timestamp.toDate()) : "";
 
+                          final chatRoomId = _chatService.getChatRoomId(currentUser.id, widget.otherUser.id);
+                          final msgReactions = msg['reactions'] as Map<String, dynamic>?;
+                          final msgReplyTo = msg['replyTo'] as Map<String, dynamic>?;
+
                           return Align(
                             alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                             child: Container(
-                              margin: const EdgeInsets.only(bottom: 8),
+                              margin: const EdgeInsets.only(bottom: 6),
                               constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
-                              decoration: BoxDecoration(
-                                gradient: isMe
-                                    ? const LinearGradient(
-                                        colors: [AppColors.coral, Color(0xFFFF7A59)],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      )
-                                    : null,
-                                color: isMe ? null : Colors.white.withValues(alpha: 0.16),
-                                borderRadius: BorderRadius.circular(18).copyWith(
-                                  bottomRight: isMe ? const Radius.circular(3) : const Radius.circular(18),
-                                  bottomLeft: !isMe ? const Radius.circular(3) : const Radius.circular(18),
-                                ),
-                                border: isMe ? null : Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.15),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                               child: Column(
                                 crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  if (imageUrl != null && imageUrl.isNotEmpty) ...[
-                                    GestureDetector(
-                                      onTap: () => _showFullScreenImage(context, imageUrl),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(12),
-                                        child: Image.network(
-                                          imageUrl,
-                                          width: 220,
-                                          fit: BoxFit.cover,
-                                          loadingBuilder: (context, child, loadingProgress) {
-                                            if (loadingProgress == null) return child;
-                                            return Container(
-                                              width: 220,
-                                              height: 160,
-                                              color: Colors.black26,
-                                              child: const Center(
-                                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                              ),
-                                            );
-                                          },
-                                          errorBuilder: (_, __, ___) => Container(
-                                            width: 220,
-                                            height: 100,
-                                            color: Colors.black26,
-                                            child: const Center(
-                                              child: Icon(Icons.broken_image_rounded, color: Colors.white60, size: 32),
-                                            ),
-                                          ),
+                                  GestureDetector(
+                                    onLongPress: () {
+                                      ChatMessageActionsModal.show(
+                                        context,
+                                        text: text,
+                                        senderName: isMe ? 'Vous' : widget.otherUser.displayName,
+                                        isMe: isMe,
+                                        onReactionSelected: (emoji) {
+                                          _chatService.toggleReaction(
+                                            chatRoomId: chatRoomId,
+                                            messageId: doc.id,
+                                            userId: currentUser.id,
+                                            emoji: emoji,
+                                          );
+                                        },
+                                        onReply: () {
+                                          setState(() {
+                                            _replyingTo = {
+                                              'id': doc.id,
+                                              'senderName': isMe ? 'Vous' : widget.otherUser.displayName,
+                                              'text': text,
+                                            };
+                                          });
+                                        },
+                                        onDelete: () {
+                                          _chatService.deleteMessage(chatRoomId, doc.id);
+                                        },
+                                      );
+                                    },
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        gradient: isMe
+                                            ? const LinearGradient(
+                                                colors: [AppColors.coral, Color(0xFFFF7A59)],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              )
+                                            : null,
+                                        color: isMe ? null : Colors.white.withValues(alpha: 0.16),
+                                        borderRadius: BorderRadius.circular(18).copyWith(
+                                          bottomRight: isMe ? const Radius.circular(3) : const Radius.circular(18),
+                                          bottomLeft: !isMe ? const Radius.circular(3) : const Radius.circular(18),
                                         ),
+                                        border: isMe ? null : Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.15),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                      child: Column(
+                                        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                        children: [
+                                          if (msgReplyTo != null)
+                                            QuotedMessagePreview(
+                                              replyTo: msgReplyTo,
+                                              isMe: isMe,
+                                            ),
+                                          if (imageUrl != null && imageUrl.isNotEmpty) ...[
+                                            GestureDetector(
+                                              onTap: () => _showFullScreenImage(context, imageUrl),
+                                              child: ClipRRect(
+                                                borderRadius: BorderRadius.circular(12),
+                                                child: Image.network(
+                                                  imageUrl,
+                                                  width: 220,
+                                                  fit: BoxFit.cover,
+                                                  loadingBuilder: (context, child, loadingProgress) {
+                                                    if (loadingProgress == null) return child;
+                                                    return Container(
+                                                      width: 220,
+                                                      height: 160,
+                                                      color: Colors.black26,
+                                                      child: const Center(
+                                                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                                      ),
+                                                    );
+                                                  },
+                                                  errorBuilder: (_, __, ___) => Container(
+                                                    width: 220,
+                                                    height: 100,
+                                                    color: Colors.black26,
+                                                    child: const Center(
+                                                      child: Icon(Icons.broken_image_rounded, color: Colors.white60, size: 32),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            if (text.isNotEmpty) const SizedBox(height: 6),
+                                          ],
+                                          if (text.isNotEmpty)
+                                            Text(
+                                              text,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 15,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          if (timeStr.isNotEmpty) ...[
+                                            const SizedBox(height: 3),
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  timeStr,
+                                                  style: TextStyle(
+                                                    color: isMe ? Colors.white.withValues(alpha: 0.7) : Colors.white60,
+                                                    fontSize: 10,
+                                                  ),
+                                                ),
+                                                if (isMe) ...[
+                                                  const SizedBox(width: 4),
+                                                  const Icon(Icons.done_all_rounded, size: 13, color: Colors.white70),
+                                                ],
+                                              ],
+                                            ),
+                                          ],
+                                        ],
                                       ),
                                     ),
-                                    if (text.isNotEmpty) const SizedBox(height: 6),
-                                  ],
-                                  if (text.isNotEmpty)
-                                    Text(
-                                      text,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 15,
-                                        height: 1.3,
-                                      ),
-                                    ),
-                                  if (timeStr.isNotEmpty) ...[
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      timeStr,
-                                      style: TextStyle(
-                                        color: isMe ? Colors.white.withValues(alpha: 0.7) : Colors.white60,
-                                        fontSize: 10,
-                                      ),
-                                    ),
-                                  ],
+                                  ),
+                                  ChatReactionsRow(
+                                    reactions: msgReactions,
+                                    currentUserId: currentUser.id,
+                                    isMe: isMe,
+                                    onReactionTapped: (emoji) {
+                                      _chatService.toggleReaction(
+                                        chatRoomId: chatRoomId,
+                                        messageId: doc.id,
+                                        userId: currentUser.id,
+                                        emoji: emoji,
+                                      );
+                                    },
+                                  ),
                                 ],
                               ),
                             ),
@@ -615,7 +690,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       ],
                     ),
                   )
-                else
+                else ...[
+                  if (_replyingTo != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                        child: ActiveReplyBanner(
+                          replyTo: _replyingTo!,
+                          onCancel: () => setState(() => _replyingTo = null),
+                        ),
+                      ),
+                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
                     child: ClipRRect(
@@ -677,10 +763,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   ),
                 ),
               ],
-            ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 }

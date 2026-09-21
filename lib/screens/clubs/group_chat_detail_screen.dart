@@ -16,6 +16,7 @@ import '../../models/user.dart';
 import '../../widgets/club_invite_dialog.dart';
 import '../public_profile_screen.dart';
 import '../../widgets/feature_discovery_bubble.dart';
+import '../../widgets/chat_enhancements.dart';
 
 class GroupChatDetailScreen extends StatefulWidget {
   final String clubId;
@@ -39,6 +40,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
   bool _isSending = false;
   late final AudioRecorder _audioRecorder;
   bool _isRecording = false;
+  Map<String, dynamic>? _replyingTo;
 
   @override
   void initState() {
@@ -55,7 +57,11 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
   void _sendMessage(UserModel currentUser) async {
     if (_controller.text.trim().isEmpty) return;
 
-    setState(() => _isSending = true);
+    final reply = _replyingTo;
+    setState(() {
+      _isSending = true;
+      _replyingTo = null;
+    });
     try {
       await _chatService.sendGroupMessage(
         widget.clubId, 
@@ -64,6 +70,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
         _controller.text.trim(),
         widget.clubName,
         widget.clubBannerUrl,
+        replyTo: reply,
       );
       _controller.clear();
     } catch (e) {
@@ -517,10 +524,14 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
       );
     }
 
+    final replyTo = data['replyTo'] as Map<String, dynamic>?;
+    final reactions = data['reactions'] as Map<String, dynamic>?;
+    final chatRoomId = 'club_${widget.clubId}';
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12, left: 16, right: 16),
+        margin: const EdgeInsets.only(bottom: 8, left: 16, right: 16),
         child: Column(
           crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
@@ -532,34 +543,91 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                   child: Text(senderName, style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
                 ),
               ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: isMe ? AppColors.coral : AppColors.surfaceAlt,
-                borderRadius: BorderRadius.circular(16).copyWith(
-                  bottomLeft: isMe ? const Radius.circular(16) : const Radius.circular(0),
-                  bottomRight: isMe ? const Radius.circular(0) : const Radius.circular(16),
+            GestureDetector(
+              onLongPress: () {
+                ChatMessageActionsModal.show(
+                  context,
+                  text: text,
+                  senderName: isMe ? 'Vous' : senderName,
+                  isMe: isMe,
+                  onReactionSelected: (emoji) {
+                    _chatService.toggleReaction(
+                      chatRoomId: chatRoomId,
+                      messageId: messageId,
+                      userId: currentUserId,
+                      emoji: emoji,
+                    );
+                  },
+                  onReply: () {
+                    setState(() {
+                      _replyingTo = {
+                        'id': messageId,
+                        'senderName': isMe ? 'Vous' : senderName,
+                        'text': text,
+                      };
+                    });
+                  },
+                  onDelete: () {
+                    _chatService.deleteMessage(chatRoomId, messageId);
+                  },
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isMe ? AppColors.coral : AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(16).copyWith(
+                    bottomLeft: isMe ? const Radius.circular(16) : const Radius.circular(0),
+                    bottomRight: isMe ? const Radius.circular(0) : const Radius.circular(16),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (replyTo != null)
+                      QuotedMessagePreview(
+                        replyTo: replyTo,
+                        isMe: isMe,
+                      ),
+                    if (imageUrl != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(imageUrl, width: 200, fit: BoxFit.cover),
+                        ),
+                      ),
+                    if (data['audioUrl'] != null)
+                      _buildAudioWidget(data['audioUrl'] as String, isMe),
+                    if (text.isNotEmpty)
+                      Text(text, style: TextStyle(color: isMe ? Colors.white : AppColors.textMain, fontSize: 15)),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(timeStr, style: TextStyle(color: isMe ? Colors.white70 : AppColors.textMuted, fontSize: 10)),
+                        if (isMe) ...[
+                          const SizedBox(width: 4),
+                          const Icon(Icons.done_all_rounded, size: 12, color: Colors.white70),
+                        ],
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  if (imageUrl != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(imageUrl, width: 200, fit: BoxFit.cover),
-                      ),
-                    ),
-                  if (data['audioUrl'] != null)
-                    _buildAudioWidget(data['audioUrl'] as String, isMe),
-                  if (text.isNotEmpty)
-                    Text(text, style: TextStyle(color: isMe ? Colors.white : AppColors.textMain, fontSize: 15)),
-                  const SizedBox(height: 4),
-                  Text(timeStr, style: TextStyle(color: isMe ? Colors.white70 : AppColors.textMuted, fontSize: 10)),
-                ],
-              ),
+            ),
+            ChatReactionsRow(
+              reactions: reactions,
+              currentUserId: currentUserId,
+              isMe: isMe,
+              onReactionTapped: (emoji) {
+                _chatService.toggleReaction(
+                  chatRoomId: chatRoomId,
+                  messageId: messageId,
+                  userId: currentUserId,
+                  emoji: emoji,
+                );
+              },
             ),
           ],
         ),
@@ -568,14 +636,22 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
   }
 
   Widget _buildMessageInput(UserModel currentUser) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, -2))
-        ],
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_replyingTo != null)
+          ActiveReplyBanner(
+            replyTo: _replyingTo!,
+            onCancel: () => setState(() => _replyingTo = null),
+          ),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, -2))
+            ],
+          ),
       child: SafeArea(
         child: Row(
           children: [
@@ -631,8 +707,10 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  ],
+);
+}
 
   Widget _buildPollWidget(Map<String, dynamic> poll, String messageId, String currentUserId, bool isMe, String timeStr) {
     final question = poll['question'] as String;

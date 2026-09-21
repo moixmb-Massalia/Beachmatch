@@ -19,7 +19,7 @@ class ChatService {
   String _getClubChatRoomId(String clubId) => getClubChatRoomId(clubId);
 
   // Send a message (1-on-1)
-  Future<void> sendMessage(String senderId, String receiverId, String text, {String? imageUrl}) async {
+  Future<void> sendMessage(String senderId, String receiverId, String text, {String? imageUrl, Map<String, dynamic>? replyTo}) async {
     final String chatRoomId = _getChatRoomId(senderId, receiverId);
     
     final message = {
@@ -28,6 +28,7 @@ class ChatService {
       'text': text,
       'timestamp': FieldValue.serverTimestamp(),
       if (imageUrl != null) 'imageUrl': imageUrl,
+      if (replyTo != null) 'replyTo': replyTo,
     };
 
     final String lastMsg = (imageUrl != null && text.isEmpty) ? "📷 Photo" : text;
@@ -49,7 +50,7 @@ class ChatService {
   }
 
   // Send a message to a Club Group Chat
-  Future<void> sendGroupMessage(String clubId, String senderId, String senderName, String text, String clubName, String? clubBannerUrl, {String? imageUrl, String? audioUrl, Map<String, dynamic>? poll}) async {
+  Future<void> sendGroupMessage(String clubId, String senderId, String senderName, String text, String clubName, String? clubBannerUrl, {String? imageUrl, String? audioUrl, Map<String, dynamic>? poll, Map<String, dynamic>? replyTo}) async {
     final String chatRoomId = _getClubChatRoomId(clubId);
     
     final message = {
@@ -60,6 +61,7 @@ class ChatService {
       if (imageUrl != null) 'imageUrl': imageUrl,
       if (audioUrl != null) 'audioUrl': audioUrl,
       if (poll != null) 'poll': poll,
+      if (replyTo != null) 'replyTo': replyTo,
     };
 
     String lastMsg = text;
@@ -203,5 +205,56 @@ class ChatService {
     await _firestore.collection('chats').doc(chatRoomId).set({
       'unreadBy': FieldValue.arrayRemove([userId]),
     }, SetOptions(merge: true));
+  }
+
+  // Supprimer un message individuel
+  Future<void> deleteMessage(String chatRoomId, String messageId) async {
+    await _firestore
+        .collection('chats')
+        .doc(chatRoomId)
+        .collection('messages')
+        .doc(messageId)
+        .delete();
+  }
+
+  // Ajouter ou retirer une réaction emoji sur un message (style WhatsApp)
+  Future<void> toggleReaction({
+    required String chatRoomId,
+    required String messageId,
+    required String userId,
+    required String emoji,
+  }) async {
+    final msgRef = _firestore
+        .collection('chats')
+        .doc(chatRoomId)
+        .collection('messages')
+        .doc(messageId);
+
+    final snap = await msgRef.get();
+    if (!snap.exists) return;
+    final data = snap.data() ?? {};
+    final reactions = Map<String, dynamic>.from(data['reactions'] ?? {});
+    final List<dynamic> usersForEmoji = List<dynamic>.from(reactions[emoji] ?? []);
+
+    if (usersForEmoji.contains(userId)) {
+      usersForEmoji.remove(userId);
+      if (usersForEmoji.isEmpty) {
+        reactions.remove(emoji);
+      } else {
+        reactions[emoji] = usersForEmoji;
+      }
+    } else {
+      // 1 réaction active par utilisateur par message
+      reactions.forEach((k, v) {
+        if (v is List) {
+          v.remove(userId);
+        }
+      });
+      reactions.removeWhere((k, v) => (v is List) && v.isEmpty);
+      usersForEmoji.add(userId);
+      reactions[emoji] = usersForEmoji;
+    }
+
+    await msgRef.update({'reactions': reactions});
   }
 }
