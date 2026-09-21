@@ -165,11 +165,13 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             onPressed: () async {
+              final nav = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
               Navigator.pop(ctx);
               await _chatService.deleteChat(currentUser.id, '', isGroup: true, clubId: widget.clubId);
               if (mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
+                nav.pop();
+                messenger.showSnackBar(
                   SnackBar(
                     content: Text("Chat '${widget.clubName}' retiré de vos messages."),
                     backgroundColor: const Color(0xFF16253B),
@@ -208,7 +210,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                border: Border.all(color: Colors.white.withOpacity(0.8), width: 1.5),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1.5),
               ),
               child: ClipOval(
                 child: (widget.clubBannerUrl != null && widget.clubBannerUrl!.trim().isNotEmpty && widget.clubBannerUrl!.startsWith('http'))
@@ -315,7 +317,12 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                   return const Center(child: CircularProgressIndicator(color: AppColors.coral));
                 }
                 
-                final messages = snapshot.data?.docs.reversed.toList() ?? [];
+                final rawMessages = snapshot.data?.docs.reversed.toList() ?? [];
+                final blockedIds = context.watch<AppState>().currentUser?.blockedUserIds ?? [];
+                final messages = rawMessages.where((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  return !blockedIds.contains(d['senderId']);
+                }).toList();
                 
                 if (messages.isEmpty) {
                   return const Center(child: Text("Bienvenue dans le Chat interne du club !\nSoyez le premier à envoyer un message.", textAlign: TextAlign.center, style: TextStyle(color: AppColors.textMuted, height: 1.5)));
@@ -364,19 +371,19 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                const Color(0xFFF4A535).withOpacity(0.22),
-                const Color(0xFFE8604C).withOpacity(0.18),
+                const Color(0xFFF4A535).withValues(alpha: 0.22),
+                const Color(0xFFE8604C).withValues(alpha: 0.18),
               ],
             ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.gold.withOpacity(0.5), width: 1.2),
+            border: Border.all(color: AppColors.gold.withValues(alpha: 0.5), width: 1.2),
           ),
           child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.2),
+                  color: AppColors.gold.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.push_pin_rounded, color: AppColors.gold, size: 18),
@@ -557,7 +564,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
       decoration: BoxDecoration(
         color: AppColors.background,
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, -2))
+          BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, -2))
         ],
       ),
       child: SafeArea(
@@ -586,11 +593,11 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                 child: TextField(
                   controller: _controller,
                   style: const TextStyle(color: AppColors.textMain),
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     hintText: "Écrire dans le groupe...",
-                    hintStyle: const TextStyle(color: AppColors.textMuted),
+                    hintStyle: TextStyle(color: AppColors.textMuted),
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   ),
                 ),
               ),
@@ -647,7 +654,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
           bottomRight: isMe ? const Radius.circular(0) : const Radius.circular(16),
         ),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, offset: const Offset(0, 3)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 10, offset: const Offset(0, 3)),
         ],
       ),
       child: Column(
@@ -677,7 +684,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF008069).withOpacity(0.12),
+                    color: const Color(0xFF008069).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
@@ -1119,7 +1126,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: Colors.white.withOpacity(0.08),
+                        fillColor: Colors.white.withValues(alpha: 0.08),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       ),
@@ -1138,7 +1145,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                                 style: const TextStyle(color: Colors.white),
                                 decoration: InputDecoration(
                                   filled: true,
-                                  fillColor: Colors.white.withOpacity(0.08),
+                                  fillColor: Colors.white.withValues(alpha: 0.08),
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                 ),
@@ -1192,6 +1199,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                     return;
                   }
 
+                  final messenger = ScaffoldMessenger.of(context);
                   Navigator.pop(ctx);
                   await FirebaseFirestore.instance
                       .collection('chats')
@@ -1204,7 +1212,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                   });
 
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       const SnackBar(content: Text("Sondage modifié avec succès ! ✨"), backgroundColor: Color(0xFF008069)),
                     );
                   }
@@ -1228,7 +1236,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
         setState(() => _isRecording = true);
       }
     } catch (e) {
-      print("Erreur d'enregistrement: $e");
+      debugPrint("Erreur d'enregistrement: $e");
     }
   }
 
@@ -1322,7 +1330,7 @@ class _AudioBubbleState extends State<_AudioBubble> {
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: widget.isMe ? Colors.white.withOpacity(0.15) : Colors.white,
+        color: widget.isMe ? Colors.white.withValues(alpha: 0.15) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: widget.isMe ? null : Border.all(color: AppColors.surfaceAlt),
       ),
