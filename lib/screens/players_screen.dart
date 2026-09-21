@@ -67,10 +67,17 @@ class _PlayersScreenState extends State<PlayersScreen> {
         return true;
       }
       final nq = norm(q);
-      final nameMatches = norm(p.displayName).contains(nq);
-      final licMatches = p.licenceNumber != null && norm(p.licenceNumber!).contains(nq);
-      final locMatches = norm(p.location).contains(nq);
-      return nameMatches || licMatches || locMatches;
+      final tokens = nq.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+      if (tokens.isEmpty) return true;
+
+      final pName = norm(p.displayName);
+      final pLic = p.licenceNumber != null ? norm(p.licenceNumber!) : '';
+      final pLoc = norm(p.location);
+
+      return tokens.every((tok) =>
+          pName.contains(tok) ||
+          pLic.contains(tok) ||
+          pLoc.contains(tok));
     }).toList();
 
     final mainContent = Column(

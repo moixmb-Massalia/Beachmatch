@@ -40,6 +40,146 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
     return 0;
   }
 
+  String _normalize(String s) {
+    return s.toLowerCase()
+        .replaceAll(RegExp(r'[éèêë]'), 'e')
+        .replaceAll(RegExp(r'[àâä]'), 'a')
+        .replaceAll(RegExp(r'[îï]'), 'i')
+        .replaceAll(RegExp(r'[ôö]'), 'o')
+        .replaceAll(RegExp(r'[ùûü]'), 'u')
+        .replaceAll(RegExp(r'[ç]'), 'c')
+        .trim();
+  }
+
+  Future<List<Map<String, dynamic>>> _searchRankings(String query, String gender) async {
+    final cleanQ = query.trim();
+    if (cleanQ.isEmpty) return [];
+
+    final normQ = _normalize(cleanQ);
+    final tokens = normQ.split(RegExp(r'\s+')).where((t) => t.length >= 2).toList();
+    final digits = cleanQ.replaceAll(RegExp(r'\D'), '');
+
+    final Map<String, Map<String, dynamic>> resultMap = {};
+    void addCandidate(Map<String, dynamic> data, String docId) {
+      if (data['gender'] != null && data['gender'] != gender) return;
+
+      final fName = (data['firstName'] ?? '').toString().trim();
+      final lName = (data['lastName'] ?? '').toString().trim();
+      final rawName = (data['name'] ?? '$fName $lName').toString().trim();
+      final nameKey = _normalize(rawName);
+      final lic = (data['licenceNumber'] ?? '').toString().trim();
+
+      if (nameKey.isNotEmpty && resultMap.containsKey(nameKey)) {
+        final existing = resultMap[nameKey]!;
+        final existingLic = (existing['licenceNumber'] ?? '').toString().trim();
+        if (existingLic.isEmpty && lic.isNotEmpty) {
+          resultMap[nameKey] = data;
+        }
+        return;
+      }
+
+      final key = nameKey.isNotEmpty ? nameKey : (lic.isNotEmpty ? lic : docId);
+      resultMap[key] = data;
+    }
+
+    // 1. Recherche directe par numéro de licence
+    if (digits.length >= 3) {
+      final doc = await FirebaseFirestore.instance.collection('fft_rankings').doc(digits).get();
+      if (doc.exists && doc.data() != null) {
+        addCandidate(Map<String, dynamic>.from(doc.data()!), digits);
+      }
+
+      final licSnap = await FirebaseFirestore.instance
+          .collection('fft_rankings')
+          .where('searchTokens', arrayContains: digits)
+          .where('gender', isEqualTo: gender)
+          .limit(40)
+          .get();
+      for (var d in licSnap.docs) {
+        addCandidate(Map<String, dynamic>.from(d.data()), d.id);
+      }
+    }
+
+    // 2. Recherche rapide par searchTokens (insensible aux accents et à la casse)
+    for (var tok in tokens) {
+      final snap = await FirebaseFirestore.instance
+          .collection('fft_rankings')
+          .where('searchTokens', arrayContains: tok)
+          .where('gender', isEqualTo: gender)
+          .limit(80)
+          .get();
+      for (var d in snap.docs) {
+        addCandidate(Map<String, dynamic>.from(d.data()), d.id);
+      }
+    }
+
+    // 3. Fallback range queries si peu de résultats
+    if (resultMap.length < 10) {
+      final upperQ = cleanQ.toUpperCase();
+      final titleQ = cleanQ[0].toUpperCase() + cleanQ.substring(1).toLowerCase();
+
+      final snaps = await Future.wait([
+        FirebaseFirestore.instance
+            .collection('fft_rankings')
+            .where('lastName', isGreaterThanOrEqualTo: upperQ)
+            .where('lastName', isLessThanOrEqualTo: '$upperQ\uf8ff')
+            .where('gender', isEqualTo: gender)
+            .limit(30)
+            .get(),
+        FirebaseFirestore.instance
+            .collection('fft_rankings')
+            .where('firstName', isGreaterThanOrEqualTo: upperQ)
+            .where('firstName', isLessThanOrEqualTo: '$upperQ\uf8ff')
+            .where('gender', isEqualTo: gender)
+            .limit(30)
+            .get(),
+        FirebaseFirestore.instance
+            .collection('fft_rankings')
+            .where('firstName', isGreaterThanOrEqualTo: titleQ)
+            .where('firstName', isLessThanOrEqualTo: '$titleQ\uf8ff')
+            .where('gender', isEqualTo: gender)
+            .limit(30)
+            .get(),
+      ]);
+
+      for (var s in snaps) {
+        for (var d in s.docs) {
+          addCandidate(Map<String, dynamic>.from(d.data()), d.id);
+        }
+      }
+    }
+
+    // Filtrage multi-tokens en mémoire
+    final filtered = resultMap.values.where((data) {
+      if (tokens.isEmpty) return true;
+      final f = _normalize((data['firstName'] ?? '').toString());
+      final l = _normalize((data['lastName'] ?? '').toString());
+      final n = _normalize((data['name'] ?? '$f $l').toString());
+      final c = _normalize((data['club'] ?? '').toString());
+      final lic = (data['licenceNumber'] ?? '').toString();
+
+      return tokens.every((tok) =>
+          n.contains(tok) ||
+          f.contains(tok) ||
+          l.contains(tok) ||
+          c.contains(tok) ||
+          lic.contains(tok));
+    }).toList();
+
+    filtered.sort((a, b) {
+      final aLic = (a['licenceNumber'] ?? '').toString();
+      final bLic = (b['licenceNumber'] ?? '').toString();
+      if (aLic == cleanQ && bLic != cleanQ) return -1;
+      if (aLic != cleanQ && bLic == cleanQ) return 1;
+
+      final rankA = _parseRank(a['rank'] ?? a['level']);
+      final rankB = _parseRank(b['rank'] ?? b['level']);
+      return rankA.compareTo(rankB);
+    });
+
+    return filtered;
+  }
+
   @override
   Widget build(BuildContext context) {
     final String currentGender = _selectedTabIndex == 0 ? 'M' : 'F';
@@ -57,7 +197,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
           // Black Overlay 55%
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.55),
+              color: Colors.black.withValues(alpha: 0.55),
             ),
           ),
 
@@ -76,7 +216,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.gold.withOpacity(0.4),
+                              color: AppColors.gold.withValues(alpha: 0.4),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),
@@ -122,9 +262,9 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                       filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
+                          color: Colors.white.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.white.withOpacity(0.20), width: 1.2),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.20), width: 1.2),
                         ),
                         child: TextField(
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
@@ -155,7 +295,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     padding: const EdgeInsets.all(4),
@@ -214,58 +354,71 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
 
                 // Ranking List
                 Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('fft_rankings')
-                        .where('gender', isEqualTo: currentGender)
-                        .orderBy('rank', descending: false)
-                        .limit(200)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasError) {
-                        // Fallback query in case the composite index is building or missing
-                        return StreamBuilder<QuerySnapshot>(
-                          stream: FirebaseFirestore.instance
-                              .collection('fft_rankings')
-                              .where('gender', isEqualTo: currentGender)
-                              .limit(200)
-                              .snapshots(),
-                          builder: (context, fallbackSnap) {
-                            if (fallbackSnap.connectionState == ConnectionState.waiting) {
+                  child: _searchQuery.isNotEmpty
+                      ? FutureBuilder<List<Map<String, dynamic>>>(
+                          future: _searchRankings(_searchQuery, currentGender),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
                               return const Center(
                                 child: CircularProgressIndicator(color: AppColors.gold),
                               );
                             }
-                            if (!fallbackSnap.hasData || fallbackSnap.data!.docs.isEmpty) {
+                            final items = snapshot.data ?? [];
+                            return _buildListFromMaps(items);
+                          },
+                        )
+                      : StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('fft_rankings')
+                              .where('gender', isEqualTo: currentGender)
+                              .orderBy('rank', descending: false)
+                              .limit(200)
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            if (snapshot.hasError) {
+                              // Fallback query in case the composite index is building or missing
+                              return StreamBuilder<QuerySnapshot>(
+                                stream: FirebaseFirestore.instance
+                                    .collection('fft_rankings')
+                                    .where('gender', isEqualTo: currentGender)
+                                    .limit(200)
+                                    .snapshots(),
+                                builder: (context, fallbackSnap) {
+                                  if (fallbackSnap.connectionState == ConnectionState.waiting) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(color: AppColors.gold),
+                                    );
+                                  }
+                                  if (!fallbackSnap.hasData || fallbackSnap.data!.docs.isEmpty) {
+                                    return _buildEmptyState();
+                                  }
+                                  final docs = fallbackSnap.data!.docs.toList();
+                                  docs.sort((a, b) {
+                                    final dataA = a.data() as Map<String, dynamic>;
+                                    final dataB = b.data() as Map<String, dynamic>;
+                                    final rankA = _parseRank(dataA['rank'] ?? dataA['level']);
+                                    final rankB = _parseRank(dataB['rank'] ?? dataB['level']);
+                                    return rankA.compareTo(rankB);
+                                  });
+                                  return _buildListFromDocs(docs);
+                                },
+                              );
+                            }
+
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(
+                                child: CircularProgressIndicator(color: AppColors.gold),
+                              );
+                            }
+
+                            final docs = snapshot.data?.docs ?? [];
+                            if (docs.isEmpty) {
                               return _buildEmptyState();
                             }
-                            final docs = fallbackSnap.data!.docs.toList();
-                            docs.sort((a, b) {
-                              final dataA = a.data() as Map<String, dynamic>;
-                              final dataB = b.data() as Map<String, dynamic>;
-                              final rankA = _parseRank(dataA['rank'] ?? dataA['level']);
-                              final rankB = _parseRank(dataB['rank'] ?? dataB['level']);
-                              return rankA.compareTo(rankB);
-                            });
+
                             return _buildListFromDocs(docs);
                           },
-                        );
-                      }
-
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(color: AppColors.gold),
-                        );
-                      }
-
-                      final docs = snapshot.data?.docs ?? [];
-                      if (docs.isEmpty) {
-                        return _buildEmptyState();
-                      }
-
-                      return _buildListFromDocs(docs);
-                    },
-                  ),
+                        ),
                 ),
               ],
             ),
@@ -276,25 +429,12 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
   }
 
   Widget _buildListFromDocs(List<QueryDocumentSnapshot> docs) {
-    final filteredDocs = docs.where((doc) {
-      if (_searchQuery.isEmpty) return true;
-      final data = doc.data() as Map<String, dynamic>;
-      final firstName = (data['firstName'] ?? '').toString().toLowerCase();
-      final lastName = (data['lastName'] ?? '').toString().toLowerCase();
-      final name = (data['name'] ?? '').toString().toLowerCase();
-      final club = (data['club'] ?? '').toString().toLowerCase();
-      final league = (data['league'] ?? data['ligue'] ?? '').toString().toLowerCase();
-      final licence = (data['licenceNumber'] ?? '').toString().toLowerCase();
+    final items = docs.map((d) => d.data() as Map<String, dynamic>).toList();
+    return _buildListFromMaps(items);
+  }
 
-      return name.contains(_searchQuery) ||
-          firstName.contains(_searchQuery) ||
-          lastName.contains(_searchQuery) ||
-          club.contains(_searchQuery) ||
-          league.contains(_searchQuery) ||
-          licence.contains(_searchQuery);
-    }).toList();
-
-    if (filteredDocs.isEmpty) {
+  Widget _buildListFromMaps(List<Map<String, dynamic>> items) {
+    if (items.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -307,8 +447,8 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              "Essayez un autre mot-clé",
-              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+              "Essayez un autre mot-clé ou vérifiez l'orthographe",
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13),
             ),
           ],
         ),
@@ -318,10 +458,9 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
     return Scrollbar(
       child: ListView.builder(
         padding: const EdgeInsets.only(left: 20, right: 20, top: 8, bottom: 90),
-        itemCount: filteredDocs.length,
+        itemCount: items.length,
         itemBuilder: (context, index) {
-          final data = filteredDocs[index].data() as Map<String, dynamic>;
-          return _buildRankingCard(data, index);
+          return _buildRankingCard(items[index], index);
         },
       ),
     );
@@ -363,10 +502,10 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.12),
+              color: Colors.white.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: Colors.white.withOpacity(0.20),
+                color: Colors.white.withValues(alpha: 0.20),
                 width: 1.2,
               ),
             ),
@@ -407,7 +546,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                         Text(
                           league,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.50),
+                            color: Colors.white.withValues(alpha: 0.50),
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
                           ),
@@ -471,9 +610,9 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF0F1B29).withOpacity(0.95),
+              color: const Color(0xFF0F1B29).withValues(alpha: 0.95),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              border: Border.all(color: AppColors.gold.withOpacity(0.4), width: 1.5),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 1.5),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -492,7 +631,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                       width: 54,
                       height: 54,
                       decoration: BoxDecoration(
-                        color: AppColors.gold.withOpacity(0.2),
+                        color: AppColors.gold.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                         border: Border.all(color: AppColors.gold, width: 2),
                       ),
@@ -523,9 +662,9 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
+                    color: Colors.white.withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withOpacity(0.12)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -550,7 +689,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                     label: const Text("Partager cette fiche joueur", style: TextStyle(fontWeight: FontWeight.bold)),
                     onPressed: () {
                       Navigator.pop(ctx);
-                      Share.share("🎾 $name est classé(e) #$rank au Beach Tennis français avec $points pts sur BeachMatch !");
+                      SharePlus.instance.share(ShareParams(text: "🎾 $name est classé(e) #$rank au Beach Tennis français avec $points pts sur BeachMatch !"));
                     },
                   ),
                 ),
@@ -661,7 +800,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
             Icon(
               Icons.emoji_events_outlined,
               size: 64,
-              color: Colors.white.withOpacity(0.4),
+              color: Colors.white.withValues(alpha: 0.4),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -677,7 +816,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
               "Les données FFT Ten'Up apparaîtront ici dès synchronisation.",
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 13,
               ),
             ),

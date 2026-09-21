@@ -391,7 +391,9 @@ class AppState extends ChangeNotifier {
     );
     
     // Save to Firestore
-    await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set(_currentUser!.toMap());
+    final userData = _currentUser!.toMap();
+    userData['searchTokens'] = _generateSearchTokens(pseudo, licenceNumber);
+    await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set(userData);
     await loadData();
   }
   
@@ -440,10 +442,13 @@ class AppState extends ChangeNotifier {
       availability: availability ?? _currentUser!.availability,
     );
     
+    final searchTokens = _generateSearchTokens(displayName, licenceNumber);
+
     await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set({
       'displayName': displayName,
       'location': location,
       'level': level,
+      'searchTokens': searchTokens,
       if (photoUrl != null) 'photoUrl': photoUrl,
       if (licenceNumber != null) 'licenceNumber': licenceNumber,
       if (ranking != null) 'ranking': ranking,
@@ -661,7 +666,7 @@ class AppState extends ChangeNotifier {
     try {
       final usersSnapshot = await FirebaseFirestore.instance
           .collection('users')
-          .limit(80)
+          .limit(500)
           .get()
           .timeout(const Duration(seconds: 10));
       _players = usersSnapshot.docs
@@ -1091,12 +1096,58 @@ class AppState extends ChangeNotifier {
 
   Timer? _searchDebounce;
 
+  String _normalizeSearch(String s) {
+    return s.toLowerCase()
+        .replaceAll(RegExp(r'[éèêë]'), 'e')
+        .replaceAll(RegExp(r'[àâä]'), 'a')
+        .replaceAll(RegExp(r'[îï]'), 'i')
+        .replaceAll(RegExp(r'[ôö]'), 'o')
+        .replaceAll(RegExp(r'[ùûü]'), 'u')
+        .replaceAll(RegExp(r'[ç]'), 'c')
+        .trim();
+  }
+
+  List<String> _generateSearchTokens(String name, String? licence) {
+    final tokens = <String>{};
+    final normName = _normalizeSearch(name);
+    final normLic = licence != null ? _normalizeSearch(licence).replaceAll(' ', '') : '';
+
+    if (normName.isNotEmpty) {
+      final parts = normName.split(RegExp(r'[\s\-]+'));
+      for (var part in parts) {
+        if (part.length >= 2) {
+          for (int i = 2; i <= part.length && i <= 15; i++) {
+            tokens.add(part.substring(0, i));
+          }
+        }
+      }
+      for (int i = 2; i <= normName.length && i <= 15; i++) {
+        tokens.add(normName.substring(0, i));
+      }
+    }
+
+    if (normLic.isNotEmpty) {
+      for (int i = 3; i <= normLic.length && i <= 12; i++) {
+        tokens.add(normLic.substring(0, i));
+      }
+    }
+
+    return tokens.take(100).toList();
+  }
+
+  int _parseRankInt(dynamic val) {
+    if (val == null) return 99999;
+    if (val is int) return val;
+    final s = val.toString().replaceAll(RegExp(r'\D'), '');
+    return int.tryParse(s) ?? 99999;
+  }
+
   void updatePlayerSearch(String query) {
     _playerSearchQuery = query;
     notifyListeners();
     
     if (_searchDebounce?.isActive ?? false) _searchDebounce!.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
       searchFFTPlayers(query);
     });
   }
@@ -1114,83 +1165,131 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final List<Map<String, dynamic>> results = [];
+      final Map<String, Map<String, dynamic>> resultMap = {};
+      void addCandidate(Map<String, dynamic> data, String docId) {
+        final fName = (data['firstName'] ?? '').toString().trim();
+        final lName = (data['lastName'] ?? '').toString().trim();
+        final rawName = (data['name'] ?? '$fName $lName').toString().trim();
+        final nameKey = _normalizeSearch(rawName);
+        final lic = (data['licenceNumber'] ?? '').toString().trim();
+
+        if (nameKey.isNotEmpty && resultMap.containsKey(nameKey)) {
+          final existing = resultMap[nameKey]!;
+          final existingLic = (existing['licenceNumber'] ?? '').toString().trim();
+          if (existingLic.isEmpty && lic.isNotEmpty) {
+            resultMap[nameKey] = data;
+          }
+          return;
+        }
+
+        final key = nameKey.isNotEmpty ? nameKey : (lic.isNotEmpty ? lic : docId);
+        resultMap[key] = data;
+      }
+
+      final normalizedQuery = _normalizeSearch(cleanQuery);
+      final tokens = normalizedQuery.split(RegExp(r'\s+')).where((t) => t.length >= 2).toList();
       final digits = cleanQuery.replaceAll(RegExp(r'\D'), '');
 
       // 1. Recherche par numéro de licence si chiffres présents
       if (digits.length >= 3) {
         final licenceDoc = await FirebaseFirestore.instance.collection('fft_rankings').doc(digits).get();
-        if (licenceDoc.exists) {
-          results.add(Map<String, dynamic>.from(licenceDoc.data()!));
-        } else {
-          final snap = await FirebaseFirestore.instance
-              .collection('fft_rankings')
-              .where('licenceNumber', isGreaterThanOrEqualTo: digits)
-              .where('licenceNumber', isLessThanOrEqualTo: '$digits\uf8ff')
-              .limit(10)
-              .get();
-          for (var doc in snap.docs) {
-            results.add(Map<String, dynamic>.from(doc.data()));
-          }
+        if (licenceDoc.exists && licenceDoc.data() != null) {
+          addCandidate(Map<String, dynamic>.from(licenceDoc.data()!), digits);
+        }
+
+        final licenceSnap = await FirebaseFirestore.instance
+            .collection('fft_rankings')
+            .where('searchTokens', arrayContains: digits)
+            .limit(30)
+            .get();
+        for (var doc in licenceSnap.docs) {
+          addCandidate(Map<String, dynamic>.from(doc.data()), doc.id);
         }
       }
 
-      // 2. Recherche par Nom de famille (en majuscules, format officiel FFT)
-      final upperQ = cleanQuery.toUpperCase();
-      final snapUpper = await FirebaseFirestore.instance
-          .collection('fft_rankings')
-          .where('lastName', isGreaterThanOrEqualTo: upperQ)
-          .where('lastName', isLessThanOrEqualTo: '$upperQ\uf8ff')
-          .limit(20)
-          .get();
-      for (var doc in snapUpper.docs) {
-        final data = Map<String, dynamic>.from(doc.data());
-        if (!results.any((r) => r['licenceNumber'] == data['licenceNumber'])) {
-          results.add(data);
+      // 2. Recherche rapide indexée par searchTokens (insensible aux accents et à la casse)
+      for (var token in tokens) {
+        final tokenSnap = await FirebaseFirestore.instance
+            .collection('fft_rankings')
+            .where('searchTokens', arrayContains: token)
+            .limit(80)
+            .get();
+        for (var doc in tokenSnap.docs) {
+          addCandidate(Map<String, dynamic>.from(doc.data()), doc.id);
         }
       }
 
-      // 3. Recherche par Prénom ou Nom TitleCase
-      if (cleanQuery.length >= 2) {
+      // 3. Fallback direct par préfixes majuscules & TitleCase si peu de résultats
+      if (resultMap.length < 10) {
+        final upperQ = cleanQuery.toUpperCase();
         final titleQ = cleanQuery[0].toUpperCase() + cleanQuery.substring(1).toLowerCase();
-        
-        // Nom TitleCase
-        final snapTitle = await FirebaseFirestore.instance
-            .collection('fft_rankings')
-            .where('lastName', isGreaterThanOrEqualTo: titleQ)
-            .where('lastName', isLessThanOrEqualTo: '$titleQ\uf8ff')
-            .limit(10)
-            .get();
-        for (var doc in snapTitle.docs) {
-          final data = Map<String, dynamic>.from(doc.data());
-          if (!results.any((r) => r['licenceNumber'] == data['licenceNumber'])) {
-            results.add(data);
-          }
-        }
 
-        // Prénom TitleCase
-        final snapFirst = await FirebaseFirestore.instance
-            .collection('fft_rankings')
-            .where('firstName', isGreaterThanOrEqualTo: titleQ)
-            .where('firstName', isLessThanOrEqualTo: '$titleQ\uf8ff')
-            .limit(15)
-            .get();
-        for (var doc in snapFirst.docs) {
-          final data = Map<String, dynamic>.from(doc.data());
-          if (!results.any((r) => r['licenceNumber'] == data['licenceNumber'])) {
-            results.add(data);
+        final snapshots = await Future.wait([
+          FirebaseFirestore.instance
+              .collection('fft_rankings')
+              .where('lastName', isGreaterThanOrEqualTo: upperQ)
+              .where('lastName', isLessThanOrEqualTo: '$upperQ\uf8ff')
+              .limit(30)
+              .get(),
+          FirebaseFirestore.instance
+              .collection('fft_rankings')
+              .where('firstName', isGreaterThanOrEqualTo: upperQ)
+              .where('firstName', isLessThanOrEqualTo: '$upperQ\uf8ff')
+              .limit(30)
+              .get(),
+          FirebaseFirestore.instance
+              .collection('fft_rankings')
+              .where('firstName', isGreaterThanOrEqualTo: titleQ)
+              .where('firstName', isLessThanOrEqualTo: '$titleQ\uf8ff')
+              .limit(30)
+              .get(),
+          FirebaseFirestore.instance
+              .collection('fft_rankings')
+              .where('lastName', isGreaterThanOrEqualTo: titleQ)
+              .where('lastName', isLessThanOrEqualTo: '$titleQ\uf8ff')
+              .limit(30)
+              .get(),
+        ]);
+
+        for (var snap in snapshots) {
+          for (var doc in snap.docs) {
+            addCandidate(Map<String, dynamic>.from(doc.data()), doc.id);
           }
         }
       }
 
-      // Tri des résultats par classement FFT (du meilleur au moins bien classé)
-      results.sort((a, b) {
-        final rankA = int.tryParse((a['level'] ?? a['rank'] ?? '9999').toString()) ?? 9999;
-        final rankB = int.tryParse((b['level'] ?? b['rank'] ?? '9999').toString()) ?? 9999;
+      // 4. Filtrage multi-tokens en mémoire
+      List<Map<String, dynamic>> filtered = resultMap.values.where((data) {
+        if (tokens.isEmpty) return true;
+        final fName = _normalizeSearch((data['firstName'] ?? '').toString());
+        final lName = _normalizeSearch((data['lastName'] ?? '').toString());
+        final fullName = _normalizeSearch((data['name'] ?? '$fName $lName').toString());
+        final club = _normalizeSearch((data['club'] ?? '').toString());
+        final lic = (data['licenceNumber'] ?? '').toString();
+
+        return tokens.every((tok) =>
+            fullName.contains(tok) ||
+            fName.contains(tok) ||
+            lName.contains(tok) ||
+            club.contains(tok) ||
+            lic.contains(tok));
+      }).toList();
+
+      // 5. Tri intelligent : correspondance exacte d'abord, puis par meilleur classement FFT
+      filtered.sort((a, b) {
+        final aLic = (a['licenceNumber'] ?? '').toString();
+        final bLic = (b['licenceNumber'] ?? '').toString();
+        final aExactLic = aLic == cleanQuery;
+        final bExactLic = bLic == cleanQuery;
+        if (aExactLic && !bExactLic) return -1;
+        if (!aExactLic && bExactLic) return 1;
+
+        final rankA = _parseRankInt(a['rank'] ?? a['level']);
+        final rankB = _parseRankInt(b['rank'] ?? b['level']);
         return rankA.compareTo(rankB);
       });
 
-      _fftSearchResults = results.take(30).toList();
+      _fftSearchResults = filtered.take(60).toList();
     } catch (e) {
       debugPrint("Erreur recherche FFT : $e");
     } finally {
