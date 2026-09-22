@@ -62,6 +62,8 @@ class AppState extends ChangeNotifier {
           }
           await loadData();
         } else {
+          _tokenRefreshSub?.cancel();
+          _tokenRefreshSub = null;
           _currentUser = null;
           _isLoading = false;
           notifyListeners();
@@ -396,6 +398,8 @@ class AppState extends ChangeNotifier {
     await loadData();
   }
   
+  StreamSubscription<String>? _tokenRefreshSub;
+
   Future<void> _updateFCMToken() async {
     if (kIsWeb || _currentUser == null) return;
     try {
@@ -411,6 +415,16 @@ class AppState extends ChangeNotifier {
           }, SetOptions(merge: true));
         }
       }
+
+      _tokenRefreshSub?.cancel();
+      _tokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+        if (_currentUser != null && newToken != _currentUser!.fcmToken) {
+          _currentUser = _currentUser!.copyWith(fcmToken: newToken);
+          await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set({
+            'fcmToken': newToken
+          }, SetOptions(merge: true));
+        }
+      });
     } catch (e) {
       debugPrint("Erreur FCM Token: $e");
     }

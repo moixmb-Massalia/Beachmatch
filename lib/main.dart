@@ -12,7 +12,9 @@ import 'screens/login_screen.dart';
 import 'screens/main_navigation.dart';
 import 'screens/match_confirmation_screen.dart';
 import 'screens/clubs/club_detail_screen.dart';
+import 'screens/tournaments/tournament_detail_screen.dart';
 import 'models/club.dart';
+import 'models/tournament.dart';
 import 'dart:async';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:app_links/app_links.dart';
@@ -214,6 +216,18 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
           builder: (_) => MatchConfirmationScreen(matchId: message.data['matchId']),
         ),
       );
+    } else if (type == 'match_joined' || type == 'match_full' || type == 'score_confirmed' || type == 'match_player_left' || type == 'match_reminder' || type == 'new_match') {
+      navigatorKey.currentState?.pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainNavigationScreen(initialIndex: 0)),
+      );
+    } else if (type == 'new_tournament' || type == 'partner_proposal') {
+      navigatorKey.currentState?.pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainNavigationScreen(initialIndex: 2)),
+      );
+    } else if (type == 'ranking_update') {
+      navigatorKey.currentState?.pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainNavigationScreen(initialIndex: 2)),
+      );
     } else if (type == 'pro_match_live') {
       final streamUrl = message.data['streamUrl'];
       if (streamUrl != null && streamUrl.toString().isNotEmpty) {
@@ -223,7 +237,7 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
           MaterialPageRoute(builder: (_) => const BeachScoreHubScreen()),
         );
       }
-    } else if (type == 'club_announcement') {
+    } else if (type == 'club_announcement' || type == 'club_message') {
       final clubId = message.data['clubId'];
       if (clubId != null && clubId.toString().isNotEmpty) {
         FirebaseFirestore.instance.collection('clubs').doc(clubId.toString()).get().then((doc) {
@@ -239,10 +253,22 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
       } else {
         _navigateToChat();
       }
-    } else if (type == 'match_player_left' || type == 'match_reminder') {
-      navigatorKey.currentState?.pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainNavigationScreen(initialIndex: 0)),
-      );
+    } else if (type == 'tournament_message') {
+      final tournamentId = message.data['tournamentId'];
+      if (tournamentId != null && tournamentId.toString().isNotEmpty) {
+        FirebaseFirestore.instance.collection('tournaments').doc(tournamentId.toString()).get().then((doc) {
+          if (doc.exists) {
+            final tournament = TournamentModel.fromFirestore(doc);
+            navigatorKey.currentState?.push(
+              MaterialPageRoute(builder: (_) => TournamentDetailScreen(tournament: tournament)),
+            );
+          }
+        }).catchError((_) {
+          _navigateToChat();
+        });
+      } else {
+        _navigateToChat();
+      }
     } else {
       _navigateToChat();
     }
@@ -250,7 +276,7 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
 
   void _navigateToChat() {
     navigatorKey.currentState?.pushReplacement(
-      MaterialPageRoute(builder: (_) => const MainNavigationScreen(initialIndex: 3))
+      MaterialPageRoute(builder: (_) => const MainNavigationScreen(initialIndex: 4)),
     );
   }
 
