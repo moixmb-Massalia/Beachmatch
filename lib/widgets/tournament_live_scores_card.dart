@@ -183,6 +183,14 @@ class TournamentLiveScoresCard extends StatelessWidget {
   Widget _buildLiveMatchItem(BuildContext context, LiveMatchModel m, bool isAuthorized) {
     final isLive = m.status == 'LIVE';
 
+    // Déduction intelligente du vainqueur
+    final effWinner = (m.winner == 1 || m.winner == 2)
+        ? m.winner!
+        : (m.status == 'FINISHED'
+            ? (((m.set1Team1 > m.set1Team2 ? 1 : 0) + (m.set2Team1 > m.set2Team2 ? 1 : 0) + ((m.set3Team1 ?? 0) > (m.set3Team2 ?? 0) ? 1 : 0)) >
+               ((m.set1Team2 > m.set1Team1 ? 1 : 0) + (m.set2Team2 > m.set2Team1 ? 1 : 0) + ((m.set3Team2 ?? 0) > (m.set3Team1 ?? 0) ? 1 : 0)) ? 1 : 2)
+            : 0);
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -247,7 +255,10 @@ class TournamentLiveScoresCard extends StatelessWidget {
               set1: m.set1Team1,
               set2: m.set2Team1,
               set3: m.set3Team1,
-              isWinner: m.winner == 1,
+              isSet1Winner: m.set1Team1 > m.set1Team2,
+              isSet2Winner: m.set2Team1 > m.set2Team2,
+              isSet3Winner: (m.set3Team1 ?? 0) > (m.set3Team2 ?? 0),
+              isWinner: effWinner == 1,
               currentSet: m.currentSet,
               isLive: isLive,
             ),
@@ -260,7 +271,10 @@ class TournamentLiveScoresCard extends StatelessWidget {
               set1: m.set1Team2,
               set2: m.set2Team2,
               set3: m.set3Team2,
-              isWinner: m.winner == 2,
+              isSet1Winner: m.set1Team2 > m.set1Team1,
+              isSet2Winner: m.set2Team2 > m.set2Team1,
+              isSet3Winner: (m.set3Team2 ?? 0) > (m.set3Team1 ?? 0),
+              isWinner: effWinner == 2,
               currentSet: m.currentSet,
               isLive: isLive,
             ),
@@ -276,6 +290,9 @@ class TournamentLiveScoresCard extends StatelessWidget {
     required int set1,
     required int set2,
     required int? set3,
+    required bool isSet1Winner,
+    required bool isSet2Winner,
+    required bool isSet3Winner,
     required bool isWinner,
     required int currentSet,
     required bool isLive,
@@ -284,6 +301,11 @@ class TournamentLiveScoresCard extends StatelessWidget {
       children: [
         if (isServing)
           const Text("🎾 ", style: TextStyle(fontSize: 12))
+        else if (isWinner)
+          const Padding(
+            padding: EdgeInsets.only(right: 4),
+            child: Icon(Icons.emoji_events_rounded, color: AppColors.gold, size: 14),
+          )
         else
           const SizedBox(width: 18),
         Expanded(
@@ -298,34 +320,70 @@ class TournamentLiveScoresCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        _buildScorePill(set1, isActive: isLive && currentSet == 1),
+        _buildScorePill(set1, isActive: isLive && currentSet == 1, isSetWinner: isSet1Winner),
         const SizedBox(width: 4),
-        _buildScorePill(set2, isActive: isLive && currentSet == 2),
+        _buildScorePill(set2, isActive: isLive && currentSet == 2, isSetWinner: isSet2Winner),
         if (set3 != null || (isLive && currentSet == 3)) ...[
           const SizedBox(width: 4),
-          _buildScorePill(set3 ?? 0, isActive: isLive && currentSet == 3),
+          _buildScorePill(set3 ?? 0, isActive: isLive && currentSet == 3, isSetWinner: isSet3Winner),
         ],
       ],
     );
   }
 
-  Widget _buildScorePill(int score, {required bool isActive}) {
+  Widget _buildScorePill(int score, {required bool isActive, required bool isSetWinner}) {
     return Container(
-      width: 26,
-      height: 26,
+      width: 28,
+      height: 28,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: isActive ? AppColors.coral.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(6),
+        gradient: isSetWinner
+            ? const LinearGradient(
+                colors: [Color(0xFFD4AF37), Color(0xFFF59E0B)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : (isActive
+                ? const LinearGradient(
+                    colors: [Color(0xFFE53935), AppColors.coral],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : LinearGradient(
+                    colors: [
+                      const Color(0xFF0F172A).withValues(alpha: 0.95),
+                      const Color(0xFF1E293B).withValues(alpha: 0.90),
+                    ],
+                  )),
+        borderRadius: BorderRadius.circular(7),
         border: Border.all(
-          color: isActive ? AppColors.coral : Colors.white.withValues(alpha: 0.15),
-          width: 1,
+          color: isSetWinner
+              ? const Color(0xFFFFE066)
+              : (isActive ? Colors.white : Colors.white.withValues(alpha: 0.25)),
+          width: isSetWinner || isActive ? 1.5 : 1.0,
         ),
+        boxShadow: isSetWinner
+            ? [
+                BoxShadow(
+                  color: AppColors.gold.withValues(alpha: 0.4),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : (isActive
+                ? [
+                    BoxShadow(
+                      color: AppColors.coral.withValues(alpha: 0.4),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null),
       ),
       child: Text(
         score.toString(),
         style: TextStyle(
-          color: isActive ? AppColors.gold : Colors.white,
+          color: isSetWinner ? Colors.black : Colors.white,
           fontWeight: FontWeight.w900,
           fontSize: 13,
         ),

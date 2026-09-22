@@ -69,7 +69,7 @@ def resolve_match_dynamics(raw_match, now_utc):
             'set3': final_sets[2] if len(final_sets) > 2 else raw_match.get('set3'),
             'points1': None,
             'points2': None,
-            'winner': raw_match.get('winner', 1),
+            'winner': raw_match.get('winner') if raw_match.get('winner') is not None else 1,
             'serving': None,
         }
 
@@ -226,6 +226,21 @@ def run_sync():
             'order': 8,
             'isActive': True,
             'streamUrl': 'https://www.youtube.com/@ITFBeachTennisTour',
+        },
+        {
+            'id': 'bt200_aracaju__se_',
+            'name': 'ITF BT 200 Aracaju Open · Sergipe',
+            'city': 'Aracaju (Sergipe)',
+            'countryCode': 'BR',
+            'countryName': 'Brésil',
+            'countryFlag': '🇧🇷',
+            'category': 'ITF BT 200 🌟',
+            'prizeMoney': '15 000 $',
+            'surface': 'Praia de Atalaia Arena',
+            'dates': '19 au 22 Septembre 2026',
+            'order': 9,
+            'isActive': True,
+            'streamUrl': 'https://www.youtube.com/@playbtoficial',
         },
     ]
 

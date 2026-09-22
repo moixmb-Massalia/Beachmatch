@@ -239,31 +239,60 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: Container(
-            color: const Color(0xFF0F172A),
-            child: TabBar(
-              controller: _tabController,
-              indicatorColor: AppColors.gold,
-              indicatorWeight: 3,
-              labelColor: AppColors.gold,
-              unselectedLabelColor: Colors.white70,
-              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-              tabs: const [
-                Tab(
-                  icon: Icon(Icons.schedule_rounded, size: 16),
-                  text: "Programme",
+          preferredSize: const Size.fromHeight(56),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.22),
+                  width: 1.2,
                 ),
-                Tab(
-                  icon: Icon(Icons.live_tv_rounded, size: 16),
-                  text: "En Direct",
+              ),
+              child: TabBar(
+                controller: _tabController,
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                indicator: BoxDecoration(
+                  borderRadius: BorderRadius.circular(22),
+                  gradient: const LinearGradient(
+                    colors: [AppColors.gold, Color(0xFFF59E0B)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.gold.withValues(alpha: 0.40),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                Tab(
-                  icon: Icon(Icons.emoji_events_rounded, size: 16),
-                  text: "Résultats",
-                ),
-              ],
+                labelColor: Colors.black,
+                unselectedLabelColor: Colors.white,
+                labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
+                tabs: const [
+                  Tab(
+                    icon: Icon(Icons.schedule_rounded, size: 15),
+                    text: "Programme",
+                    iconMargin: EdgeInsets.only(bottom: 2),
+                  ),
+                  Tab(
+                    icon: Icon(Icons.live_tv_rounded, size: 15),
+                    text: "En Direct",
+                    iconMargin: EdgeInsets.only(bottom: 2),
+                  ),
+                  Tab(
+                    icon: Icon(Icons.emoji_events_rounded, size: 15),
+                    text: "Résultats",
+                    iconMargin: EdgeInsets.only(bottom: 2),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -532,35 +561,84 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
 
     final team1 = (m['team1'] as String?) ?? 'Paire A';
     final team2 = (m['team2'] as String?) ?? 'Paire B';
-    final winner = m['winner'] as int?;
+    final rawWinner = m['winner'] as int?;
 
     final set1 = m['set1'] as String?;
     final set2 = m['set2'] as String?;
     final set3 = m['set3'] as String?;
 
+    // Extraction et analyse dynamique des scores
+    final rawSets = [set1, set2, set3].where((s) => s != null && s.isNotEmpty && s.contains('/')).cast<String>().toList();
+
+    int setsWon1 = 0;
+    int setsWon2 = 0;
+    final parsedSets = <Map<String, dynamic>>[];
+
+    for (int i = 0; i < rawSets.length; i++) {
+      final parts = rawSets[i].split('/');
+      final s1 = parts[0].trim();
+      final s2 = parts.length > 1 ? parts[1].trim() : '';
+      final n1 = int.tryParse(s1) ?? 0;
+      final n2 = int.tryParse(s2) ?? 0;
+
+      final s1Won = n1 > n2;
+      final s2Won = n2 > n1;
+
+      if (s1Won) setsWon1++;
+      if (s2Won) setsWon2++;
+
+      final label = i == 0 ? 'S1' : (i == 1 ? 'S2' : (n1 >= 10 || n2 >= 10 ? 'STB' : 'S3'));
+      parsedSets.add({
+        'label': label,
+        's1': s1,
+        's2': s2,
+        's1Won': s1Won,
+        's2Won': s2Won,
+      });
+    }
+
+    // Déduction intelligente du vainqueur (si absent de la base de données)
+    int? effectiveWinner = rawWinner;
+    if (effectiveWinner != 1 && effectiveWinner != 2) {
+      if (setsWon1 > setsWon2) {
+        effectiveWinner = 1;
+      } else if (setsWon2 > setsWon1) {
+        effectiveWinner = 2;
+      }
+    }
+
+    final hasScore = parsedSets.isNotEmpty;
+    final winnerName = effectiveWinner == 1 ? team1 : (effectiveWinner == 2 ? team2 : null);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF131D31).withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(18),
+        color: const Color(0xFF111A2E).withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: type == 'LIVE'
-              ? Colors.redAccent.withValues(alpha: 0.7)
-              : (type == 'FINISHED' ? AppColors.gold.withValues(alpha: 0.35) : Colors.white.withValues(alpha: 0.15)),
-          width: type == 'LIVE' ? 1.6 : 1.0,
+              ? Colors.redAccent.withValues(alpha: 0.8)
+              : (type == 'FINISHED'
+                  ? AppColors.gold.withValues(alpha: 0.45)
+                  : Colors.white.withValues(alpha: 0.18)),
+          width: type == 'LIVE' ? 1.8 : 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: type == 'LIVE' ? Colors.redAccent.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.25),
-            blurRadius: 10,
+            color: type == 'LIVE'
+                ? Colors.redAccent.withValues(alpha: 0.25)
+                : (type == 'FINISHED'
+                    ? AppColors.gold.withValues(alpha: 0.12)
+                    : Colors.black.withValues(alpha: 0.3)),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -569,7 +647,7 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                 // En-tête Tournoi & Tour
                 Row(
                   children: [
-                    Text(countryFlag, style: const TextStyle(fontSize: 16)),
+                    Text(countryFlag, style: const TextStyle(fontSize: 18)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(
@@ -577,84 +655,160 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                         children: [
                           Text(
                             tourneyName,
-                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                            style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w900),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
                             "$category · $court",
-                            style: const TextStyle(color: Colors.white60, fontSize: 11),
+                            style: const TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.w500),
                           ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                       decoration: BoxDecoration(
-                        color: type == 'LIVE'
-                            ? Colors.redAccent.withValues(alpha: 0.2)
-                            : (type == 'FINISHED' ? AppColors.gold.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.1)),
+                        gradient: type == 'LIVE'
+                            ? const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFD32F2F)])
+                            : (type == 'FINISHED'
+                                ? LinearGradient(colors: [AppColors.gold.withValues(alpha: 0.35), AppColors.gold.withValues(alpha: 0.15)])
+                                : LinearGradient(colors: [Colors.white.withValues(alpha: 0.15), Colors.white.withValues(alpha: 0.08)])),
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: type == 'LIVE'
+                              ? Colors.redAccent
+                              : (type == 'FINISHED' ? AppColors.gold : Colors.white.withValues(alpha: 0.25)),
+                          width: 1,
+                        ),
                       ),
                       child: Text(
                         round,
                         style: TextStyle(
-                          color: type == 'LIVE' ? Colors.redAccent : (type == 'FINISHED' ? AppColors.gold : Colors.white70),
+                          color: type == 'LIVE'
+                              ? Colors.white
+                              : (type == 'FINISHED' ? AppColors.gold : Colors.white),
                           fontSize: 11,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
                   ],
                 ),
 
-                const Divider(color: Colors.white12, height: 20),
+                const Divider(color: Colors.white12, height: 22),
 
-                // Tableau des scores (style scoreboard)
-                if (set1 != null) ...[
-                  // En-tête colonnes
+                // TABLEAU DES SCORES
+                if (hasScore) ...[
+                  // En-tête colonnes S1, S2, STB
                   Row(
                     children: [
                       const Expanded(child: SizedBox()),
-                      _buildSetHeader('S1'),
-                      if (set2 != null) const SizedBox(width: 6),
-                      if (set2 != null) _buildSetHeader('S2'),
-                      if (set3 != null) const SizedBox(width: 6),
-                      if (set3 != null) _buildSetHeader('STB'),
+                      ...parsedSets.map((ps) => Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: SizedBox(
+                          width: 36,
+                          child: Text(
+                            ps['label'] as String,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      )),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                ],
-                _buildTeamRow(
-                  name: team1,
-                  isWinner: winner == 1,
-                  sets: [
-                    if (set1 != null) set1.split('/').first,
-                    if (set2 != null) set2.split('/').first,
-                    if (set3 != null) set3.split('/').first,
-                  ],
-                ),
-                const SizedBox(height: 6),
-                _buildTeamRow(
-                  name: team2,
-                  isWinner: winner == 2,
-                  sets: [
-                    if (set1 != null && set1.contains('/')) set1.split('/').last,
-                    if (set2 != null && set2.contains('/')) set2.split('/').last,
-                    if (set3 != null && set3.contains('/')) set3.split('/').last,
-                  ],
-                ),
+                  const SizedBox(height: 6),
 
-                // Pied de carte : Horaire ou Bouton Streaming
-                const SizedBox(height: 12),
+                  // Ligne Équipe 1
+                  _buildScoreboardTeamRow(
+                    name: team1,
+                    isMatchWinner: effectiveWinner == 1,
+                    sets: parsedSets.map((ps) => {
+                      'score': ps['s1'] as String,
+                      'isSetWinner': ps['s1Won'] as bool,
+                    }).toList(),
+                    isLive: type == 'LIVE',
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Ligne Équipe 2
+                  _buildScoreboardTeamRow(
+                    name: team2,
+                    isMatchWinner: effectiveWinner == 2,
+                    sets: parsedSets.map((ps) => {
+                      'score': ps['s2'] as String,
+                      'isSetWinner': ps['s2Won'] as bool,
+                    }).toList(),
+                    isLive: type == 'LIVE',
+                  ),
+                ] else if (type == 'FINISHED') ...[
+                  // Match terminé sans score encore homologué
+                  _buildScoreboardTeamRow(
+                    name: team1,
+                    isMatchWinner: effectiveWinner == 1,
+                    sets: const [],
+                    isLive: false,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildScoreboardTeamRow(
+                    name: team2,
+                    isMatchWinner: effectiveWinner == 2,
+                    sets: const [],
+                    isLive: false,
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.gold.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.hourglass_top_rounded, color: AppColors.gold, size: 16),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            "Score officiel en cours de validation par le juge-arbitre",
+                            style: TextStyle(color: AppColors.gold, fontSize: 11.5, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  // Affiche de match programmé
+                  _buildScoreboardTeamRow(
+                    name: team1,
+                    isMatchWinner: false,
+                    sets: const [],
+                    isLive: false,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildScoreboardTeamRow(
+                    name: team2,
+                    isMatchWinner: false,
+                    sets: const [],
+                    isLive: false,
+                  ),
+                ],
+
+                // Pied de carte : Horaire ou Statut ou Bouton Vidéo
+                const SizedBox(height: 14),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Badge Statut
                     if (type == 'SCHEDULED')
                       Row(
                         children: [
-                          const Icon(Icons.schedule, size: 14, color: AppColors.gold),
+                          const Icon(Icons.schedule_rounded, size: 15, color: AppColors.gold),
                           const SizedBox(width: 6),
                           Text(
                             _formatMatchSchedule(m),
@@ -668,34 +822,60 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                           ScaleTransition(
                             scale: _pulseAnimation,
                             child: Container(
-                              width: 8,
-                              height: 8,
+                              width: 9,
+                              height: 9,
                               decoration: const BoxDecoration(
                                 color: Colors.redAccent,
                                 shape: BoxShape.circle,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 7),
                           const Text(
                             "EN DIRECT SUR LE COURT",
-                            style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                            style: TextStyle(color: Colors.redAccent, fontSize: 11.5, fontWeight: FontWeight.w900),
                           ),
                         ],
                       )
                     else
-                      const Row(
-                        children: [
-                          Icon(Icons.check_circle_rounded, size: 14, color: Colors.white54),
-                          SizedBox(width: 6),
-                          Text(
-                            "Match Terminé",
-                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                AppColors.gold.withValues(alpha: 0.22),
+                                AppColors.gold.withValues(alpha: 0.08),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.gold.withValues(alpha: 0.55), width: 1),
                           ),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.emoji_events_rounded, size: 14, color: AppColors.gold),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  winnerName != null
+                                      ? "Vainqueur : $winnerName"
+                                      : "Score Final Homologué",
+                                  style: const TextStyle(
+                                    color: AppColors.gold,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
 
-                    // Bouton Direct Vidéo (Si stream disponible)
+                    // Bouton Direct Vidéo / Replay
                     if (streamUrl != null && streamUrl.isNotEmpty)
                       InkWell(
                         onTap: () {
@@ -704,26 +884,26 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                         },
                         borderRadius: BorderRadius.circular(10),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFD32F2F)]),
                             borderRadius: BorderRadius.circular(10),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.redAccent.withValues(alpha: 0.3),
+                                color: Colors.redAccent.withValues(alpha: 0.35),
                                 blurRadius: 6,
                                 offset: const Offset(0, 2),
                               ),
                             ],
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 14),
-                              SizedBox(width: 4),
+                              const Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 15),
+                              const SizedBox(width: 5),
                               Text(
-                                "Direct Vidéo HD",
-                                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                type == 'LIVE' ? "Direct Vidéo HD" : "Replay HD",
+                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
                               ),
                             ],
                           ),
@@ -739,71 +919,146 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
     );
   }
 
-  Widget _buildSetHeader(String label) {
-    return SizedBox(
-      width: 32,
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: Colors.white38,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTeamRow({
+  Widget _buildScoreboardTeamRow({
     required String name,
-    required bool isWinner,
-    List<String> sets = const [],
+    required bool isMatchWinner,
+    required List<Map<String, dynamic>> sets,
+    required bool isLive,
   }) {
     return Row(
       children: [
-        if (isWinner)
-          const Padding(
-            padding: EdgeInsets.only(right: 6),
-            child: Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 16),
+        if (isMatchWinner)
+          Container(
+            margin: const EdgeInsets.only(right: 6),
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: AppColors.gold.withValues(alpha: 0.25),
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.gold, width: 1),
+            ),
+            child: const Icon(Icons.emoji_events_rounded, color: AppColors.gold, size: 13),
           )
         else
-          const SizedBox(width: 22),
-        Expanded(
-          child: Text(
-            name,
-            style: TextStyle(
-              color: isWinner ? AppColors.gold : Colors.white,
-              fontSize: 14,
-              fontWeight: isWinner ? FontWeight.bold : FontWeight.w600,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        ...sets.map((score) => Padding(
-          padding: const EdgeInsets.only(left: 6),
-          child: Container(
-            width: 32,
-            padding: const EdgeInsets.symmetric(vertical: 3),
+          Container(
+            margin: const EdgeInsets.only(right: 6),
+            width: 21,
+            height: 21,
             alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: isWinner
-                  ? AppColors.gold.withValues(alpha: 0.2)
-                  : Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              score,
-              style: TextStyle(
-                color: isWinner ? AppColors.gold : Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
+            child: Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.3),
+                shape: BoxShape.circle,
               ),
             ),
           ),
-        )),
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  name,
+                  style: TextStyle(
+                    color: isMatchWinner ? AppColors.gold : Colors.white,
+                    fontSize: 13.5,
+                    fontWeight: isMatchWinner ? FontWeight.w900 : FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (isMatchWinner)
+                Container(
+                  margin: const EdgeInsets.only(left: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: AppColors.gold.withValues(alpha: 0.6), width: 0.8),
+                  ),
+                  child: const Text(
+                    "WIN",
+                    style: TextStyle(
+                      color: AppColors.gold,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        ...sets.map((s) {
+          final score = s['score'] as String;
+          final isSetWinner = s['isSetWinner'] as bool;
+          return Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: _buildVibrantScorePill(
+              score: score,
+              isSetWinner: isSetWinner,
+            ),
+          );
+        }),
       ],
+    );
+  }
+
+  Widget _buildVibrantScorePill({
+    required String score,
+    required bool isSetWinner,
+  }) {
+    return Container(
+      width: 36,
+      height: 32,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: isSetWinner
+            ? const LinearGradient(
+                colors: [Color(0xFFD4AF37), Color(0xFFF59E0B)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : LinearGradient(
+                colors: [
+                  const Color(0xFF0F172A).withValues(alpha: 0.95),
+                  const Color(0xFF1E293B).withValues(alpha: 0.90),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isSetWinner
+              ? const Color(0xFFFFE066)
+              : Colors.white.withValues(alpha: 0.25),
+          width: isSetWinner ? 1.5 : 1.0,
+        ),
+        boxShadow: isSetWinner
+            ? [
+                BoxShadow(
+                  color: AppColors.gold.withValues(alpha: 0.45),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+      ),
+      child: Text(
+        score,
+        style: TextStyle(
+          color: isSetWinner ? Colors.black : Colors.white,
+          fontWeight: FontWeight.w900,
+          fontSize: 14,
+        ),
+      ),
     );
   }
 }
