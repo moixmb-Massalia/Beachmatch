@@ -225,10 +225,8 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                 elevation: 0,
                 iconTheme: const IconThemeData(color: Colors.white),
                 actions: [
-                  IconButton(
-                    icon: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.gold),
-                    tooltip: "Chat du tournoi",
-                    onPressed: () {
+                  GestureDetector(
+                    onTap: () {
                       HapticFeedback.selectionClick();
                       Navigator.push(
                         context,
@@ -237,6 +235,39 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                         ),
                       );
                     },
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 14, top: 10, bottom: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF6366F1).withValues(alpha: 0.5),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.forum_rounded, color: Colors.white, size: 14),
+                          SizedBox(width: 6),
+                          Text(
+                            "Chat du tournoi",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
@@ -277,116 +308,8 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                       ),
                       const SizedBox(height: 18),
 
-                      // 💬 CHAT OFFICIEL DU TOURNOI (Portant le nom exact du tournoi)
-                      GestureDetector(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => TournamentChatScreen(tournament: widget.tournament),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 18),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                const Color(0xFF1E293B).withValues(alpha: 0.95),
-                                const Color(0xFF131F30).withValues(alpha: 0.98),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppColors.gold.withValues(alpha: 0.6), width: 1.5),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.gold.withValues(alpha: 0.2),
-                                blurRadius: 14,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [AppColors.gold, AppColors.goldDark],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.gold.withValues(alpha: 0.4),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: const Center(
-                                  child: Icon(Icons.chat_bubble_rounded, color: Color(0xFF0F172A), size: 24),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                                            widget.tournament.name,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w900,
-                                              fontSize: 15,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.gold.withValues(alpha: 0.2),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: const Text(
-                                            "CHAT",
-                                            style: TextStyle(
-                                              color: AppColors.gold,
-                                              fontSize: 9.5,
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      "Sondages, photos, vidéos & échanges joueurs",
-                                      style: TextStyle(
-                                        color: Colors.white.withValues(alpha: 0.75),
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.gold, size: 16),
-                            ],
-                          ),
-                        ),
-                      ),
+                      // 💬 CHAT OFFICIEL & SALON DES JOUEURS (ULTRA VISIBLE & DYNAMIQUE)
+                      _buildTournamentChatHeroCard(context),
 
                       // 🔴 LIVE SCORES EN DIRECT (Jeu par Jeu)
                       TournamentLiveScoresCard(
@@ -1587,6 +1510,326 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
             child: const Text("Annuler", style: TextStyle(color: Colors.white60)),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTournamentChatHeroCard(BuildContext context) {
+    final chatRoomId = 'tournament_${widget.tournament.id}';
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('chats').doc(chatRoomId).snapshots(),
+      builder: (context, snapshot) {
+        final chatData = snapshot.hasData && snapshot.data!.exists
+            ? snapshot.data!.data() as Map<String, dynamic>? ?? {}
+            : <String, dynamic>{};
+        final lastMessage = (chatData['lastMessage'] as String?)?.trim();
+        final users = (chatData['users'] as List?)?.cast<String>() ?? [];
+        final participantCount = users.length;
+
+        return GestureDetector(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => TournamentChatScreen(tournament: widget.tournament),
+              ),
+            );
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 22),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF1E1B4B), // Deep electric indigo
+                  Color(0xFF0F172A), // Dark slate navy
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: const Color(0xFF818CF8).withValues(alpha: 0.7),
+                width: 1.8,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.30),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Rangée 1 : Icône avec badge en ligne + Titre & Tags
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF818CF8), Color(0xFF6366F1)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF6366F1).withValues(alpha: 0.5),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: const Center(
+                                  child: Icon(Icons.forum_rounded, color: Colors.white, size: 24),
+                                ),
+                              ),
+                              Positioned(
+                                right: -2,
+                                bottom: -2,
+                                child: Container(
+                                  width: 14,
+                                  height: 14,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF10B981), // Green live
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: const Color(0xFF0F172A), width: 2.5),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF10B981).withValues(alpha: 0.8),
+                                        blurRadius: 6,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.6)),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.circle, color: Color(0xFF10B981), size: 6),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            "SALON OFFICIEL EN DIRECT",
+                                            style: TextStyle(
+                                              color: Color(0xFF34D399),
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (participantCount > 0) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.people_alt_rounded, color: Colors.white70, size: 10),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              "$participantCount",
+                                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 5),
+                                const Text(
+                                  "Chat & Salon des Joueurs",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16.5,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6366F1).withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFA5B4FC), size: 14),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Rangée 2 : Aperçu du dernier message ou invitation
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              lastMessage != null && lastMessage.isNotEmpty
+                                  ? Icons.chat_bubble_outline_rounded
+                                  : Icons.waving_hand_rounded,
+                              size: 15,
+                              color: lastMessage != null && lastMessage.isNotEmpty
+                                  ? AppColors.gold
+                                  : const Color(0xFFFBBF24),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                lastMessage != null && lastMessage.isNotEmpty
+                                    ? "« $lastMessage »"
+                                    : "Discutez avec les organisateurs et les joueurs du tournoi !",
+                                style: TextStyle(
+                                  color: lastMessage != null && lastMessage.isNotEmpty
+                                      ? Colors.white
+                                      : Colors.white70,
+                                  fontSize: 12,
+                                  fontStyle: lastMessage != null && lastMessage.isNotEmpty
+                                      ? FontStyle.italic
+                                      : FontStyle.normal,
+                                  fontWeight: lastMessage != null && lastMessage.isNotEmpty
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Rangée 3 : Badges de fonctionnalités rapides
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildChatFeatureTag("📊 Sondages", const Color(0xFF6366F1)),
+                            const SizedBox(width: 6),
+                            _buildChatFeatureTag("📸 Photos & Vidéos", const Color(0xFFEC4899)),
+                            const SizedBox(width: 6),
+                            _buildChatFeatureTag("🤝 Partenaire SOS", AppColors.coral),
+                            const SizedBox(width: 6),
+                            _buildChatFeatureTag("📢 Annonces", AppColors.gold),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      // Rangée 4 : Bouton d'action étincelant (Call To Action)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF6366F1).withValues(alpha: 0.45),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.mark_chat_unread_rounded, color: Colors.white, size: 16),
+                            SizedBox(width: 8),
+                            Text(
+                              "Rejoindre le Chat du Tournoi",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13.5,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                            SizedBox(width: 6),
+                            Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 16),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildChatFeatureTag(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10.5,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
