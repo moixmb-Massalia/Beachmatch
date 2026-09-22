@@ -33,6 +33,7 @@ class BeachyService {
   /// Questions rapides suggérées au démarrage
   static const List<String> quickQuestions = [
     "🧭 Guide-moi dans l'application",
+    "👤 Voir & modifier mon profil",
     "🎾 Comment trouver ou créer un match ?",
     "🏆 Où voir les tournois et le classement ?",
     "🏖️ Comment trouver un terrain sur la carte ?",
@@ -51,14 +52,29 @@ class BeachyService {
         q.contains('menu') || q.contains('tuto') || q.contains('fonctionnalite') || q.contains('je cherche')) {
       return const BeachyResponse(
         text: "🧭 **Pas de panique, je te guide partout dans BeachMatch !** 🏖️\n\n"
-            "Voici les 5 univers de l'application :\n\n"
-            "• 🏠 **Accueil :** Tes parties du jour, ton rang ELO, et le bouton pour créer un match.\n"
+            "Voici les univers de l'application :\n\n"
+            "• 🏠 **Accueil :** Tes parties du jour, ton rang ELO, météo des plages et bouton profil.\n"
             "• 🗺️ **Carte :** Localise les terrains autour de toi (spots libres ou clubs avec réservation).\n"
-            "• 🏆 **Compétition :** Le calendrier des tournois FFT et le classement officiel Ten'Up.\n"
-            "• 👥 **Communauté :** Découvre les clubs de France, leurs espaces adhérents et salons.\n"
-            "• 💬 **Messages :** Tes discussions privées et chats de parties avec tes coéquipiers.\n\n"
+            "• 🏆 **Tournois :** Le calendrier des tournois FFT/ITF et le classement officiel Ten'Up.\n"
+            "• 👥 **Communauté :** Découvre les joueurs et clubs de France, salons et partenaires.\n"
+            "• 💬 **Messages :** Tes discussions privées et chats de parties.\n"
+            "• 👤 **Profil :** Modifie ta photo, ton classement FFT, ta ville et tes disponibilités.\n\n"
             "Où souhaites-tu te rendre maintenant ?",
-        action: BeachyAction(label: "Voir les Tournois 🏆", type: BeachyActionType.openTournaments),
+        action: BeachyAction(label: "Voir mon Profil 👤", type: BeachyActionType.openProfile),
+      );
+    }
+
+    // 0.1 PROFIL UTILISATEUR / MODIFIER INFOS / PHOTO / VILLE / LICENCE
+    if (q.contains('profil') || q.contains('mon compte') || (q.contains('modifier') && (q.contains('info') || q.contains('photo') || q.contains('nom') || q.contains('ville') || q.contains('licence')))) {
+      return const BeachyResponse(
+        text: "👤 **Ton Profil Beach Tennis :**\n\n"
+            "Tu peux consulter et modifier toutes tes infos en un clic :\n"
+            "• 📸 Ta photo de profil\n"
+            "• 📝 Ton pseudo & ta ville\n"
+            "• 🎾 Ton numéro de licence FFT (pour synchroniser automatiquement ton classement Ten'Up)\n"
+            "• 🤝 Ton statut de recherche de partenaire & ta position préférée\n\n"
+            "Appuie ci-dessous pour ouvrir directement ton profil et le modifier !",
+        action: BeachyAction(label: "Ouvrir mon Profil 👤", type: BeachyActionType.openProfile),
       );
     }
 

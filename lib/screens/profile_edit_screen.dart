@@ -275,6 +275,30 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                         AppLocalizations.of(context).profileEditTitle,
                         style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                       ),
+                      const Spacer(),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ElevatedButton.icon(
+                          onPressed: _isSaving ? null : _saveProfile,
+                          icon: _isSaving
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                )
+                              : const Icon(Icons.check_rounded, color: Colors.white, size: 16),
+                          label: const Text(
+                            "Enregistrer",
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.coral,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            elevation: 4,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -325,7 +349,18 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 28),
+                          const SizedBox(height: 10),
+                          Center(
+                            child: TextButton.icon(
+                              onPressed: _showPhotoOptionsBottomSheet,
+                              icon: const Icon(Icons.photo_camera_rounded, color: AppColors.gold, size: 16),
+                              label: const Text(
+                                "Changer la photo",
+                                style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
 
                           // Nom et Prénom
                           Text(AppLocalizations.of(context).profileEditName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),

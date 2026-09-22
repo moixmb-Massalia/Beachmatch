@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/colors.dart';
 import 'players_screen.dart';
 import 'clubs/club_list_screen.dart';
+import 'profile_screen.dart';
 
 class CommunityScreen extends StatelessWidget {
   const CommunityScreen({super.key});
@@ -38,19 +39,22 @@ class CommunityScreen extends StatelessWidget {
                       children: [
                         _CommunityHeaderIcon(),
                         SizedBox(width: 14),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Communauté",
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 24),
-                            ),
-                            Text(
-                              "Joueurs & Clubs de Beach Tennis",
-                              style: TextStyle(color: Colors.white70, fontSize: 13),
-                            ),
-                          ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Communauté",
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 24),
+                              ),
+                              Text(
+                                "Joueurs & Clubs de Beach Tennis",
+                                style: TextStyle(color: Colors.white70, fontSize: 13),
+                              ),
+                            ],
+                          ),
                         ),
+                        _QuickProfileButton(),
                       ],
                     ),
                   ),
@@ -164,6 +168,49 @@ class _CommunityTabBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _QuickProfileButton extends StatelessWidget {
+  const _QuickProfileButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.gold.withValues(alpha: 0.6), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.person_rounded, color: AppColors.gold, size: 15),
+            SizedBox(width: 4),
+            Text(
+              "Mon Profil",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 11.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

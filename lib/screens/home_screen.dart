@@ -303,8 +303,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   Stack(
                     children: [
                       Container(
-                        width: 48,
-                        height: 48,
+                        width: 50,
+                        height: 50,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(color: AppColors.gold, width: 2),
@@ -320,9 +320,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         right: 0,
                         bottom: 0,
                         child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle),
-                          child: const Icon(Icons.settings, size: 10, color: Colors.black87),
+                          padding: const EdgeInsets.all(3.5),
+                          decoration: const BoxDecoration(
+                            gradient: AppColors.brandGradient,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.edit_rounded, size: 11, color: Colors.white),
                         ),
                       ),
                     ],
@@ -332,13 +335,25 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text("${AppLocalizations.of(context).homeHeaderGreeting} ${(user != null && user.displayName.isNotEmpty) ? user.displayName.split(' ').first : ''} 🎾", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(
+                          "${AppLocalizations.of(context).homeHeaderGreeting} ${(user != null && user.displayName.isNotEmpty) ? user.displayName.split(' ').first : ''} 🎾",
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         const SizedBox(height: 2),
                         Row(
                           children: [
-                            const Icon(Icons.location_on, color: AppColors.gold, size: 13),
-                            const SizedBox(width: 4),
-                            Expanded(child: Text(user?.location ?? 'Nice, France', style: const TextStyle(fontSize: 12, color: Colors.white70), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                            const Icon(Icons.location_on, color: AppColors.gold, size: 12),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(
+                                user?.location ?? 'France',
+                                style: const TextStyle(fontSize: 11.5, color: Colors.white70),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -349,21 +364,41 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(width: 8),
+          // Bouton évident "Mon Profil"
           GestureDetector(
             onTap: () {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
             },
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
               decoration: BoxDecoration(
-                gradient: AppColors.goldGradient,
-                borderRadius: BorderRadius.circular(20),
+                gradient: const LinearGradient(
+                  colors: [AppColors.coral, Color(0xFFF97316)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.coral.withValues(alpha: 0.45),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: Row(
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.star, color: Colors.white, size: 14),
-                  const SizedBox(width: 4),
-                  Text(AppLocalizations.of(context).homeHeaderLevel(user?.level ?? 1), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                  Icon(Icons.person_rounded, color: Colors.white, size: 15),
+                  SizedBox(width: 4),
+                  Text(
+                    "Mon Profil",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
             ),

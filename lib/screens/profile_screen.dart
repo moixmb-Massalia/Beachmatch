@@ -51,13 +51,56 @@ class ProfileScreen extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(AppLocalizations.of(context).profileTitle, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
-                      IconButton(
-                        icon: const Icon(Icons.edit_note, color: Colors.white, size: 28),
-                        tooltip: "Modifier mon profil",
-                        onPressed: () {
+                      Row(
+                        children: [
+                          if (Navigator.canPop(context)) ...[
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                              onPressed: () => Navigator.pop(context),
+                              tooltip: "Retour",
+                            ),
+                            const SizedBox(width: 2),
+                          ],
+                          Text(
+                            AppLocalizations.of(context).profileTitle,
+                            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
+                          ),
+                        ],
+                      ),
+                      GestureDetector(
+                        onTap: () {
                           Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileEditScreen()));
                         },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: AppColors.gold, width: 1.3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.gold.withValues(alpha: 0.25),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.edit_rounded, color: AppColors.gold, size: 16),
+                              SizedBox(width: 5),
+                              Text(
+                                "Modifier",
+                                style: TextStyle(
+                                  color: AppColors.gold,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -153,9 +196,13 @@ class ProfileScreen extends StatelessWidget {
                   bottom: 0,
                   right: 0,
                   child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle),
-                    child: const Icon(Icons.camera_alt, color: Colors.black, size: 16),
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: AppColors.gold,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF1E2638), width: 2.5),
+                    ),
+                    child: const Icon(Icons.photo_camera_rounded, color: Colors.black, size: 16),
                   ),
                 ),
               ],
@@ -215,6 +262,48 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: 20),
+          // Bouton évident et impossible à rater pour modifier son profil
+          GestureDetector(
+            onTap: () {
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileEditScreen()));
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.coral, Color(0xFFF97316)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.coral.withValues(alpha: 0.45),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.edit_rounded, color: Colors.white, size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    "Modifier mon profil & mes infos",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14.5,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -10,6 +10,7 @@ import 'map_screen.dart';
 import 'competition_screen.dart';
 import 'community_screen.dart';
 import 'messages_screen.dart';
+import 'profile_screen.dart';
 import 'tutorial_screen.dart';
 import 'create_match_screen.dart';
 import '../services/chat_service.dart';
@@ -32,7 +33,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex.clamp(0, 4);
+    _currentIndex = widget.initialIndex.clamp(0, 5);
   }
   
   @override
@@ -52,6 +53,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     const CompetitionScreen(),
     const CommunityScreen(),
     const MessagesScreen(),
+    const ProfileScreen(),
   ];
 
   void _handleBeachyAction(BeachyAction action) {
@@ -79,7 +81,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         );
         break;
       case BeachyActionType.openProfile:
-        setState(() => _currentIndex = 0);
+        setState(() => _currentIndex = 5);
         break;
       case BeachyActionType.none:
         break;
@@ -108,14 +110,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16, top: 4),
+          padding: const EdgeInsets.only(left: 12, right: 12, bottom: 14, top: 4),
           child: Container(
-            height: 70,
+            height: 68,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(32),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
+                  color: Colors.black.withValues(alpha: 0.35),
                   blurRadius: 25,
                   spreadRadius: 2,
                   offset: const Offset(0, 10),
@@ -128,7 +130,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.45),
+                    color: Colors.black.withValues(alpha: 0.50),
                     borderRadius: BorderRadius.circular(32),
                     border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.5),
                   ),
@@ -137,7 +139,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     children: [
                       _buildNavItem(0, CupertinoIcons.home, CupertinoIcons.house_fill, AppLocalizations.of(context).navHome),
                       _buildNavItem(1, CupertinoIcons.map, CupertinoIcons.map_fill, AppLocalizations.of(context).navCourts),
-                      _buildNavItem(2, Icons.emoji_events_outlined, Icons.emoji_events, "Compétition"),
+                      _buildNavItem(2, Icons.emoji_events_outlined, Icons.emoji_events, "Tournois"),
                       _buildNavItem(3, CupertinoIcons.person_3, CupertinoIcons.person_3_fill, "Communauté"),
                       StreamBuilder<int>(
                         stream: _unreadCountStream ?? const Stream.empty(),
@@ -152,6 +154,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                           );
                         },
                       ),
+                      _buildNavItem(5, CupertinoIcons.person_crop_circle, CupertinoIcons.person_crop_circle_fill, "Profil"),
                     ],
                   ),
                 ),
@@ -176,10 +179,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(horizontal: isSelected ? 12 : 8, vertical: 6),
+        padding: EdgeInsets.symmetric(horizontal: isSelected ? 8 : 4, vertical: 5),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.coral.withValues(alpha: 0.25) : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           border: isSelected ? Border.all(color: AppColors.coral.withValues(alpha: 0.5), width: 1) : null,
         ),
         child: Column(
@@ -195,29 +198,29 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     isSelected ? activeIcon : icon,
                     key: ValueKey<bool>(isSelected),
                     color: isSelected ? AppColors.gold : Colors.white70,
-                    size: isSelected ? 24 : 22,
+                    size: isSelected ? 22 : 20,
                   ),
                 ),
                 if (badgeCount > 0)
                   Positioned(
                     top: -4,
-                    right: -8,
+                    right: -7,
                     child: Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(3),
                       decoration: const BoxDecoration(
                         color: Colors.redAccent,
                         shape: BoxShape.circle,
                       ),
                       constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
+                        minWidth: 15,
+                        minHeight: 15,
                       ),
                       child: Center(
                         child: Text(
                           badgeCount > 99 ? '99+' : '$badgeCount',
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 9,
+                            fontSize: 8.5,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -226,11 +229,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   ),
               ],
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 2),
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 10.5,
+                fontSize: 9.5,
                 fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
                 color: isSelected ? Colors.white : Colors.white70,
               ),
