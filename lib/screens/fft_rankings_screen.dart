@@ -387,16 +387,16 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                               .collection('fft_rankings')
                               .where('gender', isEqualTo: currentGender)
                               .orderBy('rank', descending: false)
-                              .limit(200)
+                              .limit(300)
                               .snapshots(),
                           builder: (context, snapshot) {
                             if (snapshot.hasError) {
-                              // Fallback query in case the composite index is building or missing
+                              // Fallback query in case of composite index error
                               return StreamBuilder<QuerySnapshot>(
                                 stream: FirebaseFirestore.instance
                                     .collection('fft_rankings')
-                                    .where('gender', isEqualTo: currentGender)
-                                    .limit(200)
+                                    .orderBy('rank', descending: false)
+                                    .limit(500)
                                     .snapshots(),
                                 builder: (context, fallbackSnap) {
                                   if (fallbackSnap.connectionState == ConnectionState.waiting) {
@@ -407,14 +407,10 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                                   if (!fallbackSnap.hasData || fallbackSnap.data!.docs.isEmpty) {
                                     return _buildEmptyState();
                                   }
-                                  final docs = fallbackSnap.data!.docs.toList();
-                                  docs.sort((a, b) {
-                                    final dataA = a.data() as Map<String, dynamic>;
-                                    final dataB = b.data() as Map<String, dynamic>;
-                                    final rankA = _parseRank(dataA['rank'] ?? dataA['level']);
-                                    final rankB = _parseRank(dataB['rank'] ?? dataB['level']);
-                                    return rankA.compareTo(rankB);
-                                  });
+                                  final docs = fallbackSnap.data!.docs.where((d) {
+                                    final data = d.data() as Map<String, dynamic>;
+                                    return (data['gender'] ?? '').toString().toUpperCase() == currentGender;
+                                  }).toList();
                                   return _buildListFromDocs(docs);
                                 },
                               );
@@ -444,12 +440,33 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
   }
 
   Widget _buildListFromDocs(List<QueryDocumentSnapshot> docs) {
-    final items = docs.map((d) => d.data() as Map<String, dynamic>).toList();
-    return _buildListFromMaps(items);
+    final seen = <String>{};
+    final uniqueItems = <Map<String, dynamic>>[];
+    for (final d in docs) {
+      final data = d.data() as Map<String, dynamic>;
+      final rank = _parseRank(data['rank'] ?? data['level']);
+      final name = (data['name'] ?? '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}').toString().trim().toUpperCase();
+      final key = '$rank-$name';
+      if (seen.add(key)) {
+        uniqueItems.add(data);
+      }
+    }
+    return _buildListFromMaps(uniqueItems);
   }
 
   Widget _buildListFromMaps(List<Map<String, dynamic>> items) {
-    if (items.isEmpty) {
+    final seen = <String>{};
+    final uniqueItems = <Map<String, dynamic>>[];
+    for (final data in items) {
+      final rank = _parseRank(data['rank'] ?? data['level']);
+      final name = (data['name'] ?? '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}').toString().trim().toUpperCase();
+      final key = '$rank-$name';
+      if (seen.add(key)) {
+        uniqueItems.add(data);
+      }
+    }
+
+    if (uniqueItems.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -473,9 +490,9 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
     return Scrollbar(
       child: ListView.builder(
         padding: const EdgeInsets.only(left: 20, right: 20, top: 8, bottom: 90),
-        itemCount: items.length,
+        itemCount: uniqueItems.length,
         itemBuilder: (context, index) {
-          return _buildRankingCard(items[index], index);
+          return _buildRankingCard(uniqueItems[index], index);
         },
       ),
     );

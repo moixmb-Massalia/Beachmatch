@@ -636,6 +636,13 @@ class AppState extends ChangeNotifier {
         }
       }
       if (list.isNotEmpty) {
+        list.sort((a, b) {
+          final dateA = a.startDate ?? DateTime(2099);
+          final dateB = b.startDate ?? DateTime(2099);
+          final cmp = dateA.compareTo(dateB);
+          if (cmp != 0) return cmp;
+          return a.name.compareTo(b.name);
+        });
         _tournaments = list;
       }
     } catch (e) {
@@ -653,6 +660,13 @@ class AppState extends ChangeNotifier {
             } catch (_) {}
           }
           if (cacheList.isNotEmpty) {
+            cacheList.sort((a, b) {
+              final dateA = a.startDate ?? DateTime(2099);
+              final dateB = b.startDate ?? DateTime(2099);
+              final cmp = dateA.compareTo(dateB);
+              if (cmp != 0) return cmp;
+              return a.name.compareTo(b.name);
+            });
             _tournaments = cacheList;
           }
         }

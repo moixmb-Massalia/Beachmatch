@@ -241,38 +241,17 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
       });
     } else {
       filteredTournaments.sort((a, b) {
-        DateTime? parseDate(String dateStr) {
-          final clean = dateStr.trim();
-          if (clean.length >= 10) {
-            // ISO format: yyyy-MM-dd
-            if (clean.contains('-')) {
-              try {
-                final parts = clean.substring(0, 10).split('-');
-                if (parts.length == 3) {
-                  return DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
-                }
-              } catch (_) {}
-            }
-            // French format: dd/MM/yyyy
-            if (clean.contains('/')) {
-              try {
-                final parts = clean.substring(0, 10).split('/');
-                if (parts.length == 3) {
-                  return DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
-                }
-              } catch (_) {}
-            }
-          }
-          return null;
-        }
-        
-        final dateA = parseDate(a.dateString) ?? DateTime(2100);
-        final dateB = parseDate(b.dateString) ?? DateTime(2100);
+        final dateA = a.startDate ?? DateTime(2099);
+        final dateB = b.startDate ?? DateTime(2099);
         
         if (_selectedCategoryFilter == 'Terminés') {
-          return dateB.compareTo(dateA);
+          final cmp = dateB.compareTo(dateA);
+          if (cmp != 0) return cmp;
+          return a.name.compareTo(b.name);
         }
-        return dateA.compareTo(dateB);
+        final cmp = dateA.compareTo(dateB);
+        if (cmp != 0) return cmp;
+        return a.name.compareTo(b.name);
       });
     }
 
@@ -678,12 +657,82 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                           padding: const EdgeInsets.only(left: 20, right: 20, top: 8, bottom: 100),
                           itemCount: filteredTournaments.length,
                           itemBuilder: (context, index) {
-                            return _buildTournamentCard(context, filteredTournaments[index]);
+                            final tournament = filteredTournaments[index];
+                            final showHeader = _shouldShowMonthHeader(index, filteredTournaments);
+                            if (showHeader && tournament.startDate != null) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildMonthHeader(_getMonthHeaderLabel(tournament.startDate!)),
+                                  _buildTournamentCard(context, tournament),
+                                ],
+                              );
+                            }
+                            return _buildTournamentCard(context, tournament);
                           },
                         ),
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _shouldShowMonthHeader(int index, List<TournamentModel> list) {
+    if (_selectedCountryFilter == 'NEARBY') return false;
+    final current = list[index].startDate;
+    if (current == null) return false;
+    if (index == 0) return true;
+    final previous = list[index - 1].startDate;
+    if (previous == null) return true;
+    return current.month != previous.month || current.year != previous.year;
+  }
+
+  String _getMonthHeaderLabel(DateTime dt) {
+    const months = [
+      'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+      'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+    ];
+    return '${months[dt.month - 1]} ${dt.year}';
+  }
+
+  Widget _buildMonthHeader(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.gold.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.calendar_month_rounded, color: AppColors.gold, size: 14),
+                const SizedBox(width: 6),
+                Text(
+                  label.toUpperCase(),
+                  style: const TextStyle(
+                    color: AppColors.gold,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Container(
+              height: 1,
+              color: Colors.white.withValues(alpha: 0.15),
             ),
           ),
         ],

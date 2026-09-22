@@ -27,24 +27,58 @@ class TournamentModel {
   double? latitude;
   double? longitude;
 
-  bool get isPassed {
-    if (dateString.isEmpty || dateString == 'Inconnue') return false;
+  DateTime? get startDate => _parseDatePart(false);
+  DateTime? get endDate => _parseDatePart(true);
+
+  DateTime? _parseDatePart(bool getEnd) {
+    if (dateString.isEmpty || dateString == 'Inconnue') return null;
     try {
-      String dateToParse = dateString;
-      if (dateString.contains('-')) {
-        dateToParse = dateString.split('-').last.trim();
-      } else if (dateString.contains('au')) {
-        dateToParse = dateString.split('au').last.trim();
+      String s = dateString.trim();
+      if (s.toLowerCase().startsWith('du ')) {
+        s = s.substring(3).trim();
       }
-      final parts = dateToParse.split('/');
-      if (parts.length == 3) {
-        final date = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
-        final today = DateTime.now();
-        final startOfToday = DateTime(today.year, today.month, today.day);
-        return startOfToday.isAfter(date.add(const Duration(days: 1)));
+
+      String target = s;
+      if (s.toLowerCase().contains(' au ')) {
+        final parts = s.split(RegExp(r'\s+au\s+', caseSensitive: false));
+        if (parts.length >= 2) {
+          target = getEnd ? parts[1].trim() : parts[0].trim();
+        }
+      } else if (s.contains(' - ')) {
+        final parts = s.split(' - ');
+        if (parts.length >= 2) {
+          target = getEnd ? parts[1].trim() : parts[0].trim();
+        }
+      }
+
+      // Format DD/MM/YYYY or DD/MM/YY
+      final frMatch = RegExp(r'(\d{1,2})/(\d{1,2})/(\d{2,4})').firstMatch(target);
+      if (frMatch != null) {
+        final day = int.parse(frMatch.group(1)!);
+        final month = int.parse(frMatch.group(2)!);
+        var year = int.parse(frMatch.group(3)!);
+        if (year < 100) year += 2000;
+        return DateTime(year, month, day);
+      }
+
+      // Format YYYY-MM-DD
+      final isoMatch = RegExp(r'(\d{4})-(\d{1,2})-(\d{1,2})').firstMatch(target);
+      if (isoMatch != null) {
+        final year = int.parse(isoMatch.group(1)!);
+        final month = int.parse(isoMatch.group(2)!);
+        final day = int.parse(isoMatch.group(3)!);
+        return DateTime(year, month, day);
       }
     } catch (_) {}
-    return false;
+    return null;
+  }
+
+  bool get isPassed {
+    final end = endDate ?? startDate;
+    if (end == null) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return end.isBefore(today);
   }
 
   String get city {
