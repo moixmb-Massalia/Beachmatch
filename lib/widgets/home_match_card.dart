@@ -344,6 +344,10 @@ class HomeMatchCard extends StatelessWidget {
 
   static Widget _buildManagePlayerTile(BuildContext modalCtx, BuildContext parentContext, MatchModel match, UserModel p) {
     return ListTile(
+      onTap: () {
+        Navigator.pop(modalCtx);
+        PublicProfileScreen.open(parentContext, player: p);
+      },
       leading: CircleAvatar(
         backgroundImage: (p.photoUrl != null && p.photoUrl!.isNotEmpty) ? NetworkImage(p.photoUrl!) : null,
         backgroundColor: AppColors.coral,

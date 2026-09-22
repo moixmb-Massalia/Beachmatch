@@ -113,24 +113,13 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
     }
   }
 
-  void _openUserProfile(String userId) async {
-    try {
-      showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.coral)));
-      final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
-      if (mounted) Navigator.pop(context); 
-      
-      if (doc.exists && doc.data() != null) {
-        final user = UserModel.fromMap(doc.data()!, doc.id);
-        if (mounted) {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(player: user)));
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); 
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossible de charger le profil.")));
-      }
-    }
+  void _openUserProfile(String userId, {String? displayName, String? photoUrl}) {
+    PublicProfileScreen.open(
+      context,
+      userId: userId,
+      displayName: displayName,
+      photoUrl: photoUrl,
+    );
   }
 
   String _getClubPhotoAsset(String name) {
@@ -511,10 +500,26 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
             children: [
               if (!isMe)
                 GestureDetector(
-                  onTap: () => _openUserProfile(data['senderId'] ?? ''),
+                  onTap: () => _openUserProfile(data['senderId'] ?? '', displayName: senderName),
                   child: Padding(
-                    padding: const EdgeInsets.only(left: 8.0, bottom: 4.0),
-                    child: Text(senderName, style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
+                    padding: const EdgeInsets.only(left: 4.0, bottom: 4.0),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircleAvatar(
+                          radius: 11,
+                          backgroundColor: AppColors.coral,
+                          child: Text(
+                            senderName.isNotEmpty ? senderName[0].toUpperCase() : '?',
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(senderName, style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.info_outline_rounded, color: AppColors.gold, size: 12),
+                      ],
+                    ),
                   ),
                 ),
               _buildPollWidget(poll, messageId, currentUserId, isMe, timeStr),
@@ -537,10 +542,26 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
           children: [
             if (!isMe)
               GestureDetector(
-                onTap: () => _openUserProfile(data['senderId'] ?? ''),
+                onTap: () => _openUserProfile(data['senderId'] ?? '', displayName: senderName),
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 8.0, bottom: 4.0),
-                  child: Text(senderName, style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
+                  padding: const EdgeInsets.only(left: 4.0, bottom: 4.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircleAvatar(
+                        radius: 11,
+                        backgroundColor: AppColors.coral,
+                        child: Text(
+                          senderName.isNotEmpty ? senderName[0].toUpperCase() : '?',
+                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(senderName, style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.info_outline_rounded, color: AppColors.gold, size: 12),
+                    ],
+                  ),
                 ),
               ),
             GestureDetector(

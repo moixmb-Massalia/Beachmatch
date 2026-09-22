@@ -9,6 +9,7 @@ import '../providers/app_state.dart';
 import '../models/user.dart';
 import '../models/court.dart';
 import '../widgets/feature_discovery_bubble.dart';
+import 'public_profile_screen.dart';
 
 class CreateMatchScreen extends StatefulWidget {
   final UserModel? invitedPlayer;
@@ -224,31 +225,47 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
 
                   // Invitation spéciale
                   if (widget.invitedPlayer != null)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 20),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.gold.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.gold, width: 1.5),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.person_add_alt_1_rounded, color: AppColors.gold, size: 24),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text("Invitation directe pour", style: TextStyle(fontSize: 12, color: Colors.white70)),
-                                Text(
-                                  widget.invitedPlayer!.displayName,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-                                ),
-                              ],
+                    GestureDetector(
+                      onTap: () => PublicProfileScreen.open(context, player: widget.invitedPlayer!),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 20),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.gold, width: 1.5),
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 20,
+                              backgroundColor: AppColors.gold,
+                              backgroundImage: (widget.invitedPlayer!.photoUrl != null && widget.invitedPlayer!.photoUrl!.isNotEmpty)
+                                  ? NetworkImage(widget.invitedPlayer!.photoUrl!)
+                                  : null,
+                              child: (widget.invitedPlayer!.photoUrl == null || widget.invitedPlayer!.photoUrl!.isEmpty)
+                                  ? Text(
+                                      widget.invitedPlayer!.displayName.isNotEmpty ? widget.invitedPlayer!.displayName[0].toUpperCase() : '?',
+                                      style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16),
+                                    )
+                                  : null,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text("Invitation directe pour (appuyer pour voir profil)", style: TextStyle(fontSize: 11, color: Colors.white70)),
+                                  Text(
+                                    widget.invitedPlayer!.displayName,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.gold, size: 14),
+                          ],
+                        ),
                       ),
                     ),
 

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:share_plus/share_plus.dart';
 import '../theme/colors.dart';
 import '../widgets/feature_discovery_bubble.dart';
+import 'public_profile_screen.dart';
 
 class FftRankingsScreen extends StatefulWidget {
   final bool isEmbedded;
@@ -688,15 +689,44 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.coral,
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 4,
+                    ),
+                    icon: const Icon(Icons.person_search_rounded, size: 20),
+                    label: const Text("Consulter la fiche profil", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      PublicProfileScreen.open(
+                        context,
+                        userId: (data['licenceNumber'] ?? data['userId'] ?? data['name'])?.toString(),
+                        displayName: name,
+                        ranking: rank.toString(),
+                        location: league,
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white.withValues(alpha: 0.15),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
+                      ),
+                      elevation: 0,
                     ),
                     icon: const Icon(Icons.share, size: 18),
                     label: const Text("Partager cette fiche joueur", style: TextStyle(fontWeight: FontWeight.bold)),

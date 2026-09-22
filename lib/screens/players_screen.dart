@@ -558,119 +558,144 @@ class _PlayersScreenState extends State<PlayersScreen> {
     final String club = player['club'] ?? '';
     
     // We add the action row below the row
-    return _buildGlassCard(
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.greenAccent.withValues(alpha: 0.2),
-                  border: Border.all(color: Colors.greenAccent, width: 1.5),
-                ),
-                child: Center(child: Text(initial, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            fullName, 
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(8)),
-                          child: const Text("FFT", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text("Licence: $licence · Clt: $level", style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                    if (club.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(club, style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
-                    ],
-                  ],
-                ),
-              ),
-              Column(
-                children: [
-                  Text(elo, style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 18)),
-                  const Text("Pts", style: TextStyle(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Actions
-          Builder(
-            builder: (context) {
-              final allAppPlayers = context.watch<AppState>().players;
-              UserModel? registeredMember;
-              for (final p in allAppPlayers) {
-                if ((p.licenceNumber != null && p.licenceNumber!.isNotEmpty && licence.isNotEmpty && p.licenceNumber!.contains(licence)) ||
-                    p.displayName.trim().toLowerCase() == fullName.toLowerCase()) {
-                  registeredMember = p;
-                  break;
-                }
-              }
+    return Builder(
+      builder: (context) {
+        final allAppPlayers = context.watch<AppState>().players;
+        UserModel? registeredMember;
+        for (final p in allAppPlayers) {
+          if ((p.licenceNumber != null && p.licenceNumber!.isNotEmpty && licence.isNotEmpty && p.licenceNumber!.contains(licence)) ||
+              p.displayName.trim().toLowerCase() == fullName.toLowerCase()) {
+            registeredMember = p;
+            break;
+          }
+        }
 
-              if (registeredMember != null) {
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+        return GestureDetector(
+          onTap: () {
+            PublicProfileScreen.open(
+              context,
+              player: registeredMember,
+              userId: licence.isNotEmpty ? licence : fullName,
+              displayName: fullName,
+              ranking: level,
+              location: club,
+            );
+          },
+          child: _buildGlassCard(
+            child: Column(
+              children: [
+                Row(
                   children: [
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(player: registeredMember!)));
-                      },
-                      icon: const Icon(Icons.person, size: 14),
-                      label: const Text("Membre actif · Voir profil", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.greenAccent.withValues(alpha: 0.2),
+                        border: Border.all(color: Colors.greenAccent, width: 1.5),
+                      ),
+                      child: Center(child: Text(initial, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  fullName, 
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(8)),
+                                child: const Text("FFT", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white)),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text("Licence: $licence · Clt: $level", style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                          if (club.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(club, style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+                          ],
+                        ],
                       ),
                     ),
-                  ],
-                );
-              }
-
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      SharePlus.instance.share(ShareParams(
-                        text: "Salut $fullName ! Viens me rejoindre sur l'application BeachMatch pour trouver des partenaires de Beach Tennis et participer aux tournois : https://beachmatch.app/download",
-                      ));
-                    },
-                    icon: const Icon(Icons.share, size: 14),
-                    label: const Text("Inviter sur BeachMatch", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.coral,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    Column(
+                      children: [
+                        Text(elo, style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 18)),
+                        const Text("Pts", style: TextStyle(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ],
                     ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Actions
+                if (registeredMember != null)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          PublicProfileScreen.open(context, player: registeredMember);
+                        },
+                        icon: const Icon(Icons.person, size: 14),
+                        label: const Text("Membre actif · Voir profil", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.gold,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () {
+                          PublicProfileScreen.open(
+                            context,
+                            userId: licence.isNotEmpty ? licence : fullName,
+                            displayName: fullName,
+                            ranking: level,
+                            location: club,
+                          );
+                        },
+                        icon: const Icon(Icons.badge_rounded, size: 14, color: AppColors.gold),
+                        label: const Text("Fiche profil", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.gold)),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          SharePlus.instance.share(ShareParams(
+                            text: "Salut $fullName ! Viens me rejoindre sur l'application BeachMatch pour trouver des partenaires de Beach Tennis et participer aux tournois : https://beachmatch.app/download",
+                          ));
+                        },
+                        icon: const Icon(Icons.share, size: 14),
+                        label: const Text("Inviter sur BeachMatch", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.coral,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              );
-            },
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

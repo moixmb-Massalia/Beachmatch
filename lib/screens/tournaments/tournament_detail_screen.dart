@@ -17,6 +17,7 @@ import '../../widgets/tournament_live_scores_card.dart';
 import '../../models/partner_request.dart';
 import '../../services/whatsapp_share_service.dart';
 import 'tournament_chat_screen.dart';
+import '../public_profile_screen.dart';
 
 class TournamentDetailScreen extends StatefulWidget {
   final TournamentModel tournament;
@@ -982,48 +983,71 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: AppColors.coral,
-                child: Text(
-                  req.userName.isNotEmpty ? req.userName[0].toUpperCase() : '?',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              GestureDetector(
+                onTap: () => PublicProfileScreen.open(
+                  context,
+                  userId: req.userId,
+                  displayName: req.userName,
+                  photoUrl: req.userPhoto,
+                  ranking: req.fftRank,
+                ),
+                child: CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColors.coral,
+                  backgroundImage: (req.userPhoto != null && req.userPhoto!.isNotEmpty)
+                      ? NetworkImage(req.userPhoto!)
+                      : null,
+                  child: (req.userPhoto == null || req.userPhoto!.isEmpty)
+                      ? Text(
+                          req.userName.isNotEmpty ? req.userName[0].toUpperCase() : '?',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                        )
+                      : null,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            req.userName,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (isMe) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.gold.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(6),
+                child: GestureDetector(
+                  onTap: () => PublicProfileScreen.open(
+                    context,
+                    userId: req.userId,
+                    displayName: req.userName,
+                    photoUrl: req.userPhoto,
+                    ranking: req.fftRank,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              req.userName,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            child: const Text("Moi", style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold)),
                           ),
+                          if (isMe) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.gold.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text("Moi", style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      "🏅 Classement : ${req.fftRank}",
-                      style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w600),
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "🏅 Classement : ${req.fftRank}",
+                        style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -1481,7 +1505,28 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
               "Tu souhaites proposer à ${req.userName} de former la paire pour ${widget.tournament.name} (${req.draw}) ?",
               style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                foregroundColor: Colors.black,
+                minimumSize: const Size(double.infinity, 44),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.person_rounded, size: 18),
+              label: const Text("Consulter sa fiche profil", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              onPressed: () {
+                Navigator.pop(ctx);
+                PublicProfileScreen.open(
+                  context,
+                  userId: req.userId,
+                  displayName: req.userName,
+                  photoUrl: req.userPhoto,
+                  ranking: req.fftRank,
+                );
+              },
+            ),
+            const SizedBox(height: 8),
             if (req.phone != null && req.phone!.isNotEmpty) ...[
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(

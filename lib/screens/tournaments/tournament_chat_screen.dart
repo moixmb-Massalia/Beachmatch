@@ -447,14 +447,13 @@ class _TournamentChatScreenState extends State<TournamentChatScreen> {
     );
   }
 
-  void _openUserProfile(String userId) async {
-    try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
-      if (doc.exists && doc.data() != null && mounted) {
-        final user = UserModel.fromMap(doc.data()!, doc.id);
-        Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(player: user)));
-      }
-    } catch (_) {}
+  void _openUserProfile(String userId, {String? displayName, String? photoUrl}) {
+    PublicProfileScreen.open(
+      context,
+      userId: userId,
+      displayName: displayName,
+      photoUrl: photoUrl,
+    );
   }
 
   @override
@@ -698,12 +697,28 @@ class _TournamentChatScreenState extends State<TournamentChatScreen> {
           children: [
             if (!isMe)
               GestureDetector(
-                onTap: () => _openUserProfile(data['senderId'] ?? ''),
+                onTap: () => _openUserProfile(data['senderId'] ?? '', displayName: senderName),
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 8, bottom: 4),
-                  child: Text(
-                    senderName,
-                    style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold),
+                  padding: const EdgeInsets.only(left: 4, bottom: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircleAvatar(
+                        radius: 11,
+                        backgroundColor: AppColors.coral,
+                        child: Text(
+                          senderName.isNotEmpty ? senderName[0].toUpperCase() : '?',
+                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        senderName,
+                        style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.info_outline_rounded, color: AppColors.gold, size: 12),
+                    ],
                   ),
                 ),
               ),

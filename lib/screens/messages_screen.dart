@@ -16,6 +16,7 @@ import 'clubs/club_detail_screen.dart';
 import 'clubs/group_chat_detail_screen.dart';
 import 'tournaments/tournament_detail_screen.dart';
 import 'tournaments/tournament_chat_screen.dart';
+import 'public_profile_screen.dart';
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
@@ -738,47 +739,50 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 },
                 child: Row(
                   children: [
-                    // Avatar with glowing border
-                    Stack(
-                      children: [
-                        Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const LinearGradient(
-                              colors: [AppColors.coral, AppColors.gold],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+                    // Avatar with glowing border (tappable to view profile)
+                    GestureDetector(
+                      onTap: () => PublicProfileScreen.open(context, player: otherUser),
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [AppColors.coral, AppColors.gold],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1.5),
                             ),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1.5),
-                          ),
-                          child: ClipOval(
-                            child: otherUser.photoUrl != null && otherUser.photoUrl!.isNotEmpty
-                                ? Image.network(otherUser.photoUrl!, fit: BoxFit.cover)
-                                : Center(
-                                    child: Text(
-                                      otherUser.displayName.isNotEmpty ? otherUser.displayName[0].toUpperCase() : "?",
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
+                            child: ClipOval(
+                              child: otherUser.photoUrl != null && otherUser.photoUrl!.isNotEmpty
+                                  ? Image.network(otherUser.photoUrl!, fit: BoxFit.cover)
+                                  : Center(
+                                      child: Text(
+                                        otherUser.displayName.isNotEmpty ? otherUser.displayName[0].toUpperCase() : "?",
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
+                                      ),
                                     ),
-                                  ),
+                            ),
                           ),
-                        ),
-                        if (isUnread)
-                          Positioned(
-                            top: 0,
-                            right: 0,
-                            child: Container(
-                              width: 14,
-                              height: 14,
-                              decoration: BoxDecoration(
-                                color: Colors.redAccent,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
+                          if (isUnread)
+                            Positioned(
+                              top: 0,
+                              right: 0,
+                              child: Container(
+                                width: 14,
+                                height: 14,
+                                decoration: BoxDecoration(
+                                  color: Colors.redAccent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 2),
+                                ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                     const SizedBox(width: 14),
                     // Names & Last message
@@ -1654,24 +1658,27 @@ class _NewMessageModalState extends State<_NewMessageModal> {
                             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                             child: Row(
                               children: [
-                                // Avatar
-                                Container(
-                                  width: 46,
-                                  height: 46,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: const LinearGradient(colors: [AppColors.coral, AppColors.gold]),
-                                    border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 1.5),
-                                  ),
-                                  child: ClipOval(
-                                    child: player.photoUrl != null && player.photoUrl!.isNotEmpty
-                                        ? Image.network(player.photoUrl!, fit: BoxFit.cover)
-                                        : Center(
-                                            child: Text(
-                                              initial,
-                                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                                // Avatar (tappable to view profile)
+                                GestureDetector(
+                                  onTap: () => PublicProfileScreen.open(context, player: player),
+                                  child: Container(
+                                    width: 46,
+                                    height: 46,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: const LinearGradient(colors: [AppColors.coral, AppColors.gold]),
+                                      border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 1.5),
+                                    ),
+                                    child: ClipOval(
+                                      child: player.photoUrl != null && player.photoUrl!.isNotEmpty
+                                          ? Image.network(player.photoUrl!, fit: BoxFit.cover)
+                                          : Center(
+                                              child: Text(
+                                                initial,
+                                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                                              ),
                                             ),
-                                          ),
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 14),

@@ -1,19 +1,173 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/colors.dart';
 import '../models/user.dart';
 import '../providers/app_state.dart';
 import 'chat_detail_screen.dart';
 import 'create_match_screen.dart';
 
-class PublicProfileScreen extends StatelessWidget {
-  final UserModel player;
+class PublicProfileScreen extends StatefulWidget {
+  final UserModel? player;
+  final String? userId;
+  final String? fallbackDisplayName;
+  final String? fallbackPhotoUrl;
+  final String? fallbackRanking;
+  final String? fallbackLocation;
 
-  const PublicProfileScreen({super.key, required this.player});
+  const PublicProfileScreen({
+    super.key,
+    this.player,
+    this.userId,
+    this.fallbackDisplayName,
+    this.fallbackPhotoUrl,
+    this.fallbackRanking,
+    this.fallbackLocation,
+  });
+
+  static void open(
+    BuildContext context, {
+    UserModel? player,
+    String? userId,
+    String? displayName,
+    String? photoUrl,
+    String? ranking,
+    String? location,
+  }) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PublicProfileScreen(
+          player: player,
+          userId: userId ?? player?.id,
+          fallbackDisplayName: displayName ?? player?.displayName,
+          fallbackPhotoUrl: photoUrl ?? player?.photoUrl,
+          fallbackRanking: ranking ?? player?.ranking,
+          fallbackLocation: location ?? player?.location,
+        ),
+      ),
+    );
+  }
+
+  @override
+  State<PublicProfileScreen> createState() => _PublicProfileScreenState();
+}
+
+class _PublicProfileScreenState extends State<PublicProfileScreen> {
+  UserModel? _resolvedPlayer;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.player != null) {
+      _resolvedPlayer = widget.player;
+    } else {
+      _loadPlayer();
+    }
+  }
+
+  Future<void> _loadPlayer() async {
+    final targetId = widget.userId;
+    // 1. Check in-memory AppState first
+    if (targetId != null && targetId.isNotEmpty) {
+      final appState = context.read<AppState>();
+      final local = appState.players.where((p) => p.id == targetId).firstOrNull;
+      if (local != null) {
+        if (mounted) setState(() => _resolvedPlayer = local);
+        return;
+      }
+    }
+
+    // 2. Fetch from Firestore if targetId is set
+    if (targetId != null && targetId.isNotEmpty) {
+      setState(() => _isLoading = true);
+      try {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(targetId).get();
+        if (doc.exists && doc.data() != null) {
+          if (mounted) {
+            setState(() {
+              _resolvedPlayer = UserModel.fromMap(doc.data()!, doc.id);
+              _isLoading = false;
+            });
+            return;
+          }
+        }
+      } catch (_) {
+        // Fallback below
+      }
+    }
+
+    // 3. Fallback synthetic UserModel if not registered or offline
+    if (mounted) {
+      setState(() {
+        _resolvedPlayer = UserModel(
+          id: targetId ?? 'unknown_${DateTime.now().millisecondsSinceEpoch}',
+          displayName: (widget.fallbackDisplayName != null && widget.fallbackDisplayName!.trim().isNotEmpty)
+              ? widget.fallbackDisplayName!.trim()
+              : 'Joueur Beach Tennis',
+          level: 3,
+          eloScore: 1000,
+          location: widget.fallbackLocation ?? 'France',
+          isPremium: false,
+          createdAt: DateTime.now(),
+          photoUrl: widget.fallbackPhotoUrl,
+          ranking: widget.fallbackRanking ?? 'NC',
+        );
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading || _resolvedPlayer == null) {
+      return Scaffold(
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/beach_sunset_players_1785052273648.jpg',
+                fit: BoxFit.cover,
+              ),
+            ),
+            Positioned.fill(
+              child: Container(color: Colors.black.withValues(alpha: 0.65)),
+            ),
+            SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          widget.fallbackDisplayName ?? "Profil du Joueur",
+                          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Expanded(
+                    child: Center(
+                      child: CircularProgressIndicator(color: AppColors.gold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final player = _resolvedPlayer!;
     final currentUser = context.watch<AppState>().currentUser;
     final bool isMe = currentUser != null && currentUser.id == player.id;
     final bool isFriend = currentUser != null && currentUser.friendsIds.contains(player.id);
