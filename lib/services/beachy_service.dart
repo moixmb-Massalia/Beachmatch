@@ -1,8 +1,10 @@
-/// Modèle d'action rapide associée à une réponse de Beachy
 enum BeachyActionType {
+  openHome,
   openMap,
   openTournaments,
   openRankings,
+  openCommunity,
+  openMessages,
   createMatch,
   openProfile,
   none,
@@ -22,7 +24,7 @@ class BeachyResponse {
   const BeachyResponse({required this.text, this.action});
 }
 
-/// Service autonome d'intelligence et d'arbitrage de Beachy
+/// Service autonome d'intelligence, d'orientation et d'arbitrage de Beachy
 class BeachyService {
   static final BeachyService _instance = BeachyService._internal();
   factory BeachyService() => _instance;
@@ -30,17 +32,35 @@ class BeachyService {
 
   /// Questions rapides suggérées au démarrage
   static const List<String> quickQuestions = [
-    "⚖️ Toucher le filet pendant le point ?",
-    "📏 Quelle est la hauteur officielle du filet ?",
-    "🎾 Comment créer une partie amicale ?",
-    "🏆 Où trouver les tournois homologués FFT ?",
-    "🎒 Quelle raquette choisir pour débuter ?",
-    "⚡ Comment fonctionne le No-Ad à 40-40 ?",
+    "🧭 Guide-moi dans l'application",
+    "🎾 Comment trouver ou créer un match ?",
+    "🏆 Où voir les tournois et le classement ?",
+    "🏖️ Comment trouver un terrain sur la carte ?",
+    "👥 Comment rejoindre un club ou un salon ?",
+    "⚖️ Litige : toucher le filet pendant le point ?",
+    "⚡ Règle du No-Ad à 40-40",
   ];
 
   /// Analyse et répond instantanément à n'importe quelle requête
   BeachyResponse answerQuery(String query) {
     final q = _normalize(query);
+
+    // 0. GUIDAGE DANS L'APPLI / CONFUSION / PERDU / OÙ ALLER
+    if (q.contains('guide') || q.contains('perdu') || q.contains('confusion') || q.contains('aide') ||
+        q.contains('comment ca marche') || q.contains('ou aller') || q.contains('navigation') ||
+        q.contains('menu') || q.contains('tuto') || q.contains('fonctionnalite') || q.contains('je cherche')) {
+      return const BeachyResponse(
+        text: "🧭 **Pas de panique, je te guide partout dans BeachMatch !** 🏖️\n\n"
+            "Voici les 5 univers de l'application :\n\n"
+            "• 🏠 **Accueil :** Tes parties du jour, ton rang ELO, et le bouton pour créer un match.\n"
+            "• 🗺️ **Carte :** Localise les terrains autour de toi (spots libres ou clubs avec réservation).\n"
+            "• 🏆 **Compétition :** Le calendrier des tournois FFT et le classement officiel Ten'Up.\n"
+            "• 👥 **Communauté :** Découvre les clubs de France, leurs espaces adhérents et salons.\n"
+            "• 💬 **Messages :** Tes discussions privées et chats de parties avec tes coéquipiers.\n\n"
+            "Où souhaites-tu te rendre maintenant ?",
+        action: BeachyAction(label: "Voir les Tournois 🏆", type: BeachyActionType.openTournaments),
+      );
+    }
 
     // 1. RÈGLE : Toucher le filet
     if (q.contains('filet') && (q.contains('touch') || q.contains('contact') || q.contains('faute'))) {
@@ -138,7 +158,7 @@ class BeachyService {
     }
 
     // 8. APP : Tournois FFT
-    if (q.contains('tournoi') || q.contains('competition') || q.contains('bt25') || q.contains('bt100') || q.contains('bt250') || q.contains('bt2000')) {
+    if (q.contains('tournoi') || q.contains('competition') || q.contains('calendrier') || q.contains('bt25') || q.contains('bt100') || q.contains('bt250') || q.contains('bt2000')) {
       return const BeachyResponse(
         text: "🏆 **Calendrier National des Tournois FFT :**\n\n"
             "Retrouve tous les tournois homologués en France (du BT 25 au BT 2000), le radar géographique et le bouton **SOS Partenaire** dans l'onglet Compétition.",
@@ -156,11 +176,29 @@ class BeachyService {
     }
 
     // 10. APP : Créer un match
-    if (q.contains('creer') || (q.contains('organis') && q.contains('match'))) {
+    if (q.contains('creer') || (q.contains('organis') && q.contains('match')) || q.contains('partie') || q.contains('jouer')) {
       return const BeachyResponse(
         text: "🎾 **Créer une partie sur BeachMatch :**\n\n"
             "Appuie sur le bouton **'Créer un match'** depuis l'accueil ou choisis directement un terrain sur la carte. Tape simplement la ville ou le club pour auto-remplir le spot et partage l'invitation sur WhatsApp !",
         action: BeachyAction(label: "Créer une Partie 🎾", type: BeachyActionType.createMatch),
+      );
+    }
+
+    // 10b. APP : Clubs & Communauté
+    if (q.contains('club') || q.contains('communaute') || q.contains('adherent') || q.contains('groupe')) {
+      return const BeachyResponse(
+        text: "👥 **Clubs & Communauté :**\n\n"
+            "Dans l'onglet **Communauté** (4ème icône en bas), découvre tous les clubs de Beach Tennis de France, rejoins leur salon pour discuter avec leurs joueurs et accède à l'espace président si tu diriges un club !",
+        action: BeachyAction(label: "Explorer la Communauté 👥", type: BeachyActionType.openCommunity),
+      );
+    }
+
+    // 10c. APP : Messagerie & Chats
+    if (q.contains('message') || q.contains('chat') || q.contains('discussion') || q.contains('salon')) {
+      return const BeachyResponse(
+        text: "💬 **Messagerie & Chats de Match :**\n\n"
+            "Rends-toi dans l'onglet **Messages** (5ème icône en bas) pour retrouver tes conversations privées avec d'autres joueurs et les canaux de discussion dédiés à tes matchs programmés.",
+        action: BeachyAction(label: "Ouvrir mes Messages 💬", type: BeachyActionType.openMessages),
       );
     }
 
@@ -185,26 +223,28 @@ class BeachyService {
     }
 
     // 13. SALUTATIONS / GÉNÉRAL
-    if (q.contains('bonjour') || q.contains('salut') || q.contains('hello') || q.contains('qui es-tu') || q.contains('qui es tu') || q.contains('aide')) {
+    if (q.contains('bonjour') || q.contains('salut') || q.contains('hello') || q.contains('qui es-tu') || q.contains('qui es tu')) {
       return const BeachyResponse(
-        text: "Salut champion ! ☀️ Je suis **Beachy**, ton assistant Beach Tennis officiel sur BeachMatch.\n\n"
+        text: "Salut champion ! ☀️ Je suis **Beachy**, ton guide officiel et arbitre sur BeachMatch.\n\n"
             "Je peux t'aider sur :\n"
+            "• 🧭 **T'orienter dans l'application** si tu es perdu ou cherches un écran\n"
             "• ⚖️ L'arbitrage et les litiges de règles en match\n"
             "• 🏖️ Trouver des terrains et spots de plage libres\n"
-            "• 🏆 T'orienter vers les tournois FFT et classements\n"
-            "• 🎾 Te guider dans l'utilisation de l'application\n\n"
+            "• 🏆 T'orienter vers les tournois FFT et classements\n\n"
             "Pose-moi ta question ou choisis un raccourci ci-dessous !",
+        action: BeachyAction(label: "Guide de l'App 🧭", type: BeachyActionType.openTournaments),
       );
     }
 
     // FALLBACK INTELLIGENT
     return BeachyResponse(
-      text: "Je suis là pour t'aider ! 🎾\n\n"
-          "Pour ta recherche « *$query* », voici les sujets les plus demandés :\n\n"
+      text: "Je suis là pour t'aider et te guider ! 🧭\n\n"
+          "Pour ta recherche « *$query* », voici ce que je peux faire pour toi :\n\n"
+          "• **Te guider :** Tape *'guide-moi'* ou demande où trouver un écran\n"
           "• **Règles officielles :** Tape *'toucher le filet'*, *'hauteur filet'*, ou *'service'*\n"
           "• **Terrains :** Tape *'trouver un terrain'*\n"
           "• **Tournois & Matchs :** Tape *'tournois'* ou *'créer un match'*\n\n"
-          "N'hésite pas à préciser ta question !",
+          "Que souhaites-tu explorer ?",
       action: const BeachyAction(label: "Ouvrir la Carte 🗺️", type: BeachyActionType.openMap),
     );
   }

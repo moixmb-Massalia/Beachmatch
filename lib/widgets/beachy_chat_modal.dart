@@ -48,12 +48,17 @@ class _BeachyChatModalState extends State<BeachyChatModal> {
   @override
   void initState() {
     super.initState();
-    // Message de bienvenue initial
+    // Message de bienvenue initial avec accent sur le guidage dans l'application
     _messages.add(
       BeachyChatMessage(
-        text: "Salut champion ! ☀️ Je suis **Beachy**, ton arbitre officiel et concierge BeachMatch.\n\n"
-            "Un litige de règle en plein match ? Besoin de trouver un terrain ou un tournoi ?\n\n"
-            "Pose-moi ta question ou choisis un raccourci rapide ci-dessous !",
+        text: "👋 Salut champion ! Je suis **Beachy**, ton guide officiel dans l'application BeachMatch ! 🏖️\n\n"
+            "Tu te sens un peu perdu ou tu cherches une fonctionnalité ? **Je peux t'orienter pas à pas et t'emmener au bon endroit :**\n\n"
+            "• 🎾 **Trouver ou créer une partie**\n"
+            "• 🏆 **Consulter les tournois et classements FFT**\n"
+            "• 🗺️ **Trouver un terrain libre ou un club**\n"
+            "• 👥 **Rejoindre des clubs & groupes de discussion**\n"
+            "• ⚖️ **Régler un litige de règle en plein match**\n\n"
+            "Dis-moi simplement ce que tu cherches ou clique sur un raccourci ci-dessous !",
         isUser: false,
         timestamp: DateTime.now(),
       ),
@@ -261,10 +266,10 @@ class _BeachyChatModalState extends State<BeachyChatModal> {
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.gavel_rounded, color: AppColors.gold, size: 10),
+                          Icon(Icons.explore_rounded, color: AppColors.gold, size: 10),
                           SizedBox(width: 3),
                           Text(
-                            "Arbitre FFT",
+                            "Guide & Arbitre IA",
                             style: TextStyle(
                               color: AppColors.gold,
                               fontSize: 9.5,
@@ -278,7 +283,7 @@ class _BeachyChatModalState extends State<BeachyChatModal> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  "Règles officielles · Terrains · Conseils",
+                  "Orientation dans l'application · Règles officielles",
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.65),
                     fontSize: 11.5,

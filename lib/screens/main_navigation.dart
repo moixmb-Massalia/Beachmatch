@@ -56,12 +56,21 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   void _handleBeachyAction(BeachyAction action) {
     switch (action.type) {
+      case BeachyActionType.openHome:
+        setState(() => _currentIndex = 0);
+        break;
       case BeachyActionType.openMap:
         setState(() => _currentIndex = 1);
         break;
       case BeachyActionType.openTournaments:
       case BeachyActionType.openRankings:
         setState(() => _currentIndex = 2);
+        break;
+      case BeachyActionType.openCommunity:
+        setState(() => _currentIndex = 3);
+        break;
+      case BeachyActionType.openMessages:
+        setState(() => _currentIndex = 4);
         break;
       case BeachyActionType.createMatch:
         Navigator.push(
@@ -92,18 +101,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             index: _currentIndex,
             children: _screens,
           ),
-          SafeArea(
-            child: AnimatedAlign(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeInOutCubic,
-              alignment: _currentIndex == 1 ? Alignment.bottomLeft : Alignment.bottomRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 96, left: 16, right: 16),
-                child: BeachyFloatingBubble(
-                  onActionSelected: _handleBeachyAction,
-                ),
-              ),
-            ),
+          BeachyFloatingBubble(
+            onActionSelected: _handleBeachyAction,
           ),
         ],
       ),
