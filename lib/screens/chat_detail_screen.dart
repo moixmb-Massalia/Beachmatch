@@ -56,7 +56,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Future<void> _pickAndSendImage(ImageSource source, String currentUserId) async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: source, imageQuality: 70);
+    final pickedFile = await picker.pickImage(
+      source: source,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 75,
+    );
     if (pickedFile == null) return;
 
     setState(() => _isSending = true);

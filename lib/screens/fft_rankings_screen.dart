@@ -195,6 +195,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
             child: Image.asset(
               'assets/images/beach_sunset_players_1785052273648.jpg',
               fit: BoxFit.cover,
+              cacheWidth: 1080,
             ),
           ),
           // Black Overlay 55%

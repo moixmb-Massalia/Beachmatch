@@ -237,6 +237,7 @@ class _ClubListScreenState extends State<ClubListScreen> {
                               width: 54,
                               height: 54,
                               fit: BoxFit.cover,
+                              cacheWidth: 150,
                               errorBuilder: (_, __, ___) => const Center(
                                 child: Icon(Icons.sports_tennis, color: Colors.white, size: 24),
                               ),
@@ -247,6 +248,7 @@ class _ClubListScreenState extends State<ClubListScreen> {
                             width: 54,
                             height: 54,
                             fit: BoxFit.cover,
+                            cacheWidth: 150,
                             errorBuilder: (_, __, ___) => const Center(
                               child: Icon(Icons.sports_tennis, color: Colors.white, size: 24),
                             ),

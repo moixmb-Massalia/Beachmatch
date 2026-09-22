@@ -130,6 +130,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
               child: Image.asset(
                 'assets/images/beach_sunset_players_1785052273648.jpg',
                 fit: BoxFit.cover,
+                cacheWidth: 1080,
               ),
             ),
             Positioned.fill(
@@ -180,6 +181,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             child: Image.asset(
               'assets/images/beach_sunset_players_1785052273648.jpg',
               fit: BoxFit.cover,
+              cacheWidth: 1080,
             ),
           ),
           Positioned.fill(

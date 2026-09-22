@@ -186,6 +186,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
             child: Image.asset(
               'assets/images/beach_court_aerial_1785052250131.jpg',
               fit: BoxFit.cover,
+              cacheWidth: 1080,
             ),
           ),
           Positioned.fill(

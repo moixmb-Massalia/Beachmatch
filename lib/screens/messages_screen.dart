@@ -907,6 +907,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   width: size,
                   height: size,
                   fit: BoxFit.cover,
+                  cacheWidth: 150,
                   errorBuilder: (_, __, ___) => const Center(
                     child: Icon(Icons.sports_tennis, color: Colors.white, size: 24),
                   ),
@@ -917,6 +918,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 width: size,
                 height: size,
                 fit: BoxFit.cover,
+                cacheWidth: 150,
                 errorBuilder: (_, __, ___) => const Center(
                   child: Icon(Icons.sports_tennis, color: Colors.white, size: 24),
                 ),

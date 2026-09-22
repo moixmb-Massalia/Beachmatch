@@ -235,6 +235,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
             child: Image.asset(
               'assets/images/beach_sunset_players_1785052273648.jpg',
               fit: BoxFit.cover,
+              cacheWidth: 1080,
             ),
           ),
           Positioned.fill(
@@ -359,6 +360,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                                                   width: 84,
                                                   height: 84,
                                                   fit: BoxFit.cover,
+                                                  cacheWidth: 200,
                                                   errorBuilder: (_, __, ___) => const Center(
                                                     child: Icon(Icons.sports_tennis, color: Colors.white, size: 36),
                                                   ),
@@ -369,6 +371,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                                                 width: 84,
                                                 height: 84,
                                                 fit: BoxFit.cover,
+                                                cacheWidth: 200,
                                                 errorBuilder: (_, __, ___) => const Center(
                                                   child: Icon(Icons.sports_tennis, color: Colors.white, size: 36),
                                                 ),

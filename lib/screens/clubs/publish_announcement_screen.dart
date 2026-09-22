@@ -131,6 +131,7 @@ class _PublishAnnouncementScreenState extends State<PublishAnnouncementScreen> {
             fit: BoxFit.cover,
             width: double.infinity,
             height: double.infinity,
+            cacheWidth: 1080,
           ),
           // Voile sombre dégradé cinéma intégral
           Container(

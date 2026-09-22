@@ -84,7 +84,12 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
 
   Future<void> _pickAndSendImage(UserModel currentUser) async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 75,
+    );
     if (pickedFile == null) return;
 
     setState(() => _isSending = true);
@@ -221,6 +226,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                           width: 40,
                           height: 40,
                           fit: BoxFit.cover,
+                          cacheWidth: 100,
                           errorBuilder: (_, __, ___) => const Center(
                             child: Icon(Icons.sports_tennis, color: Colors.white, size: 20),
                           ),
@@ -231,6 +237,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                         width: 40,
                         height: 40,
                         fit: BoxFit.cover,
+                        cacheWidth: 100,
                         errorBuilder: (_, __, ___) => const Center(
                           child: Icon(Icons.sports_tennis, color: Colors.white, size: 20),
                         ),

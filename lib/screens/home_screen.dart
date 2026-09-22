@@ -482,6 +482,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? Image.asset(
                         item.imageUrl,
                         fit: BoxFit.cover,
+                        cacheWidth: 600,
                       )
                     : Image.network(
                         item.imageUrl,

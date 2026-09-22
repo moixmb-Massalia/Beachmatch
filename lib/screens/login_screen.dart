@@ -73,6 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Image.asset(
               'assets/images/beach_sunset_players_1785052273648.jpg',
               fit: BoxFit.cover,
+              cacheWidth: 1080,
             ),
           ),
           // Dark Overlay for readability

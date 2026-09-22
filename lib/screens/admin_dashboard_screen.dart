@@ -228,7 +228,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: ListTile(
                 leading: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(item.imageUrl, width: 60, height: 60, fit: BoxFit.cover),
+                  child: Image.asset(item.imageUrl, width: 60, height: 60, fit: BoxFit.cover, cacheWidth: 150),
                 ),
                 title: Text(item.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 subtitle: Text(item.category, style: const TextStyle(color: AppColors.gold, fontSize: 12)),

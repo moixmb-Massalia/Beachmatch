@@ -99,6 +99,8 @@ class _TournamentChatScreenState extends State<TournamentChatScreen> {
     } else {
       pickedFile = await picker.pickImage(
         source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1200,
         imageQuality: 75,
       );
     }
