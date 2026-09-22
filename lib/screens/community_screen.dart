@@ -117,18 +117,22 @@ class _CommunityTabBar extends StatelessWidget {
     return Container(
       height: 46,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
+        color: Colors.black.withValues(alpha: 0.60),
         borderRadius: BorderRadius.circular(23),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22), width: 1),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.30), width: 1.2),
       ),
       child: TabBar(
         indicator: BoxDecoration(
           borderRadius: BorderRadius.circular(23),
-          color: AppColors.coral,
+          gradient: const LinearGradient(
+            colors: [AppColors.coral, Color(0xFFF97316)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           boxShadow: [
             BoxShadow(
-              color: AppColors.coral.withValues(alpha: 0.4),
-              blurRadius: 8,
+              color: AppColors.coral.withValues(alpha: 0.45),
+              blurRadius: 10,
               offset: const Offset(0, 2),
             ),
           ],
@@ -136,8 +140,8 @@ class _CommunityTabBar extends StatelessWidget {
         indicatorSize: TabBarIndicatorSize.tab,
         dividerColor: Colors.transparent,
         labelColor: Colors.white,
-        unselectedLabelColor: Colors.white70,
-        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+        unselectedLabelColor: Colors.white.withValues(alpha: 0.75),
+        labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
         tabs: const [
           Tab(
             child: Row(

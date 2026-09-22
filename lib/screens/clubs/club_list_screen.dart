@@ -19,6 +19,7 @@ class ClubListScreen extends StatefulWidget {
 class _ClubListScreenState extends State<ClubListScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
+  String _selectedRegionFilter = "Tous";
 
   String _getClubPhotoAsset(String name) {
     const beachPhotos = [
@@ -50,6 +51,8 @@ class _ClubListScreenState extends State<ClubListScreen> {
     final content = Column(
       children: [
         _buildSearchBar(),
+        _buildFilterChips(),
+        const SizedBox(height: 4),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance.collection('clubs').orderBy('name').snapshots(),
@@ -62,6 +65,20 @@ class _ClubListScreenState extends State<ClubListScreen> {
               }
               
               var clubs = snapshot.data?.docs.map((doc) => ClubModel.fromMap(doc.data() as Map<String, dynamic>, doc.id)).toList() ?? [];
+
+              if (_selectedRegionFilter == "Réunion 🇷🇪") {
+                clubs = clubs.where((c) {
+                  final loc = c.location.toLowerCase();
+                  final name = c.name.toLowerCase();
+                  return loc.contains('réunion') || loc.contains('reunion') || name.contains('bourbon') || name.contains('brisants');
+                }).toList();
+              } else if (_selectedRegionFilter == "Métropole 🇫🇷") {
+                clubs = clubs.where((c) {
+                  final loc = c.location.toLowerCase();
+                  final name = c.name.toLowerCase();
+                  return !loc.contains('réunion') && !loc.contains('reunion') && !name.contains('bourbon') && !name.contains('brisants');
+                }).toList();
+              }
 
               if (_searchQuery.trim().isNotEmpty) {
                 final queryTokens = _normalize(_searchQuery)
@@ -140,16 +157,16 @@ class _ClubListScreenState extends State<ClubListScreen> {
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.20),
+              color: Colors.black.withValues(alpha: 0.55),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.2),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.2),
             ),
             child: TextField(
               controller: _searchController,
@@ -161,7 +178,7 @@ class _ClubListScreenState extends State<ClubListScreen> {
               },
               decoration: InputDecoration(
                 hintText: 'Rechercher un club, une ville...',
-                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
                 prefixIcon: const Icon(Icons.search, color: AppColors.gold),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
@@ -179,6 +196,50 @@ class _ClubListScreenState extends State<ClubListScreen> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    final filters = ["Tous", "Métropole 🇫🇷", "Réunion 🇷🇪"];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: filters.map((filter) {
+            final isSelected = _selectedRegionFilter == filter;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(
+                  filter,
+                  style: TextStyle(
+                    color: isSelected ? Colors.black : Colors.white,
+                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                ),
+                selected: isSelected,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() => _selectedRegionFilter = filter);
+                  }
+                },
+                backgroundColor: Colors.black.withValues(alpha: 0.60),
+                selectedColor: AppColors.gold,
+                side: BorderSide(
+                  color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.35),
+                  width: 1.2,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                showCheckmark: false,
+              ),
+            );
+          }).toList(),
         ),
       ),
     );

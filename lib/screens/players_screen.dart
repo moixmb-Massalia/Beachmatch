@@ -123,9 +123,9 @@ class _PlayersScreenState extends State<PlayersScreen> {
                         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
+                            color: Colors.black.withValues(alpha: 0.55),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.2),
                           ),
                           child: TextField(
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -164,8 +164,9 @@ class _PlayersScreenState extends State<PlayersScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
+                      color: Colors.black.withValues(alpha: 0.55),
                       borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.2),
                     ),
                     padding: const EdgeInsets.all(4),
                     child: Row(
@@ -178,9 +179,25 @@ class _PlayersScreenState extends State<PlayersScreen> {
                               decoration: BoxDecoration(
                                 color: _selectedTabIndex == 0 ? AppColors.gold : Colors.transparent,
                                 borderRadius: BorderRadius.circular(12),
+                                boxShadow: _selectedTabIndex == 0
+                                    ? [
+                                        BoxShadow(
+                                          color: AppColors.gold.withValues(alpha: 0.35),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                    : null,
                               ),
                               alignment: Alignment.center,
-                              child: Text("Tous les joueurs", style: TextStyle(color: _selectedTabIndex == 0 ? Colors.white : Colors.white70, fontWeight: FontWeight.bold, fontSize: 13)),
+                              child: Text(
+                                "Tous les joueurs",
+                                style: TextStyle(
+                                  color: _selectedTabIndex == 0 ? Colors.black : Colors.white70,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 13,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -192,6 +209,15 @@ class _PlayersScreenState extends State<PlayersScreen> {
                               decoration: BoxDecoration(
                                 color: _selectedTabIndex == 1 ? AppColors.coral : Colors.transparent,
                                 borderRadius: BorderRadius.circular(12),
+                                boxShadow: _selectedTabIndex == 1
+                                    ? [
+                                        BoxShadow(
+                                          color: AppColors.coral.withValues(alpha: 0.40),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                    : null,
                               ),
                               alignment: Alignment.center,
                               child: Row(
@@ -199,7 +225,14 @@ class _PlayersScreenState extends State<PlayersScreen> {
                                 children: [
                                   Icon(Icons.handshake, size: 16, color: _selectedTabIndex == 1 ? Colors.white : Colors.white70),
                                   const SizedBox(width: 6),
-                                  Text("Recherche Partenaire", style: TextStyle(color: _selectedTabIndex == 1 ? Colors.white : Colors.white70, fontWeight: FontWeight.bold, fontSize: 13)),
+                                  Text(
+                                    "Recherche Partenaire",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: _selectedTabIndex == 1 ? FontWeight.w900 : FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -222,21 +255,29 @@ class _PlayersScreenState extends State<PlayersScreen> {
                           return Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: ChoiceChip(
-                              label: Text(filter),
+                              label: Text(
+                                filter,
+                                style: TextStyle(
+                                  color: isSelected ? Colors.black : Colors.white,
+                                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                                  fontSize: 12.5,
+                                ),
+                              ),
                               selected: isSelected,
                               onSelected: (selected) {
                                 if (selected) {
                                   setState(() => _selectedLevelFilter = filter);
                                 }
                               },
+                              backgroundColor: Colors.black.withValues(alpha: 0.60),
                               selectedColor: AppColors.gold,
-                              backgroundColor: Colors.white.withValues(alpha: 0.12),
-                              labelStyle: TextStyle(
-                                color: isSelected ? Colors.black : Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
+                              side: BorderSide(
+                                color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.35),
+                                width: 1.2,
                               ),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
                               showCheckmark: false,
                             ),
                           );
