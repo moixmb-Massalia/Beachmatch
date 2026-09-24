@@ -31,6 +31,14 @@ String translateAuthError(String code) {
       return 'Mot de passe incorrect.';
     case 'invalid-credential':
       return 'Email ou mot de passe incorrect.';
+    case 'popup-closed-by-user':
+      return 'La fenêtre de connexion a été fermée.';
+    case 'popup-blocked':
+      return 'La fenêtre de connexion a été bloquée par le navigateur. Veuillez autoriser les pop-ups.';
+    case 'account-exists-with-different-credential':
+      return 'Un compte existe déjà avec cette adresse email via un autre mode de connexion.';
+    case 'network-request-failed':
+      return 'Erreur de connexion réseau.';
     default:
       return 'Une erreur est survenue ($code).';
   }
@@ -42,6 +50,16 @@ class AppState extends ChangeNotifier {
     // Chargement immédiat et résilient des tournois et terrains dès l'instanciation
     loadTournaments(notify: false);
     _loadCourtsInternal();
+
+    if (kIsWeb) {
+      () async {
+        try {
+          await FirebaseAuth.instance.getRedirectResult();
+        } catch (e) {
+          debugPrint("getRedirectResult: $e");
+        }
+      }();
+    }
 
     FirebaseAuth.instance.authStateChanges().listen((user) async {
       try {
@@ -141,21 +159,41 @@ class AppState extends ChangeNotifier {
     bool isNewUser = false;
     
     try {
-      final googleSignIn = GoogleSignIn();
-      await googleSignIn.signOut().catchError((_) => null); // Force account picker safely
-      
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      if (googleUser == null) {
-        throw "Connexion Google annulée";
+      final UserCredential userCredential;
+      if (kIsWeb) {
+        final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        googleProvider.addScope('email');
+        googleProvider.addScope('profile');
+        googleProvider.setCustomParameters({'prompt': 'select_account'});
+        try {
+          userCredential = await FirebaseAuth.instance.signInWithPopup(googleProvider);
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'popup-closed-by-user') {
+            throw "Connexion Google annulée.";
+          }
+          if (e.code == 'popup-blocked') {
+            await FirebaseAuth.instance.signInWithRedirect(googleProvider);
+            return false;
+          }
+          rethrow;
+        }
+      } else {
+        final googleSignIn = GoogleSignIn();
+        await googleSignIn.signOut().catchError((_) => null); // Force account picker safely
+        
+        final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+        if (googleUser == null) {
+          throw "Connexion Google annulée";
+        }
+        
+        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+        final AuthCredential credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+        
+        userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
       }
-      
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final AuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-      
-      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
       
       if (userCredential.user != null) {
         // Sync with Firestore
@@ -191,10 +229,15 @@ class AppState extends ChangeNotifier {
         }
         
         // Ensure FCM Token is saved on login
-        await _updateFCMToken();
+        if (!kIsWeb) {
+          await _updateFCMToken();
+        }
         
         await loadData();
       }
+    } on FirebaseAuthException catch (e) {
+      debugPrint("Erreur FirebaseAuth Google : ${e.code} - ${e.message}");
+      throw translateAuthError(e.code);
     } catch (e) {
       debugPrint("Erreur de connexion : $e");
       rethrow; // Rethrow to let the UI know it failed
@@ -211,20 +254,51 @@ class AppState extends ChangeNotifier {
     bool isNewUser = false;
 
     try {
-      final appleCredential = await SignInWithApple.getAppleIDCredential(
-        scopes: [
-          AppleIDAuthorizationScopes.email,
-          AppleIDAuthorizationScopes.fullName,
-        ],
-      );
+      final UserCredential userCredential;
+      String displayName = "Joueur Apple";
 
-      final OAuthProvider oAuthProvider = OAuthProvider('apple.com');
-      final AuthCredential credential = oAuthProvider.credential(
-        idToken: appleCredential.identityToken,
-        accessToken: appleCredential.authorizationCode,
-      );
+      if (kIsWeb) {
+        final OAuthProvider appleProvider = OAuthProvider('apple.com');
+        appleProvider.addScope('email');
+        appleProvider.addScope('name');
+        try {
+          userCredential = await FirebaseAuth.instance.signInWithPopup(appleProvider);
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'popup-closed-by-user') {
+            throw "Connexion Apple annulée.";
+          }
+          if (e.code == 'popup-blocked') {
+            await FirebaseAuth.instance.signInWithRedirect(appleProvider);
+            return false;
+          }
+          rethrow;
+        }
+        if (userCredential.user?.displayName != null && userCredential.user!.displayName!.isNotEmpty) {
+          displayName = userCredential.user!.displayName!;
+        }
+      } else {
+        final appleCredential = await SignInWithApple.getAppleIDCredential(
+          scopes: [
+            AppleIDAuthorizationScopes.email,
+            AppleIDAuthorizationScopes.fullName,
+          ],
+        );
 
-      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+        final OAuthProvider oAuthProvider = OAuthProvider('apple.com');
+        final AuthCredential credential = oAuthProvider.credential(
+          idToken: appleCredential.identityToken,
+          accessToken: appleCredential.authorizationCode,
+        );
+
+        userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+
+        if (appleCredential.givenName != null || appleCredential.familyName != null) {
+          displayName = "${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}".trim();
+          if (displayName.isEmpty) displayName = "Joueur Apple";
+        } else if (userCredential.user?.displayName != null && userCredential.user!.displayName!.isNotEmpty) {
+          displayName = userCredential.user!.displayName!;
+        }
+      }
 
       if (userCredential.user != null) {
         final userRef = FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid);
@@ -232,11 +306,6 @@ class AppState extends ChangeNotifier {
 
         if (!userDoc.exists) {
           isNewUser = true;
-          String displayName = "Joueur Apple";
-          if (appleCredential.givenName != null || appleCredential.familyName != null) {
-            displayName = "${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}".trim();
-            if (displayName.isEmpty) displayName = "Joueur Apple";
-          }
           _currentUser = UserModel(
             id: userCredential.user!.uid,
             displayName: displayName,
@@ -260,10 +329,15 @@ class AppState extends ChangeNotifier {
           }
         }
 
-        await _updateFCMToken();
+        if (!kIsWeb) {
+          await _updateFCMToken();
+        }
         await loadData();
       }
       return isNewUser;
+    } on FirebaseAuthException catch (e) {
+      debugPrint("Erreur FirebaseAuth Apple : ${e.code} - ${e.message}");
+      throw translateAuthError(e.code);
     } catch (e) {
       debugPrint("Erreur de connexion Apple : $e");
       rethrow;
@@ -520,9 +594,11 @@ class AppState extends ChangeNotifier {
   Future<void> logout() async {
     _currentUser = null;
     _isLoading = false;
-    try {
-      await GoogleSignIn().signOut();
-    } catch (_) {}
+    if (!kIsWeb) {
+      try {
+        await GoogleSignIn().signOut();
+      } catch (_) {}
+    }
     await FirebaseAuth.instance.signOut();
     notifyListeners();
   }
@@ -541,9 +617,11 @@ class AppState extends ChangeNotifier {
       } catch (_) {}
       
       // Sign out from Google if signed in
-      try {
-        await GoogleSignIn().signOut();
-      } catch (_) {}
+      if (!kIsWeb) {
+        try {
+          await GoogleSignIn().signOut();
+        } catch (_) {}
+      }
 
       // Delete Firebase Auth user if active
       if (user != null) {

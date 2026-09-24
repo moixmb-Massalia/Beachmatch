@@ -294,7 +294,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                 _onLoginSuccess(isNewUser);
                               } catch (e) {
                                 if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(e.toString().replaceAll('Exception: ', '')),
+                                      backgroundColor: Colors.redAccent,
+                                    ),
+                                  );
                                 }
                               }
                             },
@@ -317,7 +322,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                 _onLoginSuccess(isNewUser);
                               } catch (e) {
                                 if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(e.toString().replaceAll('Exception: ', '')),
+                                      backgroundColor: Colors.redAccent,
+                                    ),
+                                  );
                                 }
                               }
                             },
