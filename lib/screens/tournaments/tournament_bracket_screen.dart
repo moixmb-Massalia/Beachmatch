@@ -24,8 +24,12 @@ class TournamentBracketScreen extends StatefulWidget {
 class _TournamentBracketScreenState extends State<TournamentBracketScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final TransformationController _mainTransformationController = TransformationController();
-  final TransformationController _consoTransformationController = TransformationController();
+
+  // Contrôleurs de défilement manuel direct (sans zoom)
+  final ScrollController _mainVerticalController = ScrollController();
+  final ScrollController _mainHorizontalController = ScrollController();
+  final ScrollController _consoVerticalController = ScrollController();
+  final ScrollController _consoHorizontalController = ScrollController();
 
   bool _isSaving = false;
   String _selectedCategory = 'double_messieurs';
@@ -67,8 +71,10 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
   @override
   void dispose() {
     _tabController.dispose();
-    _mainTransformationController.dispose();
-    _consoTransformationController.dispose();
+    _mainVerticalController.dispose();
+    _mainHorizontalController.dispose();
+    _consoVerticalController.dispose();
+    _consoHorizontalController.dispose();
     super.dispose();
   }
 
@@ -107,16 +113,16 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
     }
   }
 
-  void _zoomIn(TransformationController controller) {
-    controller.value = controller.value.scaledByDouble(1.25, 1.25, 1.0, 1.0);
-  }
-
-  void _zoomOut(TransformationController controller) {
-    controller.value = controller.value.scaledByDouble(0.8, 0.8, 1.0, 1.0);
-  }
-
-  void _resetZoom(TransformationController controller) {
-    controller.value = Matrix4.identity();
+  void _scrollToRound(ScrollController controller, int roundIndex) {
+    // Largeur de colonne (310) + marge (24) = 334px par tour
+    final targetOffset = roundIndex * 334.0;
+    if (controller.hasClients) {
+      controller.animateTo(
+        targetOffset.clamp(0.0, controller.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   @override
@@ -1265,7 +1271,8 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
 
   // ==========================================
   // TABLEAU PRINCIPAL (16-DRAW ELIMINATION)
-  // MULTI-MODE : ARBRE 2D ZOOMABLE + VUE LISTE
+  // DÉFILEMENT NATUREL MANUEL DE HAUT EN BAS & GAUCHE À DROITE
+  // SANS AUCUN ZOOM ACCIDENTEL
   // ==========================================
   Widget _buildMainDrawTab(TournamentBracket bracket) {
     if (bracket.mainMatches.isEmpty) {
@@ -1287,13 +1294,24 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
 
     return Column(
       children: [
-        // Barre d'outils Arbre (Toggle Vue + Boutons Zoom)
-        _buildBracketToolbar(_mainTransformationController),
+        // Barre d'outils Arbre avec raccourcis rapides des tours
+        _buildBracketToolbar(
+          horizontalController: _mainHorizontalController,
+          rounds: rounds,
+          sortedRoundKeys: sortedRoundKeys,
+        ),
 
-        // Zone de visualisation
+        // Zone de défilement manuel
         Expanded(
           child: _isTreeMode
-              ? _buildInteractiveTree(rounds, sortedRoundKeys, bracket, _mainTransformationController, isConsolation: false)
+              ? _buildManualTreeDraw(
+                  rounds: rounds,
+                  sortedRoundKeys: sortedRoundKeys,
+                  bracket: bracket,
+                  verticalController: _mainVerticalController,
+                  horizontalController: _mainHorizontalController,
+                  isConsolation: false,
+                )
               : _buildListDraw(rounds, sortedRoundKeys, bracket, isConsolation: false),
         ),
       ],
@@ -1320,10 +1338,21 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
 
     return Column(
       children: [
-        _buildBracketToolbar(_consoTransformationController),
+        _buildBracketToolbar(
+          horizontalController: _consoHorizontalController,
+          rounds: rounds,
+          sortedRoundKeys: sortedRoundKeys,
+        ),
         Expanded(
           child: _isTreeMode
-              ? _buildInteractiveTree(rounds, sortedRoundKeys, bracket, _consoTransformationController, isConsolation: true)
+              ? _buildManualTreeDraw(
+                  rounds: rounds,
+                  sortedRoundKeys: sortedRoundKeys,
+                  bracket: bracket,
+                  verticalController: _consoVerticalController,
+                  horizontalController: _consoHorizontalController,
+                  isConsolation: true,
+                )
               : _buildListDraw(rounds, sortedRoundKeys, bracket, isConsolation: true),
         ),
       ],
@@ -1331,13 +1360,17 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
   }
 
   // ==========================================
-  // BARRE D'OUTILS TABLEAU (ZOOM & MODE)
+  // BARRE D'OUTILS TABLEAU (SANS ZOOM - AVEC RACCOURCIS TOURS)
   // ==========================================
-  Widget _buildBracketToolbar(TransformationController controller) {
+  Widget _buildBracketToolbar({
+    required ScrollController horizontalController,
+    required Map<int, List<BracketMatch>> rounds,
+    required List<int> sortedRoundKeys,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.2),
+        color: Colors.black.withValues(alpha: 0.25),
         border: Border(
           bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
@@ -1349,7 +1382,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
             onTap: () => setState(() => _isTreeMode = !_isTreeMode),
             borderRadius: BorderRadius.circular(8),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
@@ -1364,7 +1397,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                   ),
                   const SizedBox(width: 5),
                   Text(
-                    _isTreeMode ? "Vue Liste" : "Vue Arbre Graphique",
+                    _isTreeMode ? "Vue Liste" : "Vue Arbre",
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 11,
@@ -1375,129 +1408,144 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
               ),
             ),
           ),
-          const Spacer(),
-          if (_isTreeMode) ...[
-            Text(
-              "Pinch / Glisser pour naviguer",
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 10,
+          const SizedBox(width: 12),
+          // Raccourcis de Tours direct (Pills)
+          if (_isTreeMode)
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: sortedRoundKeys.asMap().entries.map((entry) {
+                    final i = entry.key;
+                    final roundIdx = entry.value;
+                    final roundName = rounds[roundIdx]!.first.roundName;
+                    return InkWell(
+                      onTap: () => _scrollToRound(horizontalController, i),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: Text(
+                          roundName,
+                          style: const TextStyle(
+                            color: AppColors.gold,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
             ),
-            const SizedBox(width: 10),
-            // Zoom Out
-            _buildZoomButton(Icons.remove, () => _zoomOut(controller), "Dézoomer"),
-            const SizedBox(width: 6),
-            // Reset
-            _buildZoomButton(Icons.center_focus_strong, () => _resetZoom(controller), "Recentrer"),
-            const SizedBox(width: 6),
-            // Zoom In
-            _buildZoomButton(Icons.add, () => _zoomIn(controller), "Zoomer"),
-          ],
         ],
       ),
     );
   }
 
-  Widget _buildZoomButton(IconData icon, VoidCallback onTap, String tooltip) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.all(5),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: Colors.white24),
-          ),
-          child: Icon(icon, color: Colors.white, size: 14),
-        ),
-      ),
-    );
-  }
-
   // ==========================================
-  // VUE ARBRE GRAPHIQUE INTERACTIVE (INTERACTIVE VIEWER)
-  // SCROLL 2D FLUIDE + PINCH TO ZOOM + ZERO BLOCAGE
+  // VUE ARBRE DÉFILEMENT MANUEL LIBRE (SANS ZOOM)
+  // DÉFILEMENT VERTICAL NATUREL DU HAUT EN BAS (8 MATCHES)
+  // DÉFILEMENT HORIZONTAL FLUIDE (DES 8EMES À LA FINALE)
   // ==========================================
-  Widget _buildInteractiveTree(
-    Map<int, List<BracketMatch>> rounds,
-    List<int> sortedRoundKeys,
-    TournamentBracket bracket,
-    TransformationController controller, {
+  Widget _buildManualTreeDraw({
+    required Map<int, List<BracketMatch>> rounds,
+    required List<int> sortedRoundKeys,
+    required TournamentBracket bracket,
+    required ScrollController verticalController,
+    required ScrollController horizontalController,
     required bool isConsolation,
   }) {
-    return InteractiveViewer(
-      transformationController: controller,
-      boundaryMargin: const EdgeInsets.all(800),
-      minScale: 0.35,
-      maxScale: 2.5,
-      constrained: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 24, 60, 100),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: sortedRoundKeys.map((roundIdx) {
-            final matches = rounds[roundIdx]!;
-            final roundName = matches.first.roundName.toUpperCase();
-            final isFinalRound = roundIdx == sortedRoundKeys.last;
+    return Scrollbar(
+      controller: verticalController,
+      thumbVisibility: true,
+      thickness: 6,
+      radius: const Radius.circular(3),
+      child: SingleChildScrollView(
+        controller: verticalController,
+        scrollDirection: Axis.vertical,
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        child: Scrollbar(
+          controller: horizontalController,
+          thumbVisibility: true,
+          thickness: 6,
+          radius: const Radius.circular(3),
+          notificationPredicate: (notif) => notif.depth == 1,
+          child: SingleChildScrollView(
+            controller: horizontalController,
+            scrollDirection: Axis.horizontal,
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            padding: const EdgeInsets.fromLTRB(16, 16, 40, 120),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: sortedRoundKeys.map((roundIdx) {
+                final matches = rounds[roundIdx]!;
+                final roundName = matches.first.roundName.toUpperCase();
+                final isFinalRound = roundIdx == sortedRoundKeys.last;
 
-            return Container(
-              width: 310,
-              margin: const EdgeInsets.only(right: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // En-tête de tour Glassmorphism
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: isFinalRound
-                              ? AppColors.gold.withValues(alpha: 0.25)
-                              : Colors.white.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isFinalRound
-                                ? AppColors.gold
-                                : Colors.white.withValues(alpha: 0.2),
-                            width: isFinalRound ? 1.5 : 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (isFinalRound)
-                              const Padding(
-                                padding: EdgeInsets.only(right: 6),
-                                child: Icon(Icons.emoji_events, color: AppColors.gold, size: 16),
-                              ),
-                            Text(
-                              roundName,
-                              style: TextStyle(
-                                color: isFinalRound ? AppColors.gold : Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.0,
+                return Container(
+                  width: 310,
+                  margin: const EdgeInsets.only(right: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // En-tête de tour Glassmorphism
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: isFinalRound
+                                  ? AppColors.gold.withValues(alpha: 0.25)
+                                  : Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isFinalRound
+                                    ? AppColors.gold
+                                    : Colors.white.withValues(alpha: 0.2),
+                                width: isFinalRound ? 1.5 : 1,
                               ),
                             ),
-                          ],
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (isFinalRound)
+                                  const Padding(
+                                    padding: EdgeInsets.only(right: 6),
+                                    child: Icon(Icons.emoji_events, color: AppColors.gold, size: 16),
+                                  ),
+                                Text(
+                                  roundName,
+                                  style: TextStyle(
+                                    color: isFinalRound ? AppColors.gold : Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      // Liste de tous les matches du tour qui s'étendent en hauteur
+                      ...matches.map((m) => _buildMatchCard(m, bracket, isConsolation: isConsolation)),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  // Liste des matches du tour
-                  ...matches.map((m) => _buildMatchCard(m, bracket, isConsolation: isConsolation)),
-                ],
-              ),
-            );
-          }).toList(),
+                );
+              }).toList(),
+            ),
+          ),
         ),
       ),
     );
@@ -2637,14 +2685,8 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                   );
                 } else {
                   updated = updated.copyWith(
-                    mainMatches: updated.mainMatches.map((m) {
-                      if (m.id != match.id) return m;
-                      return m.copyWith(court: court, clearCourt: court == null);
-                    }).toList(),
-                    consolationMatches: updated.consolationMatches.map((m) {
-                      if (m.id != match.id) return m;
-                      return m.copyWith(court: court, clearCourt: court == null);
-                    }).toList(),
+                    mainMatches: updated.mainMatches.map((m) => m.id == match.id ? m.copyWith(court: court, clearCourt: court == null) : m).toList(),
+                    consolationMatches: updated.consolationMatches.map((m) => m.id == match.id ? m.copyWith(court: court, clearCourt: court == null) : m).toList(),
                   );
                 }
 
