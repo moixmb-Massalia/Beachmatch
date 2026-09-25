@@ -620,6 +620,139 @@ class BracketGeneratorService {
     );
   }
 
+  /// Réinitialise le score d'un match (remise à zéro / non joué)
+  /// Efface le vainqueur, remet le statut à 'scheduled', et retire les qualifications automatiques induites
+  static TournamentBracket resetMatchScore({
+    required TournamentBracket bracket,
+    required String matchId,
+    String? poolId,
+  }) {
+    if (poolId != null) {
+      // 1. Réinitialisation dans une Poule
+      final updatedPools = <TournamentPool>[];
+      for (final pool in bracket.pools) {
+        if (pool.id == poolId) {
+          final updatedMatches = pool.matches.map((m) {
+            if (m.id == matchId) {
+              return m.copyWith(
+                clearScore: true,
+                clearWinner: true,
+                status: 'scheduled',
+              );
+            }
+            return m;
+          }).toList();
+          updatedPools.add(pool.copyWith(matches: updatedMatches));
+        } else {
+          updatedPools.add(pool);
+        }
+      }
+
+      // Si les poules ne sont plus toutes deux complètes, nettoyer les paires qualifiées dans la phase finale
+      List<BracketMatch> updatedFinalMatches = List<BracketMatch>.from(bracket.mainMatches);
+      final poolA = updatedPools.firstWhere((p) => p.id == "poule_a", orElse: () => updatedPools.first);
+      final poolB = updatedPools.firstWhere((p) => p.id == "poule_b", orElse: () => updatedPools.last);
+      final allACompleted = poolA.matches.every((m) => m.isCompleted);
+      final allBCompleted = poolB.matches.every((m) => m.isCompleted);
+
+      if (!allACompleted || !allBCompleted) {
+        for (int i = 0; i < updatedFinalMatches.length; i++) {
+          final m = updatedFinalMatches[i];
+          if (m.id == "final_df1" || m.id == "final_df2" || m.id == "final_p56") {
+            updatedFinalMatches[i] = m.copyWith(
+              clearPair1: true,
+              clearPair2: true,
+              clearWinner: true,
+              clearScore: true,
+              status: 'pending',
+            );
+          } else if (m.id == "final_fin" || m.id == "final_p34") {
+            updatedFinalMatches[i] = m.copyWith(
+              clearPair1: true,
+              clearPair2: true,
+              clearWinner: true,
+              clearScore: true,
+              status: 'pending',
+            );
+          }
+        }
+      }
+
+      return bracket.copyWith(
+        pools: updatedPools,
+        mainMatches: updatedFinalMatches,
+        updatedAt: DateTime.now(),
+      );
+    } else {
+      // 2. Réinitialisation dans un Tableau Éliminatoire (Principal ou Consolante)
+      final isMain = bracket.mainMatches.any((m) => m.id == matchId);
+      final targetList = isMain
+          ? List<BracketMatch>.from(bracket.mainMatches)
+          : List<BracketMatch>.from(bracket.consolationMatches);
+      final matchIndex = targetList.indexWhere((m) => m.id == matchId);
+      if (matchIndex == -1) return bracket;
+
+      final match = targetList[matchIndex];
+      final resetMatch = match.copyWith(
+        clearScore: true,
+        clearWinner: true,
+        status: 'scheduled',
+      );
+      targetList[matchIndex] = resetMatch;
+
+      // Retirer le vainqueur du match suivant (nextMatch)
+      if (match.nextMatchId != null) {
+        final nextIdx = targetList.indexWhere((m) => m.id == match.nextMatchId);
+        if (nextIdx != -1) {
+          final nextMatch = targetList[nextIdx];
+          targetList[nextIdx] = nextMatch.copyWith(
+            clearPair1: match.nextMatchSlot == 1,
+            clearPair2: match.nextMatchSlot == 2,
+            clearWinner: true,
+            clearScore: true,
+            status: 'pending',
+          );
+        }
+      }
+
+      // Si consolationMatchId existe, retirer le perdant de la consolante
+      List<BracketMatch> updatedConso = List<BracketMatch>.from(bracket.consolationMatches);
+      if (match.consolationMatchId != null) {
+        if (bracket.format == 'pools_and_bracket') {
+          final cIdx = targetList.indexWhere((m) => m.id == match.consolationMatchId);
+          if (cIdx != -1) {
+            final cm = targetList[cIdx];
+            targetList[cIdx] = cm.copyWith(
+              clearPair1: match.consolationSlot == 1,
+              clearPair2: match.consolationSlot == 2,
+              clearWinner: true,
+              clearScore: true,
+              status: 'pending',
+            );
+          }
+        } else {
+          final cIdx = updatedConso.indexWhere((m) => m.id == match.consolationMatchId);
+          if (cIdx != -1) {
+            final cm = updatedConso[cIdx];
+            updatedConso[cIdx] = cm.copyWith(
+              clearPair1: match.consolationSlot == 1,
+              clearPair2: match.consolationSlot == 2,
+              clearWinner: true,
+              clearScore: true,
+              status: 'pending',
+            );
+          }
+        }
+      }
+
+      return bracket.copyWith(
+        mainMatches: isMain ? targetList : bracket.mainMatches,
+        consolationMatches: isMain ? (match.consolationMatchId != null ? updatedConso : bracket.consolationMatches) : targetList,
+        updatedAt: DateTime.now(),
+      );
+    }
+  }
+
   /// Assigne un terrain à un match
   static TournamentBracket assignCourt({
     required TournamentBracket bracket,

@@ -150,5 +150,47 @@ void main() {
       final df1 = overridden.mainMatches.firstWhere((m) => m.id == "final_df1");
       expect(df1.pair1?.id, "ha2");
     });
+
+    test('Reset Match Score (Remise à zéro / non joué)', () {
+      final pairs = [
+        const TournamentPair(id: "p1", player1Name: "P1", player1Rank: 100, player2Name: "P1b", player2Rank: 100),
+        const TournamentPair(id: "p2", player1Name: "P2", player1Rank: 200, player2Name: "P2b", player2Rank: 200),
+      ];
+
+      var bracket = BracketGeneratorService.generateBracket(
+        tournamentId: "test_reset",
+        category: "double_mixtes",
+        registeredPairs: pairs,
+        numCourts: 1,
+      );
+
+      final m1 = bracket.mainMatches.firstWhere((m) => m.roundIndex == 0 && m.matchIndex == 1);
+      final scored = BracketGeneratorService.recordMatchScore(
+        bracket: bracket,
+        matchId: m1.id,
+        score: "6/4 6/4",
+        winnerId: m1.pair1!.id,
+      );
+
+      final scoredM1 = scored.mainMatches.firstWhere((m) => m.id == m1.id);
+      expect(scoredM1.isCompleted, true);
+      expect(scoredM1.score, "6/4 6/4");
+
+      // Reset the match
+      final reset = BracketGeneratorService.resetMatchScore(
+        bracket: scored,
+        matchId: m1.id,
+      );
+
+      final resetM1 = reset.mainMatches.firstWhere((m) => m.id == m1.id);
+      expect(resetM1.isCompleted, false);
+      expect(resetM1.score, null);
+      expect(resetM1.winnerId, null);
+      expect(resetM1.status, 'scheduled');
+
+      // Next match slot should be cleared
+      final nextMatch = reset.mainMatches.firstWhere((m) => m.id == m1.nextMatchId);
+      expect(nextMatch.pair2, null);
+    });
   });
 }

@@ -2589,14 +2589,16 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                             );
                           }
                         },
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.check_circle_rounded, color: Colors.black, size: 20),
-                            SizedBox(width: 8),
+                            const Icon(Icons.check_circle_rounded, color: Colors.black, size: 20),
+                            const SizedBox(width: 8),
                             Text(
-                              "VALIDER & FAIRE AVANCER L'ARBRE",
-                              style: TextStyle(
+                              match.isCompleted
+                                  ? "METTRE À JOUR LE RÉSULTAT ⚡"
+                                  : "VALIDER & FAIRE AVANCER L'ARBRE ⚡",
+                              style: const TextStyle(
                                 color: Colors.black,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w900,
@@ -2606,6 +2608,102 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                           ],
                         ),
                       ),
+
+                      // 5. BOUTON SÉCURISÉ D'EFFACEMENT / REMISE À ZÉRO DU MATCH
+                      if (match.isCompleted || match.score != null || match.winnerId != null) ...[
+                        const SizedBox(height: 12),
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: const Color(0xFFEF4444).withValues(alpha: 0.7),
+                              width: 1.5,
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: () async {
+                            final sheetNav = Navigator.of(ctx);
+                            final messenger = ScaffoldMessenger.of(context);
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (c) => AlertDialog(
+                                backgroundColor: const Color(0xFF0F172A),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                                ),
+                                title: const Row(
+                                  children: [
+                                    Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444)),
+                                    SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        "Réinitialiser le match ?",
+                                        style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                content: Text(
+                                  "Voulez-vous effacer le score de ce match (${match.roundName}) ?\n\nLe match sera remis en statut 'À venir' et les qualifications ou progressions associées seront annulées.",
+                                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(c, false),
+                                    child: const Text("Annuler", style: TextStyle(color: Colors.white54)),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFEF4444),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    ),
+                                    onPressed: () => Navigator.pop(c, true),
+                                    child: const Text(
+                                      "Effacer le score",
+                                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirm == true) {
+                              sheetNav.pop();
+                              final updated = BracketGeneratorService.resetMatchScore(
+                                bracket: bracket,
+                                matchId: match.id,
+                                poolId: poolId,
+                              );
+                              await _saveBracket(updated);
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text("↩️ Match réinitialisé avec succès (remis à zéro) !"),
+                                  backgroundColor: Color(0xFFEF4444),
+                                  duration: Duration(seconds: 3),
+                                ),
+                              );
+                            }
+                          },
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.restart_alt_rounded, color: Color(0xFFEF4444), size: 18),
+                              SizedBox(width: 8),
+                              Text(
+                                "Effacer / Réinitialiser ce match (Remise à zéro)",
+                                style: TextStyle(
+                                  color: Color(0xFFEF4444),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
