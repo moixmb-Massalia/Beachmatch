@@ -2,9 +2,12 @@ import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../models/tournament.dart';
 import '../../models/tournament_bracket_model.dart';
+import '../../models/court_call_model.dart';
 import '../../services/bracket_generator_service.dart';
+import '../../services/tournament_pdf_service.dart';
 import '../../theme/colors.dart';
 
 class TournamentBracketScreen extends StatefulWidget {
@@ -125,6 +128,77 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
     }
   }
 
+  Future<void> _broadcastCourtCall({
+    required int court,
+    required String roundName,
+    required String pair1Name,
+    required String pair2Name,
+  }) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('tournaments')
+          .doc(widget.tournament.id)
+          .collection('court_calls')
+          .add({
+        'tournamentId': widget.tournament.id,
+        'category': _selectedCategory,
+        'court': court,
+        'roundName': roundName,
+        'pair1Name': pair1Name,
+        'pair2Name': pair2Name,
+        'calledAt': DateTime.now().toIso8601String(),
+        'isActive': true,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("📢 Appel diffusé en direct : Convoqués sur le Court $court !"),
+            backgroundColor: AppColors.gold,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur lors de l'appel : $e"), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  Future<void> _dismissCourtCall(String callId) async {
+    await FirebaseFirestore.instance
+        .collection('tournaments')
+        .doc(widget.tournament.id)
+        .collection('court_calls')
+        .doc(callId)
+        .update({'isActive': false});
+  }
+
+  void _shareCallMessage({
+    required int court,
+    required String roundName,
+    required String pair1Name,
+    required String pair2Name,
+  }) {
+    final text = "📢 CONVOCATION OFFICIELLE BEACH TENNIS\n"
+        "🏆 Tournoi : ${widget.tournament.name}\n"
+        "📍 Match : $roundName\n"
+        "🎾 Paire 1 : $pair1Name\n"
+        "🎾 Paire 2 : $pair2Name\n"
+        "⚡ TERRAIN ATTRIBUÉ : COURT $court\n"
+        "Merci de vous présenter immédiatement sur le terrain !";
+
+    SharePlus.instance.share(
+      ShareParams(
+        text: text,
+        subject: "Convocation Match Court $court",
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -159,11 +233,14 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
           SafeArea(
             child: Column(
               children: [
-                // Top App Bar personnalisé Glassmorphism
+                // Top App Bar personnalisé Glassmorphism avec Export PDF
                 _buildCustomAppBar(),
 
                 // Sélecteur de Catégorie (Hommes / Dames / Mixtes)
                 _buildCategorySelector(),
+
+                // Bannière d'Appel des Joueurs sur le Terrain en Direct (Live Ticker)
+                _buildLiveCourtCallBanner(),
 
                 // Stream Firestore du Tableau
                 Expanded(
@@ -248,7 +325,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
   }
 
   // ==========================================
-  // TOP APP BAR CUSTOM GLASSMORPHISM
+  // TOP APP BAR CUSTOM GLASSMORPHISM AVEC BOUTON PDF FFT
   // ==========================================
   Widget _buildCustomAppBar() {
     return Container(
@@ -328,6 +405,24 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
               ],
             ),
           ),
+          // Bouton Export PDF Officiel FFT
+          Tooltip(
+            message: "Exporter Feuille Officielle FFT (PDF)",
+            child: InkWell(
+              onTap: _exportPdf,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.5), width: 1.1),
+                ),
+                child: const Icon(Icons.picture_as_pdf_rounded, color: AppColors.gold, size: 16),
+              ),
+            ),
+          ),
           // Toggle JAT Express
           InkWell(
             onTap: () {
@@ -389,6 +484,151 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _exportPdf() async {
+    try {
+      final doc = await _bracketRef.get();
+      if (!doc.exists || doc.data() == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Aucune donnée de tableau à exporter en PDF")),
+          );
+        }
+        return;
+      }
+
+      final bracket = TournamentBracket.fromMap(doc.data()!, widget.tournament.id);
+      await TournamentPdfService.generateAndExportPdf(
+        tournament: widget.tournament,
+        bracket: bracket,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur lors de l'export PDF : $e"), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  // ==========================================
+  // BANNIERE D'APPEL DES JOUEURS EN DIRECT (LIVE TICKER)
+  // ==========================================
+  Widget _buildLiveCourtCallBanner() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('tournaments')
+          .doc(widget.tournament.id)
+          .collection('court_calls')
+          .where('isActive', isEqualTo: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final doc = snapshot.data!.docs.first;
+        final call = CourtCallModel.fromMap(doc.data(), doc.id);
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.gold.withValues(alpha: 0.35),
+                      const Color(0xFFE11D48).withValues(alpha: 0.25),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.gold, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.gold.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: const BoxDecoration(
+                        color: AppColors.gold,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.campaign_rounded, color: Colors.black, size: 18),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                "APPEL COURT ${call.court}",
+                                style: const TextStyle(
+                                  color: AppColors.gold,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: Colors.redAccent.withValues(alpha: 0.3),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  "EN DIRECT",
+                                  style: TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            "${call.pair1Name} vs ${call.pair2Name}",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_isJat) ...[
+                      // Bouton Acquitter Appel
+                      IconButton(
+                        icon: const Icon(Icons.check_circle_outline, color: Colors.white70, size: 20),
+                        tooltip: "Clôturer l'appel",
+                        onPressed: () => _dismissCourtCall(call.id),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -872,7 +1112,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                     ),
                     if (_isJat)
                       Text(
-                        "1-Clic pour arbitrer",
+                        "1-Clic pour arbitrer / convoquer",
                         style: TextStyle(
                           color: AppColors.gold.withValues(alpha: 0.8),
                           fontSize: 10,
@@ -1134,6 +1374,38 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                // Bouton Appel Terrain Rapide
+                if (!match.isCompleted && match.pair1 != null && match.pair2 != null) ...[
+                  InkWell(
+                    onTap: () => _broadcastCourtCall(
+                      court: match.court ?? 1,
+                      roundName: match.roundName,
+                      pair1Name: match.pair1!.displayName,
+                      pair2Name: match.pair2!.displayName,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.campaign_rounded, size: 14, color: AppColors.gold),
+                          SizedBox(width: 4),
+                          Text(
+                            "Appeler",
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
                 InkWell(
                   onTap: () => _showQuickJatActionSheet(match, bracket, poolId: pool.id),
                   borderRadius: BorderRadius.circular(8),
@@ -1452,8 +1724,6 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
 
   // ==========================================
   // VUE ARBRE DÉFILEMENT MANUEL LIBRE (SANS ZOOM)
-  // DÉFILEMENT VERTICAL NATUREL DU HAUT EN BAS (8 MATCHES)
-  // DÉFILEMENT HORIZONTAL FLUIDE (DES 8EMES À LA FINALE)
   // ==========================================
   Widget _buildManualTreeDraw({
     required Map<int, List<BracketMatch>> rounds,
@@ -1751,6 +2021,38 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    // Bouton Appel Terrain Direct
+                    if (!match.isCompleted && match.pair1 != null && match.pair2 != null) ...[
+                      InkWell(
+                        onTap: () => _broadcastCourtCall(
+                          court: match.court ?? 1,
+                          roundName: match.roundName,
+                          pair1Name: match.pair1!.displayName,
+                          pair2Name: match.pair2!.displayName,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          margin: const EdgeInsets.only(right: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white24),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.campaign_rounded, size: 14, color: AppColors.gold),
+                              SizedBox(width: 4),
+                              Text(
+                                "Appeler",
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                     InkWell(
                       onTap: () => _showQuickJatActionSheet(match, bracket),
                       borderRadius: BorderRadius.circular(8),
@@ -1904,7 +2206,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
 
   // ==========================================
   // JAT ACTION SHEET EXPRESS (GAIN DE TEMPS MAXIMAL !)
-  // Saisie du Vainqueur en 1 Clic + Formats Prédéfinis FFT + Terrain Direct
+  // Saisie du Vainqueur en 1 Clic + Formats Prédéfinis FFT + Terrain Direct + Bouton Appel Terrain
   // ==========================================
   void _showQuickJatActionSheet(
     BracketMatch match,
@@ -2103,15 +2405,50 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                       ),
                       const SizedBox(height: 16),
 
-                      // 3. TERRAIN DE JEU
-                      const Text(
-                        "3. TERRAIN ATTRIBUÉ",
-                        style: TextStyle(
-                          color: AppColors.gold,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.8,
-                        ),
+                      // 3. TERRAIN DE JEU & APPEL TERRAIN
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            "3. TERRAIN ATTRIBUÉ",
+                            style: TextStyle(
+                              color: AppColors.gold,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          if (selectedCourt != null)
+                            InkWell(
+                              onTap: () {
+                                _broadcastCourtCall(
+                                  court: selectedCourt!,
+                                  roundName: match.roundName,
+                                  pair1Name: match.pair1!.displayName,
+                                  pair2Name: match.pair2!.displayName,
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppColors.gold.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.campaign_rounded, size: 13, color: AppColors.gold),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      "Diffuser l'appel 📢",
+                                      style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 8),
                       Row(
@@ -2128,6 +2465,39 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                           ],
                         ],
                       ),
+                      const SizedBox(height: 10),
+
+                      // Partage WhatsApp / SMS
+                      if (selectedCourt != null)
+                        InkWell(
+                          onTap: () {
+                            _shareCallMessage(
+                              court: selectedCourt!,
+                              roundName: match.roundName,
+                              pair1Name: match.pair1!.displayName,
+                              pair2Name: match.pair2!.displayName,
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.greenAccent.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.share_rounded, size: 14, color: Colors.greenAccent),
+                                SizedBox(width: 6),
+                                Text(
+                                  "Envoyer la convocation (WhatsApp / SMS)",
+                                  style: TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 20),
 
                       // 4. BOUTON UNIQUE DE VALIDATION
