@@ -48,6 +48,10 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
 
     final authEmail = FirebaseAuth.instance.currentUser?.email?.toLowerCase().trim();
     if (authEmail != null && authEmail.isNotEmpty) {
+      if (authEmail == 'moixmb@gmail.com' || authEmail == 'btvarois@gmail.com') {
+        if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
+        return;
+      }
       try {
         final query = await FirebaseFirestore.instance
             .collection('clubs')

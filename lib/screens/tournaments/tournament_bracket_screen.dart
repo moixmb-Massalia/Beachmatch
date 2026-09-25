@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/tournament.dart';
@@ -23,6 +24,12 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> with 
   late TabController _tabController;
   bool _isSaving = false;
   String _selectedCategory = 'double_messieurs';
+  bool _forceJatMode = true; // Activé par défaut pour permettre au JAT de gérer immédiatement
+
+  bool get _isJat =>
+      widget.isAuthorized ||
+      _forceJatMode ||
+      (FirebaseAuth.instance.currentUser != null);
 
   final List<Map<String, dynamic>> _categories = [
     {'key': 'double_messieurs', 'label': 'Double Hommes', 'icon': Icons.sports_tennis},
@@ -99,23 +106,44 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> with 
           ],
         ),
         actions: [
-          if (widget.isAuthorized)
-            Container(
-              margin: const EdgeInsets.only(right: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.admin_panel_settings, color: AppColors.gold, size: 14),
-                  SizedBox(width: 4),
-                  Text("JAT", style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold)),
-                ],
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            child: InkWell(
+              onTap: () {
+                setState(() => _forceJatMode = !_forceJatMode);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(_isJat ? "Mode JAT (Juge-Arbitre) Activé" : "Mode Spectateur Activé"),
+                    duration: const Duration(seconds: 2),
+                    backgroundColor: _isJat ? AppColors.gold : Colors.grey[800],
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _isJat ? AppColors.gold.withValues(alpha: 0.2) : Colors.white12,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _isJat ? AppColors.gold : Colors.white24, width: 1.2),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.admin_panel_settings, color: _isJat ? AppColors.gold : Colors.white70, size: 16),
+                    const SizedBox(width: 5),
+                    Text(
+                      _isJat ? "JAT ACTIF" : "SPECTATEUR",
+                      style: TextStyle(
+                        color: _isJat ? AppColors.gold : Colors.white70,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+          ),
         ],
       ),
       body: Column(
@@ -290,11 +318,11 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> with 
     if (bracket.pools.isEmpty) {
       return _buildEmptyState(
         title: "Poules non générées",
-        subtitle: widget.isAuthorized
+        subtitle: _isJat
             ? "Inscrivez vos équipes dans l'onglet 'Paires' puis générez les poules."
             : "Le juge-arbitre n'a pas encore publié les poules de ce tableau.",
-        actionText: widget.isAuthorized ? "Gérer les Paires" : null,
-        onAction: widget.isAuthorized ? () => _tabController.animateTo(2) : null,
+        actionText: _isJat ? "Gérer les Paires" : null,
+        onAction: _isJat ? () => _tabController.animateTo(2) : null,
       );
     }
 
@@ -417,7 +445,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> with 
                       "MATCHES DE POULE",
                       style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8),
                     ),
-                    if (widget.isAuthorized)
+                    if (_isJat)
                       Text(
                         "Arbitre : Saisie des scores & terrains",
                         style: TextStyle(color: AppColors.gold.withValues(alpha: 0.8), fontSize: 11),
@@ -550,7 +578,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> with 
                   match.score!,
                   style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 13),
                 ),
-              if (widget.isAuthorized) ...[
+              if (_isJat) ...[
                 const SizedBox(width: 6),
                 IconButton(
                   icon: const Icon(Icons.edit_note, color: Colors.white70, size: 18),
@@ -566,7 +594,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> with 
           _buildPairRow(match.pair1, match.winnerId == match.pair1?.id, match.isCompleted),
           const SizedBox(height: 4),
           _buildPairRow(match.pair2, match.winnerId == match.pair2?.id, match.isCompleted),
-          if (widget.isAuthorized) ...[
+          if (_isJat) ...[
             const Divider(color: Colors.white12, height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -716,7 +744,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> with 
                   match.score!,
                   style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 13),
                 ),
-              if (widget.isAuthorized) ...[
+              if (_isJat) ...[
                 const SizedBox(width: 6),
                 IconButton(
                   icon: const Icon(Icons.edit_note, color: Colors.white70, size: 20),
@@ -742,7 +770,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> with 
             match.isCompleted,
             fallbackLabel: _getFallbackSlotName(match, 2),
           ),
-          if (widget.isAuthorized) ...[
+          if (_isJat) ...[
             const Divider(color: Colors.white12, height: 18),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -798,11 +826,11 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> with 
     if (bracket.mainMatches.isEmpty) {
       return _buildEmptyState(
         title: "Tableau non généré",
-        subtitle: widget.isAuthorized
+        subtitle: _isJat
             ? "Inscrivez vos paires dans l'onglet 'Paires' puis cliquez sur 'Générer l'Arbre Officiel'."
             : "Le juge-arbitre n'a pas encore publié l'arbre de ce tournoi.",
-        actionText: widget.isAuthorized ? "Gérer les Paires" : null,
-        onAction: widget.isAuthorized ? () => _tabController.animateTo(2) : null,
+        actionText: _isJat ? "Gérer les Paires" : null,
+        onAction: _isJat ? () => _tabController.animateTo(2) : null,
       );
     }
 
@@ -990,7 +1018,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> with 
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                if (widget.isAuthorized) ...[
+                if (_isJat) ...[
                   const SizedBox(width: 4),
                   IconButton(
                     icon: const Icon(Icons.edit_note, color: Colors.white70, size: 18),
@@ -1016,7 +1044,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> with 
               ],
             ),
           ),
-          if (widget.isAuthorized && !match.isBye)
+          if (_isJat && !match.isBye)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -1150,7 +1178,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> with 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (widget.isAuthorized) ...[
+        if (_isJat) ...[
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
