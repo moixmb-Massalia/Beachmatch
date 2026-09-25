@@ -17,6 +17,7 @@ import '../../widgets/tournament_live_scores_card.dart';
 import '../../models/partner_request.dart';
 import '../../services/whatsapp_share_service.dart';
 import 'tournament_chat_screen.dart';
+import 'tournament_bracket_screen.dart';
 import '../public_profile_screen.dart';
 
 class TournamentDetailScreen extends StatefulWidget {
@@ -311,6 +312,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                       // 💬 CHAT OFFICIEL & SALON DES JOUEURS (ULTRA VISIBLE & DYNAMIQUE)
                       _buildTournamentChatHeroCard(context),
 
+                      // 🌳 ARBRE & TABLEAU OFFICIEL FFT
+                      _buildTournamentBracketHeroCard(context),
+
                       // 🔴 LIVE SCORES EN DIRECT (Jeu par Jeu)
                       TournamentLiveScoresCard(
                         tournament: widget.tournament,
@@ -407,6 +411,33 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                                 style: TextStyle(color: Colors.white70, fontSize: 12),
                               ),
                               const SizedBox(height: 14),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.gold,
+                                    foregroundColor: Colors.black,
+                                    padding: const EdgeInsets.symmetric(vertical: 13),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                    elevation: 3,
+                                  ),
+                                  icon: const Icon(Icons.account_tree_rounded, size: 20),
+                                  label: const Text(
+                                    "Gérer l'Arbre du Tournoi & Scores (JAT)",
+                                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                                  ),
+                                  onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => TournamentBracketScreen(
+                                        tournament: widget.tournament,
+                                        isAuthorized: true,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
                               Row(
                                 children: [
                                   // Edit button
@@ -1831,6 +1862,219 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
           fontWeight: FontWeight.bold,
         ),
       ),
+    );
+  }
+
+  Widget _buildTournamentBracketHeroCard(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('tournaments')
+          .doc(widget.tournament.id)
+          .collection('bracket')
+          .doc('current')
+          .snapshots(),
+      builder: (context, snapshot) {
+        final data = (snapshot.hasData && snapshot.data?.exists == true)
+            ? snapshot.data!.data()
+            : null;
+
+        final isGenerated = data != null && (data['mainMatches'] as List?)?.isNotEmpty == true;
+        final pairsCount = (data?['pairs'] as List?)?.length ?? 0;
+        final status = data?['status'] ?? 'draft';
+
+        String statusLabel = "TABLEAU OFFICIEL FFT";
+        Color statusColor = AppColors.gold;
+        String desc = "Consultez l'arbre, les têtes de série et les résultats des matches";
+
+        if (status == 'finished') {
+          statusLabel = "TOURNOI TERMINÉ";
+          statusColor = const Color(0xFF10B981);
+          desc = "Résultats officiels et palmarès final du tournoi";
+        } else if (isGenerated) {
+          statusLabel = "TABLEAU EN DIRECT";
+          statusColor = AppColors.coral;
+          desc = "$pairsCount paires en lice • Scores des matches en temps réel";
+        } else if (pairsCount > 0) {
+          statusLabel = "INSCRIPTIONS EN COURS";
+          desc = "$pairsCount paires inscrites • Tirage officiel à venir";
+        }
+
+        return GestureDetector(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => TournamentBracketScreen(
+                  tournament: widget.tournament,
+                  isAuthorized: !_isCheckingAuth && _isAuthorized,
+                ),
+              ),
+            );
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 22),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF1E293B), // Deep navy
+                  Color(0xFF0F172A), // Dark slate
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: AppColors.gold.withValues(alpha: 0.6),
+                width: 1.8,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.gold.withValues(alpha: 0.20),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [AppColors.gold, Color(0xFFEAB308)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.gold.withValues(alpha: 0.4),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Icon(Icons.account_tree_rounded, color: Colors.black, size: 26),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: statusColor.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: statusColor.withValues(alpha: 0.5)),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.circle, color: statusColor, size: 6),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            statusLabel,
+                                            style: TextStyle(
+                                              color: statusColor,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (!_isCheckingAuth && _isAuthorized) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.gold.withValues(alpha: 0.2),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+                                        ),
+                                        child: const Text(
+                                          "JAT",
+                                          style: TextStyle(color: AppColors.gold, fontSize: 9, fontWeight: FontWeight.w900),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 5),
+                                const Text(
+                                  "Tableau & Arbre du Tournoi",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16.5,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.gold.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.gold, size: 14),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline_rounded, color: AppColors.gold, size: 16),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                desc,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
