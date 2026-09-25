@@ -841,43 +841,47 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> with 
     final sortedRoundKeys = rounds.keys.toList()..sort();
 
     return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: sortedRoundKeys.map((roundIdx) {
-          final matches = rounds[roundIdx]!;
-          final roundName = matches.first.roundName.toUpperCase();
-          return Container(
-            width: 300,
-            margin: const EdgeInsets.only(right: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
-                  ),
-                  child: Text(
-                    roundName,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.gold,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.8,
+      scrollDirection: Axis.vertical,
+      physics: const BouncingScrollPhysics(),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 80),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: sortedRoundKeys.map((roundIdx) {
+            final matches = rounds[roundIdx]!;
+            final roundName = matches.first.roundName.toUpperCase();
+            return Container(
+              width: 300,
+              margin: const EdgeInsets.only(right: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      roundName,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.gold,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.8,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                ...matches.map((m) => _buildMatchCard(m, bracket, isConsolation: false)),
-              ],
-            ),
-          );
-        }).toList(),
+                  const SizedBox(height: 16),
+                  ...matches.map((m) => _buildMatchCard(m, bracket, isConsolation: false)),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -900,43 +904,47 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> with 
     final sortedRoundKeys = rounds.keys.toList()..sort();
 
     return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: sortedRoundKeys.map((roundIdx) {
-          final matches = rounds[roundIdx]!;
-          final roundName = matches.first.roundName.toUpperCase();
-          return Container(
-            width: 300,
-            margin: const EdgeInsets.only(right: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.coral.withValues(alpha: 0.3)),
-                  ),
-                  child: Text(
-                    roundName,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.coral,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.8,
+      scrollDirection: Axis.vertical,
+      physics: const BouncingScrollPhysics(),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 80),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: sortedRoundKeys.map((roundIdx) {
+            final matches = rounds[roundIdx]!;
+            final roundName = matches.first.roundName.toUpperCase();
+            return Container(
+              width: 300,
+              margin: const EdgeInsets.only(right: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.coral.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      roundName,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.coral,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.8,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                ...matches.map((m) => _buildMatchCard(m, bracket, isConsolation: true)),
-              ],
-            ),
-          );
-        }).toList(),
+                  const SizedBox(height: 16),
+                  ...matches.map((m) => _buildMatchCard(m, bracket, isConsolation: true)),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
