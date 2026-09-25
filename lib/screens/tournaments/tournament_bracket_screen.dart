@@ -153,9 +153,19 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("📢 Appel diffusé en direct : Convoqués sur le Court $court !"),
+            content: Text("📢 Appel diffusé : Convoqués sur Court $court !"),
             backgroundColor: AppColors.gold,
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: "Partager WhatsApp",
+              textColor: const Color(0xFF0F172A),
+              onPressed: () => _shareCallMessage(
+                court: court,
+                roundName: roundName,
+                pair1Name: pair1Name,
+                pair2Name: pair2Name,
+              ),
+            ),
           ),
         );
       }
