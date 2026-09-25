@@ -63,6 +63,111 @@ class TournamentPdfService {
     );
   }
 
+  /// Génère un texte structuré récapitulant les résultats officiels du tournoi pour le JAT
+  static String generateTextSummary({
+    required TournamentModel tournament,
+    required TournamentBracket bracket,
+  }) {
+    final isPoolFormat = bracket.format == 'pools_and_bracket';
+    final categoryLabel = bracket.category == 'double_messieurs'
+        ? 'Double Messieurs'
+        : (bracket.category == 'double_dames' ? 'Double Dames' : 'Double Mixtes');
+
+    BracketMatch? finalMatch;
+    BracketMatch? p34Match;
+    for (final m in bracket.mainMatches) {
+      if (m.matchCode == 'FINALE' || (bracket.format == 'elimination' && m.roundName.toLowerCase().contains('finale'))) {
+        finalMatch = m;
+      }
+      if (m.matchCode == 'PLACE_3_4') {
+        p34Match = m;
+      }
+    }
+
+    final winner = finalMatch?.winner;
+    final runnerUp = finalMatch?.loser;
+    final third = p34Match?.winner;
+
+    final buf = StringBuffer();
+    buf.writeln("=================================================");
+    buf.writeln("🏆 FÉDÉRATION FRANÇAISE DE TENNIS · BEACH TENNIS");
+    buf.writeln("Tournoi : ${tournament.name}");
+    buf.writeln("Épreuve : $categoryLabel");
+    buf.writeln("Homologation : ${tournament.id}");
+    buf.writeln("Lieu : Plages du Mourillon, Toulon");
+    buf.writeln("=================================================\n");
+
+    buf.writeln("🥇 PALMARÈS :");
+    buf.writeln("• 1ère Place (Vainqueurs) 🥇 : ${winner?.displayName ?? 'En cours...'}");
+    buf.writeln("• 2ème Place (Finalistes) 🥈 : ${runnerUp?.displayName ?? 'En cours...'}");
+    if (third != null) {
+      buf.writeln("• 3ème Place 🥉 : ${third.displayName}");
+    }
+    buf.writeln("");
+
+    if (isPoolFormat) {
+      buf.writeln("📊 RÉSULTATS DES POULES :");
+      for (final pool in bracket.pools) {
+        buf.writeln("\n[${pool.name.toUpperCase()}]");
+        final standings = pool.calculateStandings();
+        for (int i = 0; i < standings.length; i++) {
+          final s = standings[i];
+          final qualif = i < 2 ? "-> Qualifié Demies" : "";
+          final diffS = s.diffSets > 0 ? "+${s.diffSets}" : "${s.diffSets}";
+          final diffG = s.diffGames > 0 ? "+${s.diffGames}" : "${s.diffGames}";
+          buf.writeln("${i + 1}. ${s.pair.displayName} (${s.won}V - ${s.lost}D | Diff Sets: $diffS | Diff Jeux: $diffG | ${s.points} pts) $qualif");
+        }
+        buf.writeln("Scores :");
+        for (final m in pool.matches) {
+          final scoreStr = m.isCompleted ? (m.score ?? 'Joué') : 'Non joué';
+          if (m.isCompleted && m.winner != null) {
+            buf.writeln("• ${m.winner!.displayName} bat ${m.loser?.displayName ?? 'Adversaire'} : $scoreStr");
+          } else {
+            buf.writeln("• ${m.pair1?.displayName ?? 'TBD'} vs ${m.pair2?.displayName ?? 'TBD'} : $scoreStr");
+          }
+        }
+      }
+
+      buf.writeln("\n⚔️ PHASE FINALE :");
+      for (final m in bracket.mainMatches) {
+        final scoreStr = m.isCompleted ? (m.score ?? 'Terminé') : 'À venir';
+        if (m.isCompleted && m.winner != null) {
+          buf.writeln("• ${m.roundName} : ${m.winner!.displayName} bat ${m.loser?.displayName ?? 'Adversaire'} ($scoreStr)");
+        } else {
+          buf.writeln("• ${m.roundName} : ${m.pair1?.displayName ?? 'TBD'} vs ${m.pair2?.displayName ?? 'TBD'} ($scoreStr)");
+        }
+      }
+    } else {
+      buf.writeln("⚔️ TABLEAU PRINCIPAL :");
+      for (final m in bracket.mainMatches) {
+        final scoreStr = m.isCompleted ? (m.score ?? 'Terminé') : (m.isBye ? 'BYE' : 'À venir');
+        if (m.isCompleted && m.winner != null) {
+          buf.writeln("• ${m.roundName} : ${m.winner!.displayName} bat ${m.loser?.displayName ?? 'Adversaire'} ($scoreStr)");
+        } else {
+          buf.writeln("• ${m.roundName} : ${m.pair1?.displayName ?? 'TBD'} vs ${m.pair2?.displayName ?? 'TBD'} ($scoreStr)");
+        }
+      }
+      if (bracket.consolationMatches.isNotEmpty) {
+        buf.writeln("\n🛡️ TABLEAU DE CONSOLANTE :");
+        for (final m in bracket.consolationMatches) {
+          final scoreStr = m.isCompleted ? (m.score ?? 'Terminé') : 'À venir';
+          if (m.isCompleted && m.winner != null) {
+            buf.writeln("• ${m.roundName} : ${m.winner!.displayName} bat ${m.loser?.displayName ?? 'Adversaire'} ($scoreStr)");
+          } else {
+            buf.writeln("• ${m.roundName} : ${m.pair1?.displayName ?? 'TBD'} vs ${m.pair2?.displayName ?? 'TBD'} ($scoreStr)");
+          }
+        }
+      }
+    }
+
+    buf.writeln("\n=================================================");
+    buf.writeln("✍️ Saisie certifiée et transmise par le Juge-Arbitre (JAT).");
+    buf.writeln("Source : Application BeachMatch Officielle FFT");
+    buf.writeln("=================================================");
+
+    return buf.toString();
+  }
+
   static pw.Widget _buildHeader(
     TournamentModel tournament,
     String categoryLabel,

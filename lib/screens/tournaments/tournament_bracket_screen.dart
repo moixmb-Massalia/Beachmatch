@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../models/tournament.dart';
 import '../../models/tournament_bracket_model.dart';
@@ -433,6 +434,24 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
               ),
             ),
           ),
+          // Bouton Copier / Partager Procès-Verbal des Résultats
+          Tooltip(
+            message: "Procès-Verbal & Récapitulatif JAT (Texte / WhatsApp)",
+            child: InkWell(
+              onTap: _showSummaryModal,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.1),
+                ),
+                child: const Icon(Icons.assignment_outlined, color: Colors.white, size: 16),
+              ),
+            ),
+          ),
           // Toggle JAT Express
           InkWell(
             onTap: () {
@@ -518,6 +537,180 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Erreur lors de l'export PDF : $e"), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  Future<void> _showSummaryModal() async {
+    try {
+      final doc = await _bracketRef.get();
+      if (!doc.exists || doc.data() == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Aucune donnée de tournoi à récapituler")),
+          );
+        }
+        return;
+      }
+
+      final bracket = TournamentBracket.fromMap(doc.data()!, widget.tournament.id);
+      final summaryText = TournamentPdfService.generateTextSummary(
+        tournament: widget.tournament,
+        bracket: bracket,
+      );
+
+      if (!mounted) return;
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              height: MediaQuery.of(ctx).size.height * 0.82,
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.96),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      const Icon(Icons.assignment_turned_in_rounded, color: AppColors.gold, size: 22),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          "Procès-Verbal des Résultats JAT",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    "Format officiel FFT prêt pour saisie MOJA, envoi par Email ou WhatsApp :",
+                    style: TextStyle(color: Colors.white60, fontSize: 11),
+                  ),
+                  const SizedBox(height: 12),
+                  // Zone de texte scrollable monospace
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: SingleChildScrollView(
+                        child: SelectableText(
+                          summaryText,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Boutons d'action
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white.withValues(alpha: 0.15),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: const BorderSide(color: Colors.white24),
+                            ),
+                          ),
+                          icon: const Icon(Icons.copy_rounded, size: 18),
+                          label: const Text(
+                            "Copier le Texte",
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: summaryText));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("📋 Résultats copiés dans le presse-papier !"),
+                                backgroundColor: AppColors.gold,
+                                duration: Duration(seconds: 3),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.gold,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 4,
+                          ),
+                          icon: const Icon(Icons.share_rounded, size: 18),
+                          label: const Text(
+                            "Partager (WhatsApp)",
+                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                          ),
+                          onPressed: () {
+                            SharePlus.instance.share(
+                              ShareParams(
+                                text: summaryText,
+                                subject: "Procès-Verbal FFT ${widget.tournament.name}",
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur génération récapitulatif : $e"), backgroundColor: Colors.redAccent),
         );
       }
     }
