@@ -427,7 +427,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                                   ),
                                   icon: const Icon(Icons.account_tree_rounded, size: 20),
                                   label: const Text(
-                                    "Gérer l'Arbre du Tournoi & Scores (JAT)",
+                                    "Tableau de la Compétition (JAT)",
                                     style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
                                   ),
                                   onPressed: () => Navigator.push(
@@ -2024,7 +2024,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                                 ),
                                 const SizedBox(height: 5),
                                 const Text(
-                                  "Tableau & Arbre du Tournoi",
+                                  "Tableau de la Compétition",
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 16.5,
