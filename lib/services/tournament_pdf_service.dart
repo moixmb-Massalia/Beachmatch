@@ -94,7 +94,8 @@ class TournamentPdfService {
     buf.writeln("Tournoi : ${tournament.name}");
     buf.writeln("Épreuve : $categoryLabel");
     buf.writeln("Homologation : ${tournament.id}");
-    buf.writeln("Lieu : Plages du Mourillon, Toulon");
+    buf.writeln("Lieu : ${tournament.location.isNotEmpty ? tournament.location : tournament.club}");
+    buf.writeln("Dates : ${tournament.dateString}");
     buf.writeln("=================================================\n");
 
     buf.writeln("🥇 PALMARÈS :");
@@ -221,11 +222,11 @@ class TournamentPdfService {
                 style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
               ),
               pw.Text(
-                "Lieu : Plages du Mourillon, Toulon",
+                "Lieu : ${tournament.location.isNotEmpty ? tournament.location : tournament.club}",
                 style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
               ),
               pw.Text(
-                "Date : 27/09/2026",
+                "Date : ${tournament.dateString}",
                 style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
               ),
             ],

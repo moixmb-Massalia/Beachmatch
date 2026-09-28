@@ -110,7 +110,7 @@ void main() {
       expect(bracket.pools.length, 2);
       expect(bracket.pools[0].matches.length, 3);
       expect(bracket.pools[1].matches.length, 3);
-      expect(bracket.mainMatches.length, 5); // DF1, DF2, Finale, P3_4, P5_6
+      expect(bracket.mainMatches.length, 3); // Finale (1-2), P3_4 (3-4), P5_6 (5-6)
 
       // Play all matches in Poule A
       bracket = BracketGeneratorService.recordPoolMatchScore(
@@ -140,15 +140,68 @@ void main() {
       expect(standingsA[1].pair.id, "ha2"); // 1 win -> 2nd
       expect(standingsA[2].pair.id, "ha3"); // 0 win -> 3rd
 
+      // Play all matches in Poule B
+      bracket = BracketGeneratorService.recordPoolMatchScore(
+        bracket: bracket,
+        poolId: "poule_b",
+        matchId: "pb_0",
+        score: "6/3 6/3",
+        winnerId: "hb1",
+      );
+      bracket = BracketGeneratorService.recordPoolMatchScore(
+        bracket: bracket,
+        poolId: "poule_b",
+        matchId: "pb_1",
+        score: "6/2 6/2",
+        winnerId: "hb1",
+      );
+      bracket = BracketGeneratorService.recordPoolMatchScore(
+        bracket: bracket,
+        poolId: "poule_b",
+        matchId: "pb_2",
+        score: "6/4 6/4",
+        winnerId: "hb2",
+      );
+
+      // Verify Direct Finals FFT placement (1A vs 1B, 2A vs 2B, 3A vs 3B)
+      final finale = bracket.mainMatches.firstWhere((m) => m.id == "final_fin");
+      final p34 = bracket.mainMatches.firstWhere((m) => m.id == "final_p34");
+      final p56 = bracket.mainMatches.firstWhere((m) => m.id == "final_p56");
+
+      expect(finale.pair1?.id, "ha1"); // 1er Poule A
+      expect(finale.pair2?.id, "hb1"); // 1er Poule B
+      expect(p34.pair1?.id, "ha2");    // 2e Poule A
+      expect(p34.pair2?.id, "hb2");    // 2e Poule B
+      expect(p56.pair1?.id, "ha3");    // 3e Poule A
+      expect(p56.pair2?.id, "hb3");    // 3e Poule B
+
+      // Test live updatePair propagation
+      final updatedHa1 = standingsA[0].pair.copyWith(
+        player1Name: "Argaud Modifié",
+        player1Rank: 100,
+      );
+      bracket = BracketGeneratorService.updatePair(
+        bracket: bracket,
+        updatedPair: updatedHa1,
+      );
+
+      // Verify propagation in global pairs, pools, and final matches
+      expect(bracket.pairs.firstWhere((p) => p.id == "ha1").player1Name, "Argaud Modifié");
+      expect(bracket.pools[0].pairs.firstWhere((p) => p.id == "ha1").player1Name, "Argaud Modifié");
+      expect(bracket.pools[0].matches.first.pair1?.player1Name, "Argaud Modifié");
+      expect(bracket.mainMatches.firstWhere((m) => m.id == "final_fin").pair1?.player1Name, "Argaud Modifié");
+      // And score remains intact
+      expect(bracket.pools[0].matches.first.score, "6/4 6/2");
+
       // Test manual free editing (Saisie libre JAT)
       final overridden = BracketGeneratorService.manualUpdateMatchPair(
         bracket: bracket,
-        matchId: "final_df1",
+        matchId: "final_fin",
         slot: 1,
         pair: pouleA[1], // Force ha2 instead of ha1
       );
-      final df1 = overridden.mainMatches.firstWhere((m) => m.id == "final_df1");
-      expect(df1.pair1?.id, "ha2");
+      final fin = overridden.mainMatches.firstWhere((m) => m.id == "final_fin");
+      expect(fin.pair1?.id, "ha2");
     });
 
     test('Reset Match Score (Remise à zéro / non joué)', () {
@@ -191,6 +244,168 @@ void main() {
       // Next match slot should be cleared
       final nextMatch = reset.mainMatches.firstWhere((m) => m.id == m1.nextMatchId);
       expect(nextMatch.pair2, null);
+    });
+
+    test('8-pair Pool Tournament (Pools of 4 with 6 matches each & 4 Final Matches)', () {
+      final pouleA = [
+        const TournamentPair(id: "a1", player1Name: "A1", player1Rank: 100, player2Name: "A1b", player2Rank: 100, seed: 1),
+        const TournamentPair(id: "a2", player1Name: "A2", player1Rank: 200, player2Name: "A2b", player2Rank: 200),
+        const TournamentPair(id: "a3", player1Name: "A3", player1Rank: 300, player2Name: "A3b", player2Rank: 300),
+        const TournamentPair(id: "a4", player1Name: "A4", player1Rank: 400, player2Name: "A4b", player2Rank: 400),
+      ];
+
+      final pouleB = [
+        const TournamentPair(id: "b1", player1Name: "B1", player1Rank: 150, player2Name: "B1b", player2Rank: 150, seed: 2),
+        const TournamentPair(id: "b2", player1Name: "B2", player1Rank: 250, player2Name: "B2b", player2Rank: 250),
+        const TournamentPair(id: "b3", player1Name: "B3", player1Rank: 350, player2Name: "B3b", player2Rank: 350),
+        const TournamentPair(id: "b4", player1Name: "B4", player1Rank: 450, player2Name: "B4b", player2Rank: 450),
+      ];
+
+      final bracket = BracketGeneratorService.generatePoolsAndBracket(
+        tournamentId: "test_pool_8",
+        category: "double_messieurs",
+        pouleAPairs: pouleA,
+        pouleBPairs: pouleB,
+        numCourts: 4,
+      );
+
+      // Verify that each pool of 4 has 6 matches
+      expect(bracket.pools[0].matches.length, 6);
+      expect(bracket.pools[1].matches.length, 6);
+
+      // Verify that final matches include Places 1-2, 3-4, 5-6, and 7-8
+      expect(bracket.mainMatches.length, 4);
+      expect(bracket.mainMatches.any((m) => m.id == "final_fin"), true);
+      expect(bracket.mainMatches.any((m) => m.id == "final_p34"), true);
+      expect(bracket.mainMatches.any((m) => m.id == "final_p56"), true);
+      expect(bracket.mainMatches.any((m) => m.id == "final_p78"), true);
+    });
+
+    test('Pool Tournament with Crossover Semifinals (Demi-finales croisées 1A vs 2B & 1B vs 2A)', () {
+      final pouleA = [
+        const TournamentPair(id: "a1", player1Name: "A1", player1Rank: 100, player2Name: "A1b", player2Rank: 100, seed: 1),
+        const TournamentPair(id: "a2", player1Name: "A2", player1Rank: 200, player2Name: "A2b", player2Rank: 200),
+        const TournamentPair(id: "a3", player1Name: "A3", player1Rank: 300, player2Name: "A3b", player2Rank: 300),
+      ];
+
+      final pouleB = [
+        const TournamentPair(id: "b1", player1Name: "B1", player1Rank: 150, player2Name: "B1b", player2Rank: 150, seed: 2),
+        const TournamentPair(id: "b2", player1Name: "B2", player1Rank: 250, player2Name: "B2b", player2Rank: 250),
+        const TournamentPair(id: "b3", player1Name: "B3", player1Rank: 350, player2Name: "B3b", player2Rank: 350),
+      ];
+
+      var bracket = BracketGeneratorService.generatePoolsAndBracket(
+        tournamentId: "test_crossover",
+        category: "double_messieurs",
+        pouleAPairs: pouleA,
+        pouleBPairs: pouleB,
+        finalPhaseType: 'crossover_semis',
+        numCourts: 4,
+      );
+
+      // Verify matches generated: DF1, DF2, Finale, P3_4, P5_6
+      expect(bracket.mainMatches.length, 5);
+      expect(bracket.mainMatches.any((m) => m.id == "final_df1"), true);
+      expect(bracket.mainMatches.any((m) => m.id == "final_df2"), true);
+      expect(bracket.mainMatches.any((m) => m.id == "final_fin"), true);
+      expect(bracket.mainMatches.any((m) => m.id == "final_p34"), true);
+      expect(bracket.mainMatches.any((m) => m.id == "final_p56"), true);
+
+      // Play Poule A: a1 wins both -> 1st, a2 wins one -> 2nd, a3 -> 3rd
+      bracket = BracketGeneratorService.recordPoolMatchScore(
+        bracket: bracket,
+        poolId: "poule_a",
+        matchId: "pa_0",
+        score: "6/4 6/2",
+        winnerId: "a1",
+      );
+      bracket = BracketGeneratorService.recordPoolMatchScore(
+        bracket: bracket,
+        poolId: "poule_a",
+        matchId: "pa_1",
+        score: "6/1 6/1",
+        winnerId: "a1",
+      );
+      bracket = BracketGeneratorService.recordPoolMatchScore(
+        bracket: bracket,
+        poolId: "poule_a",
+        matchId: "pa_2",
+        score: "7/5 6/3",
+        winnerId: "a2",
+      );
+
+      // Play Poule B: b1 wins both -> 1st, b2 wins one -> 2nd, b3 -> 3rd
+      bracket = BracketGeneratorService.recordPoolMatchScore(
+        bracket: bracket,
+        poolId: "poule_b",
+        matchId: "pb_0",
+        score: "6/3 6/3",
+        winnerId: "b1",
+      );
+      bracket = BracketGeneratorService.recordPoolMatchScore(
+        bracket: bracket,
+        poolId: "poule_b",
+        matchId: "pb_1",
+        score: "6/2 6/2",
+        winnerId: "b1",
+      );
+      bracket = BracketGeneratorService.recordPoolMatchScore(
+        bracket: bracket,
+        poolId: "poule_b",
+        matchId: "pb_2",
+        score: "6/4 6/4",
+        winnerId: "b2",
+      );
+
+      // Verify Crossover Demis assignment:
+      // DF1: 1A (a1) vs 2B (b2)
+      // DF2: 1B (b1) vs 2A (a2)
+      // P56: 3A (a3) vs 3B (b3)
+      final df1 = bracket.mainMatches.firstWhere((m) => m.id == "final_df1");
+      final df2 = bracket.mainMatches.firstWhere((m) => m.id == "final_df2");
+      final p56 = bracket.mainMatches.firstWhere((m) => m.id == "final_p56");
+
+      expect(df1.pair1?.id, "a1");
+      expect(df1.pair2?.id, "b2");
+      expect(df2.pair1?.id, "b1");
+      expect(df2.pair2?.id, "a2");
+      expect(p56.pair1?.id, "a3");
+      expect(p56.pair2?.id, "b3");
+
+      // Play DF1: a1 beats b2 -> a1 goes to Finale slot 1, b2 goes to Petite Finale slot 1
+      bracket = BracketGeneratorService.recordMatchScore(
+        bracket: bracket,
+        matchId: "final_df1",
+        score: "6/2 6/3",
+        winnerId: "a1",
+      );
+
+      // Play DF2: b1 beats a2 -> b1 goes to Finale slot 2, a2 goes to Petite Finale slot 2
+      bracket = BracketGeneratorService.recordMatchScore(
+        bracket: bracket,
+        matchId: "final_df2",
+        score: "6/4 7/5",
+        winnerId: "b1",
+      );
+
+      final finale = bracket.mainMatches.firstWhere((m) => m.id == "final_fin");
+      final p34 = bracket.mainMatches.firstWhere((m) => m.id == "final_p34");
+
+      expect(finale.pair1?.id, "a1");
+      expect(finale.pair2?.id, "b1");
+      expect(p34.pair1?.id, "b2");
+      expect(p34.pair2?.id, "a2");
+
+      // Play the Grand Finale: a1 wins!
+      bracket = BracketGeneratorService.recordMatchScore(
+        bracket: bracket,
+        matchId: "final_fin",
+        score: "6/4 4/6 10/8",
+        winnerId: "a1",
+      );
+      final finishedFinale = bracket.mainMatches.firstWhere((m) => m.id == "final_fin");
+      expect(finishedFinale.winnerId, "a1");
+      expect(finishedFinale.status, "completed");
     });
   });
 }

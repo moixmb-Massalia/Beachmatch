@@ -278,83 +278,116 @@ class BracketGeneratorService {
     );
   }
 
+  /// Génère les matches d'une poule de 2, 3 ou 4 paires (Round Robin)
+  static List<BracketMatch> _generatePoolMatches({
+    required String poolId,
+    required String poolName,
+    required String matchPrefix,
+    required List<TournamentPair> pairs,
+  }) {
+    final matches = <BracketMatch>[];
+    final poolCode = poolId == 'poule_a' ? 'PA' : 'PB';
+
+    if (pairs.length == 3) {
+      // 3 paires -> 3 matches
+      matches.add(BracketMatch(
+        id: "${matchPrefix}_0",
+        roundIndex: 0,
+        roundName: "$poolName - Match 1",
+        matchIndex: 0,
+        poolId: poolId,
+        matchCode: "${poolCode}_1",
+        pair1: pairs[0],
+        pair2: pairs[1],
+      ));
+      matches.add(BracketMatch(
+        id: "${matchPrefix}_1",
+        roundIndex: 0,
+        roundName: "$poolName - Match 2",
+        matchIndex: 1,
+        poolId: poolId,
+        matchCode: "${poolCode}_2",
+        pair1: pairs[0],
+        pair2: pairs[2],
+      ));
+      matches.add(BracketMatch(
+        id: "${matchPrefix}_2",
+        roundIndex: 0,
+        roundName: "$poolName - Match 3",
+        matchIndex: 2,
+        poolId: poolId,
+        matchCode: "${poolCode}_3",
+        pair1: pairs[1],
+        pair2: pairs[2],
+      ));
+    } else if (pairs.length >= 4) {
+      // 4 paires -> 6 matches (Round Robin FFT)
+      // Tour 1 : 0 vs 1 & 2 vs 3
+      // Tour 2 : 0 vs 2 & 1 vs 3
+      // Tour 3 : 0 vs 3 & 1 vs 2
+      final schedule = [
+        [0, 1],
+        [2, 3],
+        [0, 2],
+        [1, 3],
+        [0, 3],
+        [1, 2],
+      ];
+      for (int i = 0; i < schedule.length; i++) {
+        final pairAIdx = schedule[i][0];
+        final pairBIdx = schedule[i][1];
+        matches.add(BracketMatch(
+          id: "${matchPrefix}_$i",
+          roundIndex: 0,
+          roundName: "$poolName - Match ${i + 1}",
+          matchIndex: i,
+          poolId: poolId,
+          matchCode: "${poolCode}_${i + 1}",
+          pair1: pairs[pairAIdx],
+          pair2: pairs[pairBIdx],
+        ));
+      }
+    } else if (pairs.length == 2) {
+      // 2 paires -> 1 match
+      matches.add(BracketMatch(
+        id: "${matchPrefix}_0",
+        roundIndex: 0,
+        roundName: "$poolName - Match 1",
+        matchIndex: 0,
+        poolId: poolId,
+        matchCode: "${poolCode}_1",
+        pair1: pairs[0],
+        pair2: pairs[1],
+      ));
+    }
+
+    return matches;
+  }
+
   /// Génère un tournoi au format Poules + Phase Finale (ex: Double Hommes & Dames Toulon)
   static TournamentBracket generatePoolsAndBracket({
     required String tournamentId,
     required String category,
     required List<TournamentPair> pouleAPairs,
     required List<TournamentPair> pouleBPairs,
+    String finalPhaseType = 'direct_finals',
     int numCourts = 4,
   }) {
-    // 1. Matches de la Poule A (3 équipes -> 3 matches)
-    final matchesA = <BracketMatch>[];
-    if (pouleAPairs.length >= 3) {
-      matchesA.add(BracketMatch(
-        id: "pa_0",
-        roundIndex: 0,
-        roundName: "Poule A - Match 1",
-        matchIndex: 0,
-        poolId: "poule_a",
-        matchCode: "PA_1",
-        pair1: pouleAPairs[0],
-        pair2: pouleAPairs[1],
-      ));
-      matchesA.add(BracketMatch(
-        id: "pa_1",
-        roundIndex: 0,
-        roundName: "Poule A - Match 2",
-        matchIndex: 1,
-        poolId: "poule_a",
-        matchCode: "PA_2",
-        pair1: pouleAPairs[0],
-        pair2: pouleAPairs[2],
-      ));
-      matchesA.add(BracketMatch(
-        id: "pa_2",
-        roundIndex: 0,
-        roundName: "Poule A - Match 3",
-        matchIndex: 2,
-        poolId: "poule_a",
-        matchCode: "PA_3",
-        pair1: pouleAPairs[1],
-        pair2: pouleAPairs[2],
-      ));
-    }
+    // 1. Matches de la Poule A (3 paires = 3 matches, 4 paires = 6 matches)
+    final matchesA = _generatePoolMatches(
+      poolId: "poule_a",
+      poolName: "Poule A",
+      matchPrefix: "pa",
+      pairs: pouleAPairs,
+    );
 
-    // 2. Matches de la Poule B (3 équipes -> 3 matches)
-    final matchesB = <BracketMatch>[];
-    if (pouleBPairs.length >= 3) {
-      matchesB.add(BracketMatch(
-        id: "pb_0",
-        roundIndex: 0,
-        roundName: "Poule B - Match 1",
-        matchIndex: 0,
-        poolId: "poule_b",
-        matchCode: "PB_1",
-        pair1: pouleBPairs[0],
-        pair2: pouleBPairs[1],
-      ));
-      matchesB.add(BracketMatch(
-        id: "pb_1",
-        roundIndex: 0,
-        roundName: "Poule B - Match 2",
-        matchIndex: 1,
-        poolId: "poule_b",
-        matchCode: "PB_2",
-        pair1: pouleBPairs[0],
-        pair2: pouleBPairs[2],
-      ));
-      matchesB.add(BracketMatch(
-        id: "pb_2",
-        roundIndex: 0,
-        roundName: "Poule B - Match 3",
-        matchIndex: 2,
-        poolId: "poule_b",
-        matchCode: "PB_3",
-        pair1: pouleBPairs[1],
-        pair2: pouleBPairs[2],
-      ));
-    }
+    // 2. Matches de la Poule B (3 paires = 3 matches, 4 paires = 6 matches)
+    final matchesB = _generatePoolMatches(
+      poolId: "poule_b",
+      poolName: "Poule B",
+      matchPrefix: "pb",
+      pairs: pouleBPairs,
+    );
 
     final pools = [
       TournamentPool(
@@ -371,57 +404,96 @@ class BracketGeneratorService {
       ),
     ];
 
-    // 3. Phase Finale (Demis, Finale, 3e/4e, 5e/6e)
-    final finalMatches = <BracketMatch>[
-      // Demi-finale 1 : 1er Poule A vs 2ème Poule B
-      const BracketMatch(
+    // 3. Phase Finale : Directe (FFT 1 jour) ou Demi-Finales Croisées (2 jours / Championnat)
+    final finalMatches = <BracketMatch>[];
+
+    if (finalPhaseType == 'crossover_semis') {
+      // Formule avec Demi-finales croisées (1A vs 2B, 1B vs 2A)
+      finalMatches.add(const BracketMatch(
         id: "final_df1",
         roundIndex: 0,
-        roundName: "Demi-finale 1",
+        roundName: "Demi-finale 1 (1A vs 2B)",
         matchIndex: 0,
         matchCode: "DF1",
         nextMatchId: "final_fin",
         nextMatchSlot: 1,
         consolationMatchId: "final_p34",
         consolationSlot: 1,
-      ),
-      // Demi-finale 2 : 1er Poule B vs 2ème Poule A
-      const BracketMatch(
+      ));
+      finalMatches.add(const BracketMatch(
         id: "final_df2",
         roundIndex: 0,
-        roundName: "Demi-finale 2",
+        roundName: "Demi-finale 2 (1B vs 2A)",
         matchIndex: 1,
         matchCode: "DF2",
         nextMatchId: "final_fin",
         nextMatchSlot: 2,
         consolationMatchId: "final_p34",
         consolationSlot: 2,
-      ),
-      // Finale : Vainqueur DF1 vs Vainqueur DF2
-      const BracketMatch(
+      ));
+      finalMatches.add(const BracketMatch(
         id: "final_fin",
         roundIndex: 1,
-        roundName: "Grande Finale",
+        roundName: "Grande Finale (Places 1 & 2)",
         matchIndex: 0,
         matchCode: "FINALE",
-      ),
-      // Petite Finale : Perdant DF1 vs Perdant DF2 (Place 3 & 4)
-      const BracketMatch(
+      ));
+      finalMatches.add(const BracketMatch(
         id: "final_p34",
         roundIndex: 1,
-        roundName: "Match Place 3 / 4",
+        roundName: "Petite Finale (Places 3 & 4)",
         matchIndex: 1,
         matchCode: "PLACE_3_4",
-      ),
-      // Match de Classement : 3ème Poule A vs 3ème Poule B (Place 5 & 6)
-      const BracketMatch(
+      ));
+      finalMatches.add(const BracketMatch(
         id: "final_p56",
-        roundIndex: 1,
-        roundName: "Match Place 5 / 6",
+        roundIndex: 0,
+        roundName: "Match Places 5 & 6",
         matchIndex: 2,
         matchCode: "PLACE_5_6",
-      ),
-    ];
+      ));
+      if (pouleAPairs.length >= 4 && pouleBPairs.length >= 4) {
+        finalMatches.add(const BracketMatch(
+          id: "final_p78",
+          roundIndex: 0,
+          roundName: "Match Places 7 & 8",
+          matchIndex: 3,
+          matchCode: "PLACE_7_8",
+        ));
+      }
+    } else {
+      // Formule FFT Directe (1er vs 1er, 2e vs 2e, 3e vs 3e...)
+      finalMatches.add(const BracketMatch(
+        id: "final_fin",
+        roundIndex: 0,
+        roundName: "Grande Finale (Places 1 & 2)",
+        matchIndex: 0,
+        matchCode: "FINALE",
+      ));
+      finalMatches.add(const BracketMatch(
+        id: "final_p34",
+        roundIndex: 0,
+        roundName: "Petite Finale (Places 3 & 4)",
+        matchIndex: 1,
+        matchCode: "PLACE_3_4",
+      ));
+      finalMatches.add(const BracketMatch(
+        id: "final_p56",
+        roundIndex: 0,
+        roundName: "Match Places 5 & 6",
+        matchIndex: 2,
+        matchCode: "PLACE_5_6",
+      ));
+      if (pouleAPairs.length >= 4 && pouleBPairs.length >= 4) {
+        finalMatches.add(const BracketMatch(
+          id: "final_p78",
+          roundIndex: 0,
+          roundName: "Match Places 7 & 8",
+          matchIndex: 3,
+          matchCode: "PLACE_7_8",
+        ));
+      }
+    }
 
     final allPairs = [...pouleAPairs, ...pouleBPairs];
 
@@ -429,6 +501,7 @@ class BracketGeneratorService {
       tournamentId: tournamentId,
       category: category,
       format: 'pools_and_bracket',
+      finalPhaseType: finalPhaseType,
       numCourts: numCourts,
       status: 'in_progress',
       pairs: allPairs,
@@ -476,23 +549,46 @@ class BracketGeneratorService {
     final allACompleted = poolA.matches.every((m) => m.isCompleted);
     final allBCompleted = poolB.matches.every((m) => m.isCompleted);
 
-    if (allACompleted && allBCompleted && standingsA.length >= 3 && standingsB.length >= 3) {
+    if (allACompleted && allBCompleted && standingsA.length >= 2 && standingsB.length >= 2) {
+      final isSemis = bracket.finalPhaseType == 'crossover_semis';
       for (int i = 0; i < updatedFinalMatches.length; i++) {
         final m = updatedFinalMatches[i];
-        if (m.id == "final_df1") {
-          updatedFinalMatches[i] = m.copyWith(
-            pair1: standingsA[0].pair, // 1er Poule A
-            pair2: standingsB[1].pair, // 2ème Poule B
-          );
-        } else if (m.id == "final_df2") {
-          updatedFinalMatches[i] = m.copyWith(
-            pair1: standingsB[0].pair, // 1er Poule B
-            pair2: standingsA[1].pair, // 2ème Poule A
-          );
-        } else if (m.id == "final_p56") {
+        if (isSemis) {
+          if (m.id == "final_df1") {
+            updatedFinalMatches[i] = m.copyWith(
+              pair1: standingsA[0].pair, // 1er Poule A
+              pair2: standingsB[1].pair, // 2ème Poule B
+            );
+          } else if (m.id == "final_df2") {
+            updatedFinalMatches[i] = m.copyWith(
+              pair1: standingsB[0].pair, // 1er Poule B
+              pair2: standingsA[1].pair, // 2ème Poule A
+            );
+          }
+        } else {
+          if (m.id == "final_fin") {
+            updatedFinalMatches[i] = m.copyWith(
+              pair1: standingsA[0].pair, // 1er Poule A
+              pair2: standingsB[0].pair, // 1er Poule B
+            );
+          } else if (m.id == "final_p34") {
+            updatedFinalMatches[i] = m.copyWith(
+              pair1: standingsA[1].pair, // 2ème Poule A
+              pair2: standingsB[1].pair, // 2ème Poule B
+            );
+          }
+        }
+
+        // Places 5 & 6 et Places 7 & 8
+        if (m.id == "final_p56" && standingsA.length >= 3 && standingsB.length >= 3) {
           updatedFinalMatches[i] = m.copyWith(
             pair1: standingsA[2].pair, // 3ème Poule A
             pair2: standingsB[2].pair, // 3ème Poule B
+          );
+        } else if (m.id == "final_p78" && standingsA.length >= 4 && standingsB.length >= 4) {
+          updatedFinalMatches[i] = m.copyWith(
+            pair1: standingsA[3].pair, // 4ème Poule A
+            pair2: standingsB[3].pair, // 4ème Poule B
           );
         }
       }
@@ -552,6 +648,55 @@ class BracketGeneratorService {
     return bracket.copyWith(
       mainMatches: isMain ? targetList : bracket.mainMatches,
       consolationMatches: isMain ? bracket.consolationMatches : targetList,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  /// Modification en direct d'une paire par le JAT (joueur 1, joueur 2, classements, TS, etc.).
+  /// Propage instantanément la modification dans la liste des paires, dans les poules et dans tous les matches
+  /// (en préservant strictement les scores et les matches déjà joués).
+  static TournamentBracket updatePair({
+    required TournamentBracket bracket,
+    required TournamentPair updatedPair,
+  }) {
+    // 1. Mettre à jour dans la liste globale des paires
+    final updatedPairs = bracket.pairs.map((p) {
+      return p.id == updatedPair.id ? updatedPair : p;
+    }).toList();
+
+    // 2. Mettre à jour dans les poules (paires de la poule + matches de poule)
+    final updatedPools = bracket.pools.map((pool) {
+      final poolPairs = pool.pairs.map((p) => p.id == updatedPair.id ? updatedPair : p).toList();
+      final poolMatches = pool.matches.map((m) {
+        return m.copyWith(
+          pair1: m.pair1?.id == updatedPair.id ? updatedPair : m.pair1,
+          pair2: m.pair2?.id == updatedPair.id ? updatedPair : m.pair2,
+        );
+      }).toList();
+      return pool.copyWith(pairs: poolPairs, matches: poolMatches);
+    }).toList();
+
+    // 3. Mettre à jour dans le tableau principal
+    final updatedMain = bracket.mainMatches.map((m) {
+      return m.copyWith(
+        pair1: m.pair1?.id == updatedPair.id ? updatedPair : m.pair1,
+        pair2: m.pair2?.id == updatedPair.id ? updatedPair : m.pair2,
+      );
+    }).toList();
+
+    // 4. Mettre à jour dans la consolante
+    final updatedConso = bracket.consolationMatches.map((m) {
+      return m.copyWith(
+        pair1: m.pair1?.id == updatedPair.id ? updatedPair : m.pair1,
+        pair2: m.pair2?.id == updatedPair.id ? updatedPair : m.pair2,
+      );
+    }).toList();
+
+    return bracket.copyWith(
+      pairs: updatedPairs,
+      pools: updatedPools,
+      mainMatches: updatedMain,
+      consolationMatches: updatedConso,
       updatedAt: DateTime.now(),
     );
   }
@@ -658,15 +803,12 @@ class BracketGeneratorService {
       if (!allACompleted || !allBCompleted) {
         for (int i = 0; i < updatedFinalMatches.length; i++) {
           final m = updatedFinalMatches[i];
-          if (m.id == "final_df1" || m.id == "final_df2" || m.id == "final_p56") {
-            updatedFinalMatches[i] = m.copyWith(
-              clearPair1: true,
-              clearPair2: true,
-              clearWinner: true,
-              clearScore: true,
-              status: 'pending',
-            );
-          } else if (m.id == "final_fin" || m.id == "final_p34") {
+          if (m.id == "final_df1" ||
+              m.id == "final_df2" ||
+              m.id == "final_fin" ||
+              m.id == "final_p34" ||
+              m.id == "final_p56" ||
+              m.id == "final_p78") {
             updatedFinalMatches[i] = m.copyWith(
               clearPair1: true,
               clearPair2: true,

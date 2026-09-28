@@ -3,7 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../providers/app_state.dart';
 import '../../models/tournament.dart';
 import '../../models/tournament_bracket_model.dart';
 import '../../models/court_call_model.dart';
@@ -37,13 +39,12 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
 
   bool _isSaving = false;
   String _selectedCategory = 'double_messieurs';
-  bool _forceJatMode = true; // JAT activé par défaut pour gain de temps
   bool _isTreeMode = true; // Toggle Vue Arbre Graphique vs Vue Liste Express
 
-  bool get _isJat =>
-      widget.isAuthorized ||
-      _forceJatMode ||
-      (FirebaseAuth.instance.currentUser != null);
+  late bool _isAuthorizedUser;
+  bool _spectatorPreview = false;
+
+  bool get _isJat => _isAuthorizedUser && !_spectatorPreview;
 
   final List<Map<String, dynamic>> _categories = [
     {
@@ -69,7 +70,52 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
   @override
   void initState() {
     super.initState();
+    _isAuthorizedUser = widget.isAuthorized;
     _tabController = TabController(length: 3, vsync: this);
+    if (!_isAuthorizedUser) {
+      _verifyUserPrivileges();
+    }
+  }
+
+  Future<void> _verifyUserPrivileges() async {
+    final appUser = context.read<AppState>().currentUser;
+    if (appUser?.isAdmin == true) {
+      if (mounted) setState(() => _isAuthorizedUser = true);
+      return;
+    }
+
+    final authEmail = FirebaseAuth.instance.currentUser?.email?.toLowerCase().trim();
+    if (authEmail != null && authEmail.isNotEmpty) {
+      if (authEmail == 'moixmb@gmail.com' || authEmail == 'btvarois@gmail.com') {
+        if (mounted) setState(() => _isAuthorizedUser = true);
+        return;
+      }
+
+      // Vérifier si l'utilisateur connecté est le JAT officiel du tournoi
+      final jatEmail = widget.tournament.contactEmail?.toLowerCase().trim();
+      if (jatEmail != null && jatEmail.isNotEmpty && authEmail == jatEmail) {
+        if (mounted) setState(() => _isAuthorizedUser = true);
+        return;
+      }
+
+      // Vérifier si l'utilisateur est président du club organisateur
+      try {
+        final query = await FirebaseFirestore.instance
+            .collection('clubs')
+            .where('presidentEmails', arrayContains: authEmail)
+            .get();
+
+        for (var doc in query.docs) {
+          final clubName = doc.data()['name']?.toString().toLowerCase().trim();
+          if (clubName == widget.tournament.club.toLowerCase().trim()) {
+            if (mounted) setState(() => _isAuthorizedUser = true);
+            return;
+          }
+        }
+      } catch (e) {
+        debugPrint("Error verifying privileges in bracket: $e");
+      }
+    }
   }
 
   @override
@@ -420,66 +466,112 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
             ),
           ),
           const SizedBox(width: 8),
-          // Toggle JAT Express
-          InkWell(
-            onTap: () {
-              setState(() => _forceJatMode = !_forceJatMode);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(_isJat
-                      ? "Mode Arbitre (JAT) Activé : Saisie et modifications directes"
-                      : "Mode Spectateur Activé"),
-                  duration: const Duration(seconds: 2),
-                  backgroundColor: _isJat ? AppColors.gold : const Color(0xFF1E293B),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: BoxDecoration(
-                color: _isJat
-                    ? AppColors.gold.withValues(alpha: 0.22)
-                    : Colors.white.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: _isJat
-                      ? AppColors.gold.withValues(alpha: 0.8)
-                      : Colors.white.withValues(alpha: 0.2),
-                  width: 1.2,
-                ),
-                boxShadow: _isJat
-                    ? [
-                        BoxShadow(
-                          color: AppColors.gold.withValues(alpha: 0.2),
-                          blurRadius: 8,
-                          spreadRadius: 1,
-                        )
-                      ]
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    _isJat ? Icons.sports_score_rounded : Icons.visibility_rounded,
-                    color: _isJat ? AppColors.gold : Colors.white70,
-                    size: 14,
+          // Badge Statut : Spectateur verrouillé ou Toggle JAT autorisé
+          if (!_isAuthorizedUser)
+            InkWell(
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("👁️ Mode Spectateur : Seuls le Juge-Arbitre (JAT) officiel et le Club peuvent modifier les scores."),
+                    duration: Duration(seconds: 3),
+                    backgroundColor: Color(0xFF1E293B),
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    _isJat ? "JAT ACTIF" : "SPECTATEUR",
-                    style: TextStyle(
-                      color: _isJat ? AppColors.gold : Colors.white70,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.4,
+                );
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    width: 1.0,
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.visibility_rounded,
+                      color: Colors.white70,
+                      size: 14,
                     ),
+                    SizedBox(width: 4),
+                    Text(
+                      "SPECTATEUR",
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            // Toggle JAT pour organisateurs autorisés (permet de prévisualiser la vue spectateur)
+            InkWell(
+              onTap: () {
+                setState(() => _spectatorPreview = !_spectatorPreview);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(_isJat
+                        ? "👑 Mode Arbitre (JAT) Activé : Saisie et modifications"
+                        : "👁️ Aperçu Spectateur : Affichage public"),
+                    duration: const Duration(seconds: 2),
+                    backgroundColor: _isJat ? AppColors.gold : const Color(0xFF1E293B),
                   ),
-                ],
+                );
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _isJat
+                      ? AppColors.gold.withValues(alpha: 0.22)
+                      : Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _isJat
+                        ? AppColors.gold.withValues(alpha: 0.8)
+                        : Colors.white.withValues(alpha: 0.2),
+                    width: 1.2,
+                  ),
+                  boxShadow: _isJat
+                      ? [
+                          BoxShadow(
+                            color: AppColors.gold.withValues(alpha: 0.2),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          )
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _isJat ? Icons.sports_score_rounded : Icons.visibility_rounded,
+                      color: _isJat ? AppColors.gold : Colors.white70,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _isJat ? "JAT ACTIF" : "APERÇU SPECTATEUR",
+                      style: TextStyle(
+                        color: _isJat ? AppColors.gold : Colors.white70,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
           const SizedBox(width: 8),
           // Bouton Unique Exporter / Partager [ 📤 ]
           Tooltip(
@@ -1897,15 +1989,27 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
       return _buildEmptyState(
         title: "Phase Finale non programmée",
         subtitle:
-            "Les demi-finales et finales apparaîtront dès que les poules seront configurées.",
+            "Les matches de phase finale apparaîtront dès que les poules seront configurées.",
       );
     }
+
+    final isSemis = bracket.finalPhaseType == 'crossover_semis';
+    final hasDFMatches = bracket.mainMatches.any((m) => m.matchCode == 'DF1' || m.matchCode == 'DF2');
+    final finaleMatches = bracket.mainMatches.where((m) => m.matchCode == 'FINALE').toList();
+    final finaleMatch = finaleMatches.isNotEmpty ? finaleMatches.first : null;
+    final hasP78 = bracket.mainMatches.any((m) => m.matchCode == 'PLACE_7_8');
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
       physics: const BouncingScrollPhysics(),
       children: [
-        // Bandeau d'information
+        // Carte Champion si la Grande Finale est terminée
+        if (finaleMatch != null && finaleMatch.isCompleted && finaleMatch.winner != null) ...[
+          _buildChampionBanner(finaleMatch.winner!),
+          const SizedBox(height: 16),
+        ],
+
+        // Bandeau d'information dynamique
         _buildGlassCard(
           radius: 14,
           padding: const EdgeInsets.all(12),
@@ -1917,7 +2021,9 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  "Phase finale croisée automatique : 1er A vs 2ème B, 1er B vs 2ème A. Les 3èmes jouent pour la 5/6ème place.",
+                  isSemis
+                      ? "Formule Demi-Finales Croisées : 1er A vs 2e B & 1er B vs 2e A. Vainqueurs en Grande Finale, perdants en Petite Finale."
+                      : "Formule Finales Directes FFT (1 jour) : 1er A vs 1er B en Finale, 2e A vs 2e B en 3/4, 3e A vs 3e B en 5/6.",
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 11,
@@ -1930,26 +2036,113 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
         ),
         const SizedBox(height: 16),
 
-        _buildSectionHeader("DEMI-FINALES CROISÉES", AppColors.gold, Icons.emoji_events_rounded),
+        // Section Demi-finales (uniquement si crossover_semis)
+        if (isSemis || hasDFMatches) ...[
+          _buildSectionHeader("DEMI-FINALES CROISÉES", AppColors.gold, Icons.emoji_events_rounded),
+          const SizedBox(height: 8),
+          ...bracket.mainMatches
+              .where((m) => m.matchCode == 'DF1' || m.matchCode == 'DF2')
+              .map((m) => _buildFinalPhaseMatchCard(m, bracket)),
+          const SizedBox(height: 16),
+        ],
+
+        // Section Finales
+        _buildSectionHeader(
+          isSemis ? "GRANDE FINALE & PETITE FINALE (3/4)" : "GRANDE FINALE (PLACES 1 & 2)",
+          AppColors.coral,
+          Icons.military_tech_rounded,
+        ),
         const SizedBox(height: 8),
         ...bracket.mainMatches
-            .where((m) => m.matchCode == 'DF1' || m.matchCode == 'DF2')
+            .where((m) => m.matchCode == 'FINALE')
             .map((m) => _buildFinalPhaseMatchCard(m, bracket)),
 
         const SizedBox(height: 16),
-        _buildSectionHeader("GRANDE FINALE & PETITE FINALE (3/4)", AppColors.coral, Icons.military_tech_rounded),
+        _buildSectionHeader("PETITE FINALE (PLACES 3 & 4)", AppColors.gold, Icons.workspace_premium_rounded),
         const SizedBox(height: 8),
         ...bracket.mainMatches
-            .where((m) => m.matchCode == 'FINALE' || m.matchCode == 'PLACE_3_4')
+            .where((m) => m.matchCode == 'PLACE_3_4')
             .map((m) => _buildFinalPhaseMatchCard(m, bracket)),
 
         const SizedBox(height: 16),
-        _buildSectionHeader("MATCH DE CLASSEMENT (PLACE 5 / 6)", Colors.white70, Icons.low_priority_rounded),
+        _buildSectionHeader("MATCH DE CLASSEMENT (PLACES 5 & 6)", Colors.white70, Icons.low_priority_rounded),
         const SizedBox(height: 8),
         ...bracket.mainMatches
             .where((m) => m.matchCode == 'PLACE_5_6')
             .map((m) => _buildFinalPhaseMatchCard(m, bracket)),
+
+        // Match Places 7 & 8 (si poules de 4)
+        if (hasP78) ...[
+          const SizedBox(height: 16),
+          _buildSectionHeader("MATCH DE CLASSEMENT (PLACES 7 & 8)", Colors.white60, Icons.low_priority_rounded),
+          const SizedBox(height: 8),
+          ...bracket.mainMatches
+              .where((m) => m.matchCode == 'PLACE_7_8')
+              .map((m) => _buildFinalPhaseMatchCard(m, bracket)),
+        ],
       ],
+    );
+  }
+
+  Widget _buildChampionBanner(TournamentPair winner) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.gold.withValues(alpha: 0.35),
+            AppColors.gold.withValues(alpha: 0.12),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.gold, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.gold.withValues(alpha: 0.3),
+            blurRadius: 16,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(
+              color: AppColors.gold,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.emoji_events_rounded, color: Colors.black, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "🏆 VAINQUEURS DU TOURNOI",
+                  style: TextStyle(
+                    color: AppColors.gold,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  winner.displayName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3286,10 +3479,10 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  icon: const Icon(Icons.person_add_rounded, size: 16, color: Colors.black),
+                  icon: const Icon(Icons.person_add_rounded, size: 15, color: Colors.black),
                   label: const Text(
-                    "Ajouter une Paire",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black),
+                    "Ajouter Paire",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.black),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.gold,
@@ -3301,13 +3494,31 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                   onPressed: () => _showAddPairDialog(bracket),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
-                  icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: AppColors.gold),
+                  icon: const Icon(Icons.file_upload_outlined, size: 15, color: Colors.white),
                   label: const Text(
-                    "Générer Tableaux",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.gold),
+                    "Import Excel",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.white24),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () => _showImportPairsDialog(bracket),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.auto_awesome_rounded, size: 15, color: AppColors.gold),
+                  label: const Text(
+                    "Générer (FFT)",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.gold),
                   ),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppColors.gold),
@@ -3338,7 +3549,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
         if (pairsList.isEmpty)
           _buildEmptyState(
             title: "Aucune paire enregistrée",
-            subtitle: "Cliquez sur 'Ajouter une Paire' ou lancez la génération automatique.",
+            subtitle: "Cliquez sur 'Ajouter une Paire', 'Import Excel' ou lancez la génération automatique.",
           )
         else
           for (int i = 0; i < pairsList.length; i++)
@@ -3418,6 +3629,16 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                   ),
                 ),
               ),
+            if (_isJat) ...[
+              const SizedBox(width: 6),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 20, color: AppColors.gold),
+                tooltip: "Modifier la paire",
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () => _showEditPairDialog(pair, bracket),
+              ),
+            ],
           ],
         ),
       ),
@@ -3674,61 +3895,833 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
   }
 
   // ==========================================
-  // DIALOG : GENERER LES TABLEAUX / POULES
+  // DIALOG : MODIFICATION D'UNE PAIRE (JAT EN DIRECT)
   // ==========================================
-  void _showGenerateBracketDialog(TournamentBracket bracket) {
-    final isPool = _selectedCategory != 'double_mixtes';
-    final currentPairsCount = bracket.pairs.isNotEmpty
-        ? bracket.pairs.length
-        : (isPool ? bracket.pools.fold(0, (acc, p) => acc + p.pairs.length) : 12);
+  void _showEditPairDialog(TournamentPair pair, TournamentBracket bracket) {
+    final p1Controller = TextEditingController(text: pair.player1Name);
+    final p2Controller = TextEditingController(text: pair.player2Name);
+    final r1Controller = TextEditingController(text: "${pair.player1Rank}");
+    final r2Controller = TextEditingController(text: "${pair.player2Rank}");
+    final seedController = TextEditingController(text: pair.seed != null ? "${pair.seed}" : "");
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF0F172A),
-        title: Text(
-          isPool ? "Générer les Poules & Phase Finale ?" : "Générer le Tableau Officiel FFT ?",
-          style: const TextStyle(color: Colors.white, fontSize: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.edit, color: AppColors.gold, size: 20),
+            SizedBox(width: 8),
+            Text(
+              "Modifier la paire",
+              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
-        content: Text(
-          isPool
-              ? "Cela va répartir les $currentPairsCount paires en 2 Poules (A & B) et créer les demi-finales croisées et finales."
-              : "Cela va générer le tableau à élimination directe de 16 avec 4 BYE pour les 4 premières têtes de série selon les règles FFT.",
-          style: const TextStyle(color: Colors.white70, fontSize: 13),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: p1Controller,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: "Nom & Prénom Joueur 1",
+                  labelStyle: TextStyle(color: Colors.white70),
+                ),
+              ),
+              TextField(
+                controller: r1Controller,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: "Classement FFT Joueur 1",
+                  labelStyle: TextStyle(color: Colors.white70),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: p2Controller,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: "Nom & Prénom Joueur 2",
+                  labelStyle: TextStyle(color: Colors.white70),
+                ),
+              ),
+              TextField(
+                controller: r2Controller,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: "Classement FFT Joueur 2",
+                  labelStyle: TextStyle(color: Colors.white70),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: seedController,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: "Tête de série (optionnel, ex: 1, 2)",
+                  labelStyle: TextStyle(color: Colors.white70),
+                  hintText: "Laisser vide si non tête de série",
+                  hintStyle: TextStyle(color: Colors.white30),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuler", style: TextStyle(color: Colors.white54))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Annuler", style: TextStyle(color: Colors.white54)),
+          ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.gold,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             onPressed: () async {
+              if (p1Controller.text.trim().isEmpty || p2Controller.text.trim().isEmpty) return;
               Navigator.pop(ctx);
-              TournamentBracket generated;
-              if (isPool) {
-                final allPairs = bracket.pairs.isNotEmpty
-                    ? bracket.pairs
-                    : (bracket.pools.isNotEmpty
-                        ? [...bracket.pools[0].pairs, ...bracket.pools[1].pairs]
-                        : <TournamentPair>[]);
 
-                final pA = allPairs.take(3).toList();
-                final pB = allPairs.skip(3).take(3).toList();
+              final seedVal = int.tryParse(seedController.text.trim());
+              final updatedPair = pair.copyWith(
+                player1Name: p1Controller.text.trim(),
+                player1Rank: int.tryParse(r1Controller.text.trim()) ?? pair.player1Rank,
+                player2Name: p2Controller.text.trim(),
+                player2Rank: int.tryParse(r2Controller.text.trim()) ?? pair.player2Rank,
+                seed: seedVal,
+                clearSeed: seedVal == null,
+              );
 
-                generated = BracketGeneratorService.generatePoolsAndBracket(
-                  tournamentId: widget.tournament.id,
-                  category: _selectedCategory,
-                  pouleAPairs: pA,
-                  pouleBPairs: pB,
-                );
-              } else {
-                generated = BracketGeneratorService.generateBracket(
-                  tournamentId: widget.tournament.id,
-                  category: _selectedCategory,
-                  registeredPairs: bracket.pairs,
+              final updated = BracketGeneratorService.updatePair(
+                bracket: bracket,
+                updatedPair: updatedPair,
+              );
+              await _saveBracket(updated);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("✅ Paire modifiée et mise à jour dans tous les matches !"),
+                    backgroundColor: Colors.green,
+                  ),
                 );
               }
-              await _saveBracket(generated);
             },
-            child: const Text("Générer Maintenant", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            child: const Text(
+              "Enregistrer",
+              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // DIALOG : IMPORTER DES PAIRES (EXCEL / TEN'UP / COPIER-COLLER)
+  // ==========================================
+  void _showImportPairsDialog(TournamentBracket bracket) {
+    final textController = TextEditingController();
+    bool replaceExisting = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          backgroundColor: const Color(0xFF0F172A),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.file_upload_outlined, color: AppColors.gold, size: 22),
+              SizedBox(width: 8),
+              Text(
+                "Importer des paires",
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Collez votre liste depuis Excel, Ten'Up ou un fichier texte (1 paire par ligne) :",
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: const Text(
+                      "Formats acceptés :\n"
+                      "• Copier-Coller Excel (Colonnes : Nom 1, Rang 1, Nom 2, Rang 2)\n"
+                      "• Format texte : Nom 1 / Nom 2\n"
+                      "• Avec classements : Nom 1 (250) / Nom 2 (400)",
+                      style: TextStyle(color: Colors.white54, fontSize: 11, height: 1.4),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: textController,
+                    maxLines: 8,
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontFamily: 'monospace'),
+                    decoration: InputDecoration(
+                      hintText: "Exemple :\nArgaud\t274\tBernard\t434\nNguyen\t665\tMateos\t397\nOu :\nDupont / Martin\nDurand (120) / Leroy (340)",
+                      hintStyle: const TextStyle(color: Colors.white24, fontSize: 11),
+                      filled: true,
+                      fillColor: Colors.black26,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Colors.white24),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Colors.white24),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.gold),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Theme(
+                    data: ThemeData(unselectedWidgetColor: Colors.white60),
+                    child: CheckboxListTile(
+                      value: replaceExisting,
+                      onChanged: (val) => setDlgState(() => replaceExisting = val ?? false),
+                      title: const Text(
+                        "Remplacer les paires existantes",
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                      subtitle: const Text(
+                        "Si décoché, les nouvelles paires seront ajoutées à la suite.",
+                        style: TextStyle(color: Colors.white38, fontSize: 10),
+                      ),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: AppColors.gold,
+                      checkColor: Colors.black,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("Annuler", style: TextStyle(color: Colors.white54)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () async {
+                final text = textController.text.trim();
+                if (text.isEmpty) return;
+
+                final lines = text.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+                final parsedPairs = <TournamentPair>[];
+
+                for (final line in lines) {
+                  // Format Tabulation Excel : Joueur 1 \t Rang 1 \t Joueur 2 \t Rang 2 (ou avec colonne N° en tête)
+                  if (line.contains('\t')) {
+                    var cols = line.split('\t').map((c) => c.trim()).where((c) => c.isNotEmpty).toList();
+                    // Si la 1ère colonne est un simple numéro de ligne (ex: "1", "#1", "1.")
+                    if (cols.length >= 5 && RegExp(r'^\#?\d+\.?$').hasMatch(cols[0])) {
+                      cols = cols.sublist(1);
+                    }
+                    if (cols.length >= 4) {
+                      final p1 = cols[0];
+                      final r1 = int.tryParse(cols[1].replaceAll(RegExp(r'[^0-9]'), '')) ?? 500;
+                      final p2 = cols[2];
+                      final r2 = int.tryParse(cols[3].replaceAll(RegExp(r'[^0-9]'), '')) ?? 500;
+                      parsedPairs.add(TournamentPair(
+                        id: "pair_${DateTime.now().millisecondsSinceEpoch}_${parsedPairs.length}",
+                        player1Name: p1,
+                        player1Rank: r1,
+                        player2Name: p2,
+                        player2Rank: r2,
+                      ));
+                      continue;
+                    } else if (cols.length >= 2) {
+                      parsedPairs.add(TournamentPair(
+                        id: "pair_${DateTime.now().millisecondsSinceEpoch}_${parsedPairs.length}",
+                        player1Name: cols[0],
+                        player1Rank: 500,
+                        player2Name: cols[1],
+                        player2Rank: 500,
+                      ));
+                      continue;
+                    }
+                  }
+
+                  // Format avec séparateur '/' ou ';'
+                  final delimiter = line.contains('/') ? '/' : (line.contains(';') ? ';' : null);
+                  if (delimiter != null) {
+                    final parts = line.split(delimiter);
+                    if (parts.length >= 2) {
+                      final p1Raw = parts[0].trim();
+                      final p2Raw = parts[1].trim();
+
+                      final r1Match = RegExp(r'\((\d+)\)').firstMatch(p1Raw);
+                      final r2Match = RegExp(r'\((\d+)\)').firstMatch(p2Raw);
+                      final p1Name = p1Raw.replaceAll(RegExp(r'\s*\(\d+\)'), '').trim();
+                      final p2Name = p2Raw.replaceAll(RegExp(r'\s*\(\d+\)'), '').trim();
+                      final r1 = r1Match != null ? int.tryParse(r1Match.group(1)!) ?? 500 : 500;
+                      final r2 = r2Match != null ? int.tryParse(r2Match.group(1)!) ?? 500 : 500;
+
+                      if (p1Name.isNotEmpty && p2Name.isNotEmpty) {
+                        parsedPairs.add(TournamentPair(
+                          id: "pair_${DateTime.now().millisecondsSinceEpoch}_${parsedPairs.length}",
+                          player1Name: p1Name,
+                          player1Rank: r1,
+                          player2Name: p2Name,
+                          player2Rank: r2,
+                        ));
+                      }
+                    }
+                  }
+                }
+
+                if (parsedPairs.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("⚠️ Aucune paire n'a pu être extraite. Vérifiez le format."),
+                      backgroundColor: Colors.orangeAccent,
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(ctx);
+
+                List<TournamentPair> finalPairs;
+                if (replaceExisting) {
+                  finalPairs = parsedPairs;
+                } else {
+                  finalPairs = [...bracket.pairs, ...parsedPairs];
+                }
+
+                await _saveBracket(bracket.copyWith(pairs: finalPairs));
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("✅ ${parsedPairs.length} paires importées avec succès !"),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              },
+              child: const Text("Importer", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==========================================
+  // DIALOG : GENERER LES TABLEAUX / POULES
+  // ==========================================
+  // ==========================================
+  // WIZARD INTERACTIF : CONFIGURATION DU TOURNOI PAR LE JAT
+  // ==========================================
+  void _showGenerateBracketDialog(TournamentBracket bracket) {
+    // 1. Récupération et tri initial des paires
+    final allPairs = bracket.pairs.isNotEmpty
+        ? List<TournamentPair>.from(bracket.pairs)
+        : (bracket.pools.isNotEmpty
+            ? [...bracket.pools[0].pairs, ...bracket.pools[1].pairs]
+            : <TournamentPair>[]);
+
+    // Tri initial par têtes de série puis somme des classements
+    allPairs.sort((a, b) {
+      if (a.seed != null && b.seed != null) return a.seed!.compareTo(b.seed!);
+      if (a.seed != null) return -1;
+      if (b.seed != null) return 1;
+      return a.weight.compareTo(b.weight);
+    });
+
+    String selectedFormat = _selectedCategory == 'double_mixtes' ? 'elimination' : 'pools_and_bracket';
+    String selectedPhaseType = bracket.finalPhaseType;
+
+    // Répartition Serpentine initiale
+    List<TournamentPair> pouleA = [];
+    List<TournamentPair> pouleB = [];
+
+    void applySerpentine() {
+      pouleA.clear();
+      pouleB.clear();
+      for (int i = 0; i < allPairs.length; i++) {
+        final mod4 = i % 4;
+        if (mod4 == 0 || mod4 == 3) {
+          pouleA.add(allPairs[i]);
+        } else {
+          pouleB.add(allPairs[i]);
+        }
+      }
+    }
+
+    applySerpentine();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              height: MediaQuery.of(context).size.height * 0.88,
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.98),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Poignée supérieure
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
+                  // Titre & Sous-titre
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+                        ),
+                        child: const Icon(Icons.settings_suggest_rounded, color: AppColors.gold, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Configuration du Tournoi (JAT)",
+                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900),
+                            ),
+                            Text(
+                              "Définissez les règles et la formule avant lancement automatique",
+                              style: TextStyle(color: Colors.white60, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Contenu défilable
+                  Expanded(
+                    child: ListView(
+                      physics: const BouncingScrollPhysics(),
+                      children: [
+                        // 1. Choix du Format Général
+                        const Text(
+                          "1. FORMULE GÉNÉRALE",
+                          style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.6),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildWizardOptionCard(
+                                title: "Poules + Phase Finale",
+                                subtitle: "2 Poules (A & B) + Matchs de classement",
+                                isSelected: selectedFormat == 'pools_and_bracket',
+                                icon: Icons.grid_view_rounded,
+                                onTap: () => setDlgState(() => selectedFormat = 'pools_and_bracket'),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _buildWizardOptionCard(
+                                title: "Tableau Éliminatoire",
+                                subtitle: "16 paires avec 4 BYE et consolante",
+                                isSelected: selectedFormat == 'elimination',
+                                icon: Icons.account_tree_rounded,
+                                onTap: () => setDlgState(() => selectedFormat = 'elimination'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+
+                        if (selectedFormat == 'pools_and_bracket') ...[
+                          // 2. Choix de la Phase Finale
+                          const Text(
+                            "2. DÉROULÉ DE LA PHASE FINALE",
+                            style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.6),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildWizardOptionCard(
+                            title: "⚡ Finales Directes (Recommandé FFT 1 jour)",
+                            subtitle: "1er A vs 1er B en Grande Finale · 2e A vs 2e B en 3/4 · 3e A vs 3e B en 5/6 · Pas de demis.",
+                            isSelected: selectedPhaseType == 'direct_finals',
+                            icon: Icons.bolt_rounded,
+                            onTap: () => setDlgState(() => selectedPhaseType = 'direct_finals'),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildWizardOptionCard(
+                            title: "🏆 Demi-Finales Croisées (Format 2 jours / Championnat)",
+                            subtitle: "1er A vs 2e B et 1er B vs 2e A en Demis · Vainqueurs en Finale · Perdants en Petite Finale.",
+                            isSelected: selectedPhaseType == 'crossover_semis',
+                            icon: Icons.emoji_events_rounded,
+                            onTap: () => setDlgState(() => selectedPhaseType = 'crossover_semis'),
+                          ),
+                          const SizedBox(height: 18),
+
+                          // 3. Répartition des Paires dans les Poules (Ajustable)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                "3. RÉPARTITION DES PAIRES",
+                                style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.6),
+                              ),
+                              TextButton.icon(
+                                icon: const Icon(Icons.refresh_rounded, size: 14, color: AppColors.gold),
+                                label: const Text("Tirage Serpentine FFT", style: TextStyle(fontSize: 10, color: AppColors.gold, fontWeight: FontWeight.bold)),
+                                onPressed: () {
+                                  setDlgState(() => applySerpentine());
+                                },
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+
+                          // Poule A
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: Colors.white12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text("POULE A", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.gold.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        "${pouleA.length} paires",
+                                        style: const TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                if (pouleA.isEmpty)
+                                  const Text("Aucune paire dans la poule A", style: TextStyle(color: Colors.white38, fontSize: 11, fontStyle: FontStyle.italic))
+                                else
+                                  for (final p in pouleA)
+                                    _buildWizardPairRow(
+                                      pair: p,
+                                      actionLabel: "➡️ Poule B",
+                                      onAction: () {
+                                        setDlgState(() {
+                                          pouleA.remove(p);
+                                          pouleB.add(p);
+                                        });
+                                      },
+                                    ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+
+                          // Poule B
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: Colors.white12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text("POULE B", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.coral.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        "${pouleB.length} paires",
+                                        style: const TextStyle(color: AppColors.coral, fontSize: 10, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                if (pouleB.isEmpty)
+                                  const Text("Aucune paire dans la poule B", style: TextStyle(color: Colors.white38, fontSize: 11, fontStyle: FontStyle.italic))
+                                else
+                                  for (final p in pouleB)
+                                    _buildWizardPairRow(
+                                      pair: p,
+                                      actionLabel: "⬅️ Poule A",
+                                      onAction: () {
+                                        setDlgState(() {
+                                          pouleB.remove(p);
+                                          pouleA.add(p);
+                                        });
+                                      },
+                                    ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Actions : Annuler ou Valider
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text("Annuler", style: TextStyle(color: Colors.white60, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.gold,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () async {
+                            if (selectedFormat == 'pools_and_bracket' && (pouleA.length < 2 || pouleB.length < 2)) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Chaque poule doit contenir au minimum 2 paires pour générer des matches."), backgroundColor: Colors.orangeAccent),
+                              );
+                              return;
+                            }
+
+                            if (selectedFormat == 'elimination' && allPairs.length < 2) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Veuillez inscrire ou importer au moins 2 paires pour générer le tableau."), backgroundColor: Colors.orangeAccent),
+                              );
+                              return;
+                            }
+
+                            Navigator.pop(ctx);
+
+                            TournamentBracket generated;
+                            if (selectedFormat == 'pools_and_bracket') {
+                              generated = BracketGeneratorService.generatePoolsAndBracket(
+                                tournamentId: widget.tournament.id,
+                                category: _selectedCategory,
+                                pouleAPairs: pouleA,
+                                pouleBPairs: pouleB,
+                                finalPhaseType: selectedPhaseType,
+                              );
+                            } else {
+                              generated = BracketGeneratorService.generateBracket(
+                                tournamentId: widget.tournament.id,
+                                category: _selectedCategory,
+                                registeredPairs: allPairs,
+                              );
+                            }
+
+                            await _saveBracket(generated);
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("🚀 Tournoi configuré et démarré avec succès !"),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          },
+                          child: const Text(
+                            "Démarrer le Tournoi 🚀",
+                            style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 13),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWizardOptionCard({
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.gold.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.gold : Colors.white12,
+            width: isSelected ? 1.6 : 1.0,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              isSelected ? Icons.check_circle_rounded : icon,
+              color: isSelected ? AppColors.gold : Colors.white60,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: isSelected ? AppColors.gold : Colors.white,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.6),
+                      fontSize: 10.5,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWizardPairRow({
+    required TournamentPair pair,
+    required String actionLabel,
+    required VoidCallback onAction,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black26,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        children: [
+          if (pair.seed != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                "TS${pair.seed}",
+                style: const TextStyle(color: AppColors.gold, fontSize: 9, fontWeight: FontWeight.bold),
+              ),
+            ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  pair.displayName,
+                  style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  "Poids : ${pair.weight} (J1: #${pair.player1Rank} · J2: #${pair.player2Rank})",
+                  style: const TextStyle(color: Colors.white38, fontSize: 9.5),
+                ),
+              ],
+            ),
+          ),
+          InkWell(
+            onTap: onAction,
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white10,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Text(
+                actionLabel,
+                style: const TextStyle(color: Colors.white70, fontSize: 9.5, fontWeight: FontWeight.bold),
+              ),
+            ),
           ),
         ],
       ),

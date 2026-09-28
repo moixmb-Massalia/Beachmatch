@@ -52,6 +52,14 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
         if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
         return;
       }
+
+      // Juge-Arbitre (JAT) officiel assigné au tournoi
+      final jatEmail = widget.tournament.contactEmail?.toLowerCase().trim();
+      if (jatEmail != null && jatEmail.isNotEmpty && authEmail == jatEmail) {
+        if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
+        return;
+      }
+
       try {
         final query = await FirebaseFirestore.instance
             .collection('clubs')
@@ -435,7 +443,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                                     MaterialPageRoute(
                                       builder: (_) => TournamentBracketScreen(
                                         tournament: widget.tournament,
-                                        isAuthorized: true,
+                                        isAuthorized: _isAuthorized,
                                       ),
                                     ),
                                   ),

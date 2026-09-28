@@ -24,7 +24,9 @@ class TournamentListScreen extends StatefulWidget {
 
 class _TournamentListScreenState extends State<TournamentListScreen> {
   String _selectedCountryFilter = 'ALL';
-  String _selectedCategoryFilter = 'Toutes 🏆';
+  String _selectedCategoryFilter = 'ALL';
+  String _selectedDistanceFilter = 'ALL';
+  String _selectedFormatFilter = 'ALL';
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   Timer? _searchDebounce;
@@ -40,25 +42,41 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
     return str;
   }
   
-  final List<Map<String, String>> _countryFilters = [
-    {'id': 'ALL', 'label': 'Tous 🌍'},
-    {'id': 'NEARBY', 'label': 'À proximité 📍'},
-    {'id': 'FR', 'label': 'Métropole 🇫🇷'},
-    {'id': 'RE', 'label': 'Réunion 🇷🇪'},
-    {'id': 'BR', 'label': 'Brésil 🇧🇷'},
-    {'id': 'IT', 'label': 'Italie 🇮🇹'},
-    {'id': 'ES', 'label': 'Espagne 🇪🇸'},
+  final List<Map<String, String>> _distanceFilters = [
+    {'id': 'ALL', 'label': 'Toutes distances 📍'},
+    {'id': '20', 'label': '< 20 km'},
+    {'id': '50', 'label': '< 50 km'},
+    {'id': '100', 'label': '< 100 km'},
+    {'id': '200', 'label': '< 200 km'},
   ];
 
-  final List<String> _categoryFilters = [
-    'Toutes 🏆',
-    'Sand Series 🌟',
-    'BT 2000 / 400',
-    'BT 1000',
-    'BT 500',
-    'BT 250',
-    'BT 100 / 25',
-    'Terminés'
+  final List<Map<String, String>> _countryFilters = [
+    {'id': 'ALL', 'label': 'Tous pays 🌍'},
+    {'id': 'FR', 'label': 'Métropole 🇫🇷'},
+    {'id': 'RE', 'label': 'La Réunion 🇷🇪'},
+    {'id': 'ANT', 'label': 'Antilles 🌴'},
+    {'id': 'IT', 'label': 'Italie 🇮🇹'},
+    {'id': 'ES', 'label': 'Espagne 🇪🇸'},
+    {'id': 'BR', 'label': 'Brésil 🇧🇷'},
+  ];
+
+  final List<Map<String, String>> _formatFilters = [
+    {'id': 'ALL', 'label': 'Tous formats 🎾'},
+    {'id': 'DH', 'label': 'Double Hommes (DH)'},
+    {'id': 'DD', 'label': 'Double Dames (DD)'},
+    {'id': 'DX', 'label': 'Double Mixte (DX)'},
+    {'id': 'Jeunes', 'label': 'Jeunes (U14-U18)'},
+  ];
+
+  final List<Map<String, String>> _categoryFilters = [
+    {'id': 'ALL', 'label': 'Toutes catégories 🏆'},
+    {'id': 'Sand Series 🌟', 'label': 'Sand Series 🌟'},
+    {'id': 'BT 2000 / 400', 'label': 'BT 2000 / 400'},
+    {'id': 'BT 1000', 'label': 'BT 1000'},
+    {'id': 'BT 500', 'label': 'BT 500'},
+    {'id': 'BT 250', 'label': 'BT 250'},
+    {'id': 'BT 100 / 25', 'label': 'BT 100 / 25'},
+    {'id': 'Terminés', 'label': 'Terminés 🏁'},
   ];
 
   @override
@@ -105,33 +123,37 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
     } catch (_) {}
   }
 
-  Future<void> _handleCountryFilter(String filterId) async {
-    setState(() {
-      _selectedCountryFilter = filterId;
-    });
-
-    if (filterId == 'NEARBY') {
-      setState(() { _isLocating = true; });
-      try {
-        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-        if (!serviceEnabled) throw Exception("Location services disabled.");
-        LocationPermission permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
-          if (permission == LocationPermission.denied) throw Exception("Location denied.");
-        }
-        if (permission == LocationPermission.deniedForever) {
-          throw Exception("Location denied forever.");
-        }
-
-        _currentPosition = await Geolocator.getCurrentPosition();
-      } catch (e) {
-        if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossible de vous localiser. Vérifiez vos permissions.")));
-        }
-      } finally {
-        if (mounted) {
-          setState(() { _isLocating = false; });
+  Future<void> _handleDistanceFilter(String filterId) async {
+    setState(() => _selectedDistanceFilter = filterId);
+    if (filterId != 'ALL') {
+      final pos = _currentPosition ?? context.read<AppState>().currentPosition;
+      if (pos == null) {
+        setState(() => _isLocating = true);
+        try {
+          bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+          if (!serviceEnabled) throw Exception("Location services disabled.");
+          LocationPermission permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.denied) {
+            permission = await Geolocator.requestPermission();
+            if (permission == LocationPermission.denied) throw Exception("Location denied.");
+          }
+          if (permission == LocationPermission.deniedForever) throw Exception("Location denied forever.");
+          final currentPos = await Geolocator.getCurrentPosition();
+          if (mounted) setState(() => _currentPosition = currentPos);
+        } catch (_) {
+          if (mounted) {
+            setState(() => _selectedDistanceFilter = 'ALL');
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Activez la géolocalisation pour filtrer par distance.")),
+            );
+          }
+        } finally {
+          if (mounted) {
+            if (_currentPosition == null) {
+              setState(() => _selectedDistanceFilter = 'ALL');
+            }
+            setState(() => _isLocating = false);
+          }
         }
       }
     }
@@ -150,27 +172,37 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
         if (t.isPassed) return false;
       }
 
-      // Filter by Country / Distance
-      if (_selectedCountryFilter == 'NEARBY') {
+      // Filter by Distance
+      if (_selectedDistanceFilter != 'ALL') {
         final userPos = _currentPosition ?? context.read<AppState>().currentPosition;
         if (userPos == null || t.latitude == null || t.longitude == null) return false;
+        final maxKm = double.tryParse(_selectedDistanceFilter) ?? 100.0;
         final distance = Geolocator.distanceBetween(
           userPos.latitude, 
           userPos.longitude, 
           t.latitude!, 
           t.longitude!
         );
-        if (distance > 100000) return false; // Tournois à moins de 100 km
-      } else if (_selectedCountryFilter == 'FR') {
+        if (distance > maxKm * 1000) return false;
+      }
+
+      // Filter by Country / Region
+      if (_selectedCountryFilter == 'FR') {
         final loc = t.location.toLowerCase();
         final c = (t.country ?? '').toLowerCase();
-        final isOther = loc.contains('réunion') || loc.contains('reunion') || loc.contains('brésil') || loc.contains('brasil') || loc.contains('italie') || loc.contains('italy') || loc.contains('espagne') || loc.contains('spain') || c.contains('réunion') || c.contains('brésil') || c.contains('italie') || c.contains('espagne');
+        final isOther = loc.contains('réunion') || loc.contains('reunion') || loc.contains('brésil') || loc.contains('brasil') || loc.contains('italie') || loc.contains('italy') || loc.contains('espagne') || loc.contains('spain') || loc.contains('martinique') || loc.contains('guadeloupe') || loc.contains('saint-barth') || loc.contains('saint-martin') || c.contains('réunion') || c.contains('brésil') || c.contains('italie') || c.contains('espagne') || c.contains('martinique') || c.contains('guadeloupe') || c.contains('saint-barth') || c.contains('saint-martin');
         if (isOther) return false;
       } else if (_selectedCountryFilter == 'RE') {
         final loc = t.location.toLowerCase();
         final c = (t.country ?? '').toLowerCase();
         final name = t.name.toLowerCase();
-        if (!loc.contains('réunion') && !loc.contains('reunion') && !c.contains('réunion') && !name.contains('brisants') && !name.contains('bourbon') && !name.contains('tcbsp')) return false;
+        if (!loc.contains('réunion') && !loc.contains('reunion') && !c.contains('réunion') && !name.contains('brisants') && !name.contains('bourbon') && !name.contains('tcbsp') && !name.contains('beach park')) return false;
+      } else if (_selectedCountryFilter == 'ANT') {
+        final loc = t.location.toLowerCase();
+        final c = (t.country ?? '').toLowerCase();
+        final name = t.name.toLowerCase();
+        final isAnt = loc.contains('martinique') || loc.contains('guadeloupe') || loc.contains('saint-barth') || loc.contains('saint-martin') || c.contains('martinique') || c.contains('guadeloupe') || c.contains('saint-barth') || c.contains('saint-martin') || name.contains('madiana') || name.contains('fcbt') || name.contains('karibbean') || name.contains('an nou');
+        if (!isAnt) return false;
       } else if (_selectedCountryFilter == 'BR') {
         final loc = t.location.toLowerCase();
         final c = (t.country ?? '').toLowerCase();
@@ -186,6 +218,25 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
         final c = (t.country ?? '').toLowerCase();
         final name = t.name.toLowerCase();
         if (!loc.contains('espagne') && !loc.contains('spain') && !c.contains('espagne') && !name.contains('canaria') && !name.contains('barcelona')) return false;
+      }
+
+      // Filter by Format (DH, DD, DX, Jeunes)
+      if (_selectedFormatFilter != 'ALL') {
+        if (!t.formats.contains(_selectedFormatFilter)) {
+          final nameUpper = t.name.toUpperCase();
+          final catUpper = t.category.toUpperCase();
+          if (_selectedFormatFilter == 'DX' && (nameUpper.contains('MIXTE') || nameUpper.contains(' DX') || catUpper.contains('MIXTE'))) {
+            // match
+          } else if (_selectedFormatFilter == 'DH' && (nameUpper.contains('HOMMES') || nameUpper.contains(' DH') || nameUpper.contains('DM') || catUpper.contains('HOMMES'))) {
+            // match
+          } else if (_selectedFormatFilter == 'DD' && (nameUpper.contains('DAMES') || nameUpper.contains(' DD') || nameUpper.contains('DF') || catUpper.contains('DAMES'))) {
+            // match
+          } else if (_selectedFormatFilter == 'Jeunes' && (nameUpper.contains('JEUNES') || catUpper.contains('JEUNES') || nameUpper.contains('U14') || nameUpper.contains('U18'))) {
+            // match
+          } else {
+            return false;
+          }
+        }
       }
 
       // Filter by Category
@@ -229,9 +280,9 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
       return true;
     }).toList();
     
-    // Sort logic : If nearby filter selected, sort by closest distance, otherwise by date
+    // Sort logic : If nearby / distance filter selected, sort by closest distance, otherwise by date
     final userPos = _currentPosition ?? context.read<AppState>().currentPosition;
-    if (_selectedCountryFilter == 'NEARBY' && userPos != null) {
+    if (_selectedDistanceFilter != 'ALL' && userPos != null) {
       filteredTournaments.sort((a, b) {
         if (a.latitude == null || a.longitude == null) return 1;
         if (b.latitude == null || b.longitude == null) return -1;
@@ -473,102 +524,159 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                 
                 const SizedBox(height: 8),
 
-                // 🌍 1ère Rangée : Filtres Pays & Proximité
-                SizedBox(
-                  height: 36,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _countryFilters.length,
-                    itemBuilder: (context, index) {
-                      final item = _countryFilters[index];
-                      final isSelected = _selectedCountryFilter == item['id'];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: ChoiceChip(
-                          label: Text(
-                            item['label']!,
-                            style: TextStyle(
-                              color: isSelected ? Colors.black : Colors.white,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              fontSize: 12,
-                            ),
-                          ),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            if (selected) {
-                              _handleCountryFilter(item['id']!);
-                            }
-                          },
-                          backgroundColor: Colors.black.withValues(alpha: 0.6),
-                          selectedColor: AppColors.gold,
-                          side: BorderSide(
-                            color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.35),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 6),
-
-                // 🏆 2ème Rangée : Filtres Catégories (BT 2000, BT 1000, BT 500...)
-                SizedBox(
-                  height: 34,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _categoryFilters.length,
-                    itemBuilder: (context, index) {
-                      final cat = _categoryFilters[index];
-                      final isSelected = _selectedCategoryFilter == cat;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 3),
-                        child: ChoiceChip(
-                          label: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (cat == 'Terminés') ...[
-                                Icon(
-                                  Icons.check_circle_rounded,
-                                  size: 13,
-                                  color: isSelected ? Colors.white : AppColors.gold,
+                // 🎛️ BARRE DE MENUS DÉROULANTS (Distance, Pays, Format DH/DD/DX, Catégorie)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: Column(
+                    children: [
+                      // Rangée 1 : Distance + Pays
+                      Row(
+                        children: [
+                          _buildDropdownCard<String>(
+                            value: _selectedDistanceFilter,
+                            icon: Icons.near_me_rounded,
+                            isActive: _selectedDistanceFilter != 'ALL',
+                            items: _distanceFilters.map((f) {
+                              return DropdownMenuItem<String>(
+                                value: f['id']!,
+                                child: Text(
+                                  f['label']!,
+                                  style: TextStyle(
+                                    color: _selectedDistanceFilter == f['id'] ? AppColors.gold : Colors.white,
+                                    fontSize: 11.5,
+                                    fontWeight: _selectedDistanceFilter == f['id'] ? FontWeight.bold : FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(width: 4),
-                              ],
-                              Text(
-                                cat,
-                                style: TextStyle(
-                                  color: isSelected ? Colors.white : Colors.white70,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  fontSize: 11,
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) _handleDistanceFilter(val);
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _buildDropdownCard<String>(
+                            value: _selectedCountryFilter,
+                            icon: Icons.public_rounded,
+                            isActive: _selectedCountryFilter != 'ALL',
+                            items: _countryFilters.map((f) {
+                              return DropdownMenuItem<String>(
+                                value: f['id']!,
+                                child: Text(
+                                  f['label']!,
+                                  style: TextStyle(
+                                    color: _selectedCountryFilter == f['id'] ? AppColors.gold : Colors.white,
+                                    fontSize: 11.5,
+                                    fontWeight: _selectedCountryFilter == f['id'] ? FontWeight.bold : FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) setState(() => _selectedCountryFilter = val);
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      // Rangée 2 : Format (DH/DD/DX/Jeunes) + Catégorie
+                      Row(
+                        children: [
+                          _buildDropdownCard<String>(
+                            value: _selectedFormatFilter,
+                            icon: Icons.sports_tennis_rounded,
+                            isActive: _selectedFormatFilter != 'ALL',
+                            items: _formatFilters.map((f) {
+                              return DropdownMenuItem<String>(
+                                value: f['id']!,
+                                child: Text(
+                                  f['label']!,
+                                  style: TextStyle(
+                                    color: _selectedFormatFilter == f['id'] ? AppColors.gold : Colors.white,
+                                    fontSize: 11.5,
+                                    fontWeight: _selectedFormatFilter == f['id'] ? FontWeight.bold : FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) setState(() => _selectedFormatFilter = val);
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _buildDropdownCard<String>(
+                            value: _selectedCategoryFilter,
+                            icon: Icons.emoji_events_rounded,
+                            isActive: _selectedCategoryFilter != 'ALL',
+                            items: _categoryFilters.map((f) {
+                              return DropdownMenuItem<String>(
+                                value: f['id']!,
+                                child: Text(
+                                  f['label']!,
+                                  style: TextStyle(
+                                    color: _selectedCategoryFilter == f['id'] ? AppColors.gold : Colors.white,
+                                    fontSize: 11.5,
+                                    fontWeight: _selectedCategoryFilter == f['id'] ? FontWeight.bold : FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) setState(() => _selectedCategoryFilter = val);
+                            },
+                          ),
+                        ],
+                      ),
+                      // Bouton Réinitialiser si un filtre est actif
+                      if (_selectedDistanceFilter != 'ALL' ||
+                          _selectedCountryFilter != 'ALL' ||
+                          _selectedFormatFilter != 'ALL' ||
+                          _selectedCategoryFilter != 'ALL') ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _selectedDistanceFilter = 'ALL';
+                                  _selectedCountryFilter = 'ALL';
+                                  _selectedFormatFilter = 'ALL';
+                                  _selectedCategoryFilter = 'ALL';
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.coral.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: AppColors.coral.withValues(alpha: 0.5)),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.restart_alt_rounded, color: AppColors.coral, size: 14),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      "Réinitialiser les filtres",
+                                      style: TextStyle(
+                                        color: AppColors.coral,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            if (selected) {
-                              setState(() => _selectedCategoryFilter = cat);
-                            }
-                          },
-                          backgroundColor: Colors.black.withValues(alpha: 0.4),
-                          selectedColor: cat == 'Terminés' ? AppColors.gold.withValues(alpha: 0.85) : AppColors.coral,
-                          side: BorderSide(
-                            color: isSelected
-                                ? (cat == 'Terminés' ? AppColors.gold : AppColors.coral)
-                                : (cat == 'Terminés' ? AppColors.gold.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.2)),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
+                            ),
+                          ],
                         ),
-                      );
-                    },
+                      ],
+                    ],
                   ),
                 ),
 
@@ -847,6 +955,39 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                             child: Text(flag, style: const TextStyle(fontSize: 10)),
                           ),
                         ],
+                        if (tournament.formats.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          ...tournament.formats.map((fmt) {
+                            return Container(
+                              margin: const EdgeInsets.only(right: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: fmt == 'DX'
+                                    ? Colors.teal.withValues(alpha: 0.25)
+                                    : (fmt == 'DD'
+                                        ? Colors.pinkAccent.withValues(alpha: 0.25)
+                                        : Colors.blueAccent.withValues(alpha: 0.25)),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: fmt == 'DX'
+                                      ? Colors.tealAccent.withValues(alpha: 0.6)
+                                      : (fmt == 'DD'
+                                          ? Colors.pinkAccent.withValues(alpha: 0.6)
+                                          : Colors.lightBlueAccent.withValues(alpha: 0.6)),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Text(
+                                fmt,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
                         const Spacer(),
                         if (distanceText != null && !tournament.isPassed)
                           Container(
@@ -956,6 +1097,56 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
     ),
   );
 }
+
+  Widget _buildDropdownCard<T>({
+    required T value,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+    required IconData icon,
+    required bool isActive,
+  }) {
+    return Expanded(
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B).withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isActive ? AppColors.gold : Colors.white.withValues(alpha: 0.22),
+            width: isActive ? 1.4 : 1.0,
+          ),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: AppColors.gold.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                  )
+                ]
+              : null,
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<T>(
+            value: value,
+            items: items,
+            onChanged: onChanged,
+            isExpanded: true,
+            dropdownColor: const Color(0xFF0F172A),
+            icon: Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: isActive ? AppColors.gold : Colors.white70,
+              size: 18,
+            ),
+            style: TextStyle(
+              color: isActive ? AppColors.gold : Colors.white,
+              fontSize: 11.5,
+              fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Color _getCategoryColor(String category) {
     if (category.contains("2000")) return Colors.purpleAccent;

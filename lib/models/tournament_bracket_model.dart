@@ -31,6 +31,7 @@ class TournamentPair {
     String? player2Name,
     int? player2Rank,
     int? seed,
+    bool clearSeed = false,
     bool? isBye,
   }) {
     return TournamentPair(
@@ -39,7 +40,7 @@ class TournamentPair {
       player1Rank: player1Rank ?? this.player1Rank,
       player2Name: player2Name ?? this.player2Name,
       player2Rank: player2Rank ?? this.player2Rank,
-      seed: seed ?? this.seed,
+      seed: clearSeed ? null : (seed ?? this.seed),
       isBye: isBye ?? this.isBye,
     );
   }
@@ -396,6 +397,7 @@ class TournamentBracket {
   final String tournamentId;
   final String category; // 'double_messieurs', 'double_dames', 'double_mixtes'
   final String format; // 'elimination' or 'pools_and_bracket'
+  final String finalPhaseType; // 'direct_finals' or 'crossover_semis'
   final int numCourts;
   final String status; // 'draft', 'in_progress', 'finished'
   final List<TournamentPair> pairs;
@@ -408,6 +410,7 @@ class TournamentBracket {
     required this.tournamentId,
     this.category = 'double_messieurs',
     this.format = 'elimination',
+    this.finalPhaseType = 'direct_finals',
     this.numCourts = 4,
     this.status = 'draft',
     this.pairs = const [],
@@ -421,6 +424,7 @@ class TournamentBracket {
     String? tournamentId,
     String? category,
     String? format,
+    String? finalPhaseType,
     int? numCourts,
     String? status,
     List<TournamentPair>? pairs,
@@ -433,6 +437,7 @@ class TournamentBracket {
       tournamentId: tournamentId ?? this.tournamentId,
       category: category ?? this.category,
       format: format ?? this.format,
+      finalPhaseType: finalPhaseType ?? this.finalPhaseType,
       numCourts: numCourts ?? this.numCourts,
       status: status ?? this.status,
       pairs: pairs ?? this.pairs,
@@ -448,6 +453,7 @@ class TournamentBracket {
       'tournamentId': tournamentId,
       'category': category,
       'format': format,
+      'finalPhaseType': finalPhaseType,
       'numCourts': numCourts,
       'status': status,
       'pairs': pairs.map((p) => p.toMap()).toList(),
@@ -463,6 +469,7 @@ class TournamentBracket {
       tournamentId: tournamentId,
       category: map['category'] ?? 'double_messieurs',
       format: map['format'] ?? (map['pools'] != null && (map['pools'] as List).isNotEmpty ? 'pools_and_bracket' : 'elimination'),
+      finalPhaseType: map['finalPhaseType'] ?? 'direct_finals',
       numCourts: (map['numCourts'] is num) ? (map['numCourts'] as num).toInt() : 4,
       status: map['status'] ?? 'draft',
       pairs: (map['pairs'] as List<dynamic>?)

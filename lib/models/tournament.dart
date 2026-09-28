@@ -22,6 +22,7 @@ class TournamentModel {
   
   final String? country;
   final String? clubId;
+  final List<String> formats;
   
   // Geocoding cache in-memory & Firestore
   double? latitude;
@@ -106,6 +107,7 @@ class TournamentModel {
     this.scheduleDetails,
     this.country,
     this.clubId,
+    this.formats = const ['DH', 'DD'],
     this.latitude,
     this.longitude,
   });
@@ -142,6 +144,20 @@ class TournamentModel {
       }
     }
 
+    List<String> formats = [];
+    if (data['formats'] != null && data['formats'] is List) {
+      formats = (data['formats'] as List).map((e) => e.toString()).toList();
+    }
+    if (formats.isEmpty) {
+      final nameUpper = (data['name'] ?? data['title'] ?? '').toString().toUpperCase();
+      final catUpper = (data['category'] ?? data['level'] ?? '').toString().toUpperCase();
+      if (nameUpper.contains('MIXTE') || nameUpper.contains(' DX') || catUpper.contains('MIXTE')) formats.add('DX');
+      if (nameUpper.contains('HOMMES') || nameUpper.contains(' DH') || nameUpper.contains('DM') || catUpper.contains('HOMMES')) formats.add('DH');
+      if (nameUpper.contains('DAMES') || nameUpper.contains(' DD') || nameUpper.contains('DF') || catUpper.contains('DAMES')) formats.add('DD');
+      if (nameUpper.contains('JEUNES') || catUpper.contains('JEUNES')) formats.add('Jeunes');
+      if (formats.isEmpty) formats = ['DH', 'DD'];
+    }
+
     return TournamentModel(
       id: id,
       name: data['name'] ?? data['title'] ?? '',
@@ -161,6 +177,7 @@ class TournamentModel {
       scheduleDetails: data['scheduleDetails'],
       country: data['country'],
       clubId: data['clubId'],
+      formats: formats,
       latitude: lat,
       longitude: lng,
     );
@@ -174,6 +191,7 @@ class TournamentModel {
       'dateString': dateString,
       'distance': distance,
       'category': category,
+      'formats': formats,
       if (clubId != null) 'clubId': clubId,
       if (address != null) 'address': address,
       if (balls != null) 'balls': balls,

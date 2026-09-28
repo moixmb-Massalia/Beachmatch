@@ -5,6 +5,7 @@ import '../theme/colors.dart';
 import '../models/tournament.dart';
 import '../models/live_match_model.dart';
 import '../screens/tournaments/referee_live_score_screen.dart';
+import '../screens/tournaments/match_tracker_screen.dart';
 
 class TournamentLiveScoresCard extends StatelessWidget {
   final TournamentModel tournament;
@@ -101,43 +102,44 @@ class TournamentLiveScoresCard extends StatelessWidget {
                             ),
                           ],
                         ),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => RefereeLiveScoreScreen(tournament: tournament),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFE8604C), Color(0xFFF4A535)],
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.coral.withValues(alpha: 0.4),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
+                        if (isAuthorized)
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => RefereeLiveScoreScreen(tournament: tournament),
                                 ),
-                              ],
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.sports_tennis_rounded, color: Colors.white, size: 14),
-                                SizedBox(width: 4),
-                                Text(
-                                  "Arbitrer un match",
-                                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFE8604C), Color(0xFFF4A535)],
                                 ),
-                              ],
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.coral.withValues(alpha: 0.4),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.sports_tennis_rounded, color: Colors.white, size: 14),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    "Arbitrer un match",
+                                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 14),
@@ -196,7 +198,19 @@ class TournamentLiveScoresCard extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => RefereeLiveScoreScreen(tournament: tournament, match: m),
+            builder: (context) => isAuthorized
+                ? RefereeLiveScoreScreen(tournament: tournament, match: m)
+                : MatchTrackerScreen(
+                    match: {
+                      ...m.toMap(),
+                      'id': m.id,
+                    },
+                    tournament: {
+                      'id': tournament.id,
+                      'name': tournament.name,
+                      'club': tournament.club,
+                    },
+                  ),
           ),
         );
       },
