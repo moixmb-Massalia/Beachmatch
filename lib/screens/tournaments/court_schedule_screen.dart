@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../models/court_schedule_preset.dart';
 import '../../models/tournament.dart';
 import '../../models/tournament_bracket_model.dart';
 import '../../services/bracket_generator_service.dart';
@@ -15,6 +16,7 @@ class CourtScheduleScreen extends StatefulWidget {
   final int initialNumCourts;
   final TournamentBracket? bracket;
   final List<TournamentBracket>? initialBrackets;
+  final String? initialPresetId;
   final Future<void> Function(Map<String, int> matchCourts)? onApplyCourtAssignments;
 
   const CourtScheduleScreen({
@@ -25,6 +27,7 @@ class CourtScheduleScreen extends StatefulWidget {
     this.initialNumCourts = 5,
     this.bracket,
     this.initialBrackets,
+    this.initialPresetId,
     this.onApplyCourtAssignments,
   });
 
@@ -36,26 +39,30 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
   late Set<String> _selectedCategories;
   late int _numCourts;
   int _selectedRotationIndex = 0;
-  String _activeCategoryFilter = 'all'; // 'all', 'DH', 'DD', 'DX', 'Poule'
+  String _activeCategoryFilter = 'all'; // 'all', 'DH', 'DD', 'DX', 'Final'
   bool _isTableView = false;
   bool _isApplying = false;
   bool _isLoading = true;
   List<TournamentBracket> _brackets = [];
+
+  String? _currentPresetId;
+  String _currentPresetName = "Répartition 1";
+  bool _currentPresetIsOfficial = false;
+  List<CourtSchedulePreset> _availablePresets = [];
 
   @override
   void initState() {
     super.initState();
     _selectedCategories = Set.from(widget.initialCategories.isEmpty ? {'DH', 'DD'} : widget.initialCategories);
     _numCourts = widget.bracket?.numCourts ?? widget.initialNumCourts;
+    _currentPresetId = widget.initialPresetId;
     if (widget.initialBrackets != null && widget.initialBrackets!.isNotEmpty) {
       _brackets = List.from(widget.initialBrackets!);
-      _isLoading = false;
-    } else {
-      _loadBracketsFromFirestore();
     }
+    _loadBracketsAndPresetsFromFirestore();
   }
 
-  Future<void> _loadBracketsFromFirestore() async {
+  Future<void> _loadBracketsAndPresetsFromFirestore() async {
     setState(() => _isLoading = true);
     try {
       final List<TournamentBracket> list = [];
@@ -90,18 +97,80 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
         list.add(widget.bracket!);
       }
 
+      // Chargement des scénarios multi-répartitions (Presets)
+      final presetsSnap = await FirebaseFirestore.instance
+          .collection('tournaments')
+          .doc(widget.tournament.id)
+          .collection('court_schedules')
+          .get();
+
+      final presetsList = presetsSnap.docs
+          .map((d) => CourtSchedulePreset.fromMap(d.data(), d.id))
+          .toList();
+      presetsList.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+      CourtSchedulePreset? activePreset;
+      if (_currentPresetId != null) {
+        activePreset = presetsList.where((p) => p.id == _currentPresetId).firstOrNull;
+      }
+      activePreset ??= presetsList.where((p) => p.isOfficial).firstOrNull ?? presetsList.firstOrNull;
+
+      if (activePreset != null) {
+        _currentPresetId = activePreset.id;
+        _currentPresetName = activePreset.name;
+        _currentPresetIsOfficial = activePreset.isOfficial;
+        _numCourts = activePreset.numCourts;
+        _selectedCategories = activePreset.categories.toSet();
+      } else if (presetsList.isEmpty) {
+        // Enregistrer la première répartition automatiquement
+        final newDoc = FirebaseFirestore.instance
+            .collection('tournaments')
+            .doc(widget.tournament.id)
+            .collection('court_schedules')
+            .doc();
+        final firstPreset = CourtSchedulePreset(
+          id: newDoc.id,
+          tournamentId: widget.tournament.id,
+          name: "Répartition 1",
+          numCourts: _numCourts,
+          categories: _selectedCategories.toList(),
+          isOfficial: true,
+          createdAt: DateTime.now(),
+        );
+        newDoc.set(firstPreset.toMap());
+        presetsList.add(firstPreset);
+        _currentPresetId = firstPreset.id;
+        _currentPresetName = firstPreset.name;
+        _currentPresetIsOfficial = true;
+      }
+
       if (mounted) {
         setState(() {
           _brackets = list;
+          _availablePresets = presetsList;
           _isLoading = false;
         });
       }
     } catch (e) {
-      debugPrint("Error loading brackets for schedule: $e");
+      debugPrint("Error loading data for schedule: $e");
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _switchPreset(String presetId) {
+    final p = _availablePresets.where((item) => item.id == presetId).firstOrNull;
+    if (p == null) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _currentPresetId = p.id;
+      _currentPresetName = p.name;
+      _currentPresetIsOfficial = p.isOfficial;
+      _numCourts = p.numCourts;
+      _selectedCategories = p.categories.toSet();
+      _selectedRotationIndex = 0;
+    });
   }
 
   // Modèle d'un match programmé sur un court (dynamique sur mesure basé sur les vrais brackets)
@@ -574,10 +643,39 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
         }
       }
 
+      // Mettre à jour le statut officiel dans Firestore court_schedules
+      if (_currentPresetId != null) {
+        final batch = FirebaseFirestore.instance.batch();
+        final schedulesRef = FirebaseFirestore.instance
+            .collection('tournaments')
+            .doc(widget.tournament.id)
+            .collection('court_schedules');
+
+        for (final p in _availablePresets) {
+          final isTarget = p.id == _currentPresetId;
+          batch.update(schedulesRef.doc(p.id), {
+            'isOfficial': isTarget,
+            if (isTarget) 'matchCourtAssignments': assignments,
+            if (isTarget) 'numCourts': _numCourts,
+            if (isTarget) 'categories': _selectedCategories.toList(),
+            if (isTarget) 'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+        await batch.commit();
+        if (mounted) {
+          setState(() {
+            _currentPresetIsOfficial = true;
+            _availablePresets = _availablePresets
+                .map((p) => p.copyWith(isOfficial: p.id == _currentPresetId))
+                .toList();
+          });
+        }
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("✅ ${assignments.length} terrains enregistrés avec succès !"),
+            content: Text("✅ ${assignments.length} terrains enregistrés · $_currentPresetName est désormais OFFICIELLE !"),
             backgroundColor: const Color(0xFF16A34A),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 3),
@@ -818,29 +916,105 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Bouton Appliquer
+                  // Bouton Mettre à jour le scénario actif
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton(
+                    child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.gold,
                         foregroundColor: const Color(0xFF0F172A),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      onPressed: () {
-                        setState(() {});
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text("Planning recalculé pour $_numCourts terrains (${_selectedCategories.join(', ')}) !"),
-                            backgroundColor: AppColors.gold,
-                          ),
-                        );
+                      icon: const Icon(Icons.check_rounded, size: 18),
+                      label: Text(
+                        "Mettre à jour $_currentPresetName",
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                      ),
+                      onPressed: () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        if (_currentPresetId != null) {
+                          await FirebaseFirestore.instance
+                              .collection('tournaments')
+                              .doc(widget.tournament.id)
+                              .collection('court_schedules')
+                              .doc(_currentPresetId)
+                              .update({
+                            'numCourts': _numCourts,
+                            'categories': _selectedCategories.toList(),
+                            'updatedAt': FieldValue.serverTimestamp(),
+                          });
+                        }
+                        if (mounted) setState(() {});
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) {
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text("$_currentPresetName mis à jour ($_numCourts terrains · ${_selectedCategories.join(', ')}) !"),
+                              backgroundColor: AppColors.gold,
+                            ),
+                          );
+                        }
                       },
-                      child: const Text("Appliquer la configuration", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                     ),
                   ),
+                  const SizedBox(height: 10),
+
+                  // Bouton Créer une nouvelle répartition (Répartition N+1)
+                  if (widget.isAuthorized)
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.add_rounded, size: 18, color: AppColors.gold),
+                        label: Text(
+                          "Enregistrer sous Répartition ${_availablePresets.length + 1}",
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final newDoc = FirebaseFirestore.instance
+                              .collection('tournaments')
+                              .doc(widget.tournament.id)
+                              .collection('court_schedules')
+                              .doc();
+                          final newName = "Répartition ${_availablePresets.length + 1}";
+                          final newPreset = CourtSchedulePreset(
+                            id: newDoc.id,
+                            tournamentId: widget.tournament.id,
+                            name: newName,
+                            numCourts: _numCourts,
+                            categories: _selectedCategories.toList(),
+                            isOfficial: false,
+                            createdAt: DateTime.now(),
+                          );
+                          await newDoc.set(newPreset.toMap());
+                          if (mounted) {
+                            setState(() {
+                              _availablePresets.add(newPreset);
+                              _currentPresetId = newPreset.id;
+                              _currentPresetName = newPreset.name;
+                              _currentPresetIsOfficial = false;
+                              _selectedRotationIndex = 0;
+                            });
+                          }
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (mounted) {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text("Nouveau scénario $newName créé et actif !"),
+                                backgroundColor: const Color(0xFF16A34A),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
                 ],
               ),
             );
@@ -989,26 +1163,80 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
                     Text(
-                      "RÉPARTITION DES TERRAINS",
-                      style: TextStyle(
+                      _currentPresetName,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.4,
                       ),
                     ),
-                    SizedBox(width: 6),
-                    Text(
-                      "FFT",
-                      style: TextStyle(
-                        color: AppColors.gold,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
+                    if (_availablePresets.length > 1) ...[
+                      Theme(
+                        data: Theme.of(context).copyWith(
+                          cardColor: const Color(0xFF1E293B),
+                        ),
+                        child: PopupMenuButton<String>(
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.arrow_drop_down_rounded, color: AppColors.gold, size: 22),
+                          tooltip: "Basculer entre les répartitions",
+                          onSelected: (id) => _switchPreset(id),
+                          itemBuilder: (ctx) => _availablePresets.map((p) {
+                            final isCur = p.id == _currentPresetId;
+                            return PopupMenuItem<String>(
+                              value: p.id,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    p.isOfficial ? Icons.verified_rounded : Icons.folder_outlined,
+                                    color: p.isOfficial ? AppColors.gold : Colors.white70,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      p.name,
+                                      style: TextStyle(
+                                        color: isCur ? AppColors.gold : Colors.white,
+                                        fontWeight: isCur ? FontWeight.bold : FontWeight.normal,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
+                                  ),
+                                  if (p.isOfficial)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.5)),
+                                      ),
+                                      child: const Text("OFFICIELLE", style: TextStyle(color: Colors.greenAccent, fontSize: 8, fontWeight: FontWeight.bold)),
+                                    ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
                       ),
-                    ),
+                    ],
+                    if (_currentPresetIsOfficial)
+                      Container(
+                        margin: const EdgeInsets.only(left: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.5)),
+                        ),
+                        child: const Text(
+                          "OFFICIELLE",
+                          style: TextStyle(color: Colors.greenAccent, fontSize: 8, fontWeight: FontWeight.bold),
+                        ),
+                      ),
                   ],
                 ),
                 Text(

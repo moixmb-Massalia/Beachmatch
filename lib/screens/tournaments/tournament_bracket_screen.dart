@@ -16,6 +16,7 @@ import '../../services/tournament_pdf_service.dart';
 import '../../services/whatsapp_share_service.dart';
 import '../../theme/colors.dart';
 import '../../widgets/add_pair_autocomplete_dialog.dart';
+import '../../widgets/court_schedule_presets_dialog.dart';
 import 'jat_draw_ceremony_screen.dart';
 import 'court_schedule_screen.dart';
 
@@ -838,9 +839,6 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
   }
 
   void _showCourtScheduleConfigDialog() {
-    Set<String> selectedCats = {'DH', 'DD'};
-    int courtsCount = 5;
-
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF0F172A),
@@ -848,197 +846,11 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Row(
-                    children: [
-                      Icon(Icons.stadium_rounded, color: AppColors.gold, size: 22),
-                      SizedBox(width: 8),
-                      Text(
-                        "Répartition des Terrains & Rotations",
-                        style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    "Quels tableaux souhaitez-vous programmer ensemble sur les terrains ?",
-                    style: TextStyle(color: Colors.white60, fontSize: 12),
-                  ),
-                  const SizedBox(height: 18),
-
-                  const Text("Tableaux à intégrer :", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      FilterChip(
-                        label: const Text("Double Messieurs (DH)"),
-                        selected: selectedCats.contains("DH"),
-                        onSelected: (selected) {
-                          setModalState(() {
-                            if (selected) {
-                              selectedCats.add("DH");
-                            } else if (selectedCats.length > 1) {
-                              selectedCats.remove("DH");
-                            }
-                          });
-                        },
-                        backgroundColor: Colors.white.withValues(alpha: 0.06),
-                        selectedColor: AppColors.gold.withValues(alpha: 0.25),
-                        checkmarkColor: AppColors.gold,
-                        labelStyle: TextStyle(
-                          color: selectedCats.contains("DH") ? AppColors.gold : Colors.white70,
-                          fontWeight: selectedCats.contains("DH") ? FontWeight.bold : FontWeight.normal,
-                          fontSize: 12,
-                        ),
-                      ),
-                      FilterChip(
-                        label: const Text("Double Dames (DD)"),
-                        selected: selectedCats.contains("DD"),
-                        onSelected: (selected) {
-                          setModalState(() {
-                            if (selected) {
-                              selectedCats.add("DD");
-                            } else if (selectedCats.length > 1) {
-                              selectedCats.remove("DD");
-                            }
-                          });
-                        },
-                        backgroundColor: Colors.white.withValues(alpha: 0.06),
-                        selectedColor: AppColors.gold.withValues(alpha: 0.25),
-                        checkmarkColor: AppColors.gold,
-                        labelStyle: TextStyle(
-                          color: selectedCats.contains("DD") ? AppColors.gold : Colors.white70,
-                          fontWeight: selectedCats.contains("DD") ? FontWeight.bold : FontWeight.normal,
-                          fontSize: 12,
-                        ),
-                      ),
-                      FilterChip(
-                        label: const Text("Double Mixte (DX)"),
-                        selected: selectedCats.contains("DX"),
-                        onSelected: (selected) {
-                          setModalState(() {
-                            if (selected) {
-                              selectedCats.add("DX");
-                            } else if (selectedCats.length > 1) {
-                              selectedCats.remove("DX");
-                            }
-                          });
-                        },
-                        backgroundColor: Colors.white.withValues(alpha: 0.06),
-                        selectedColor: AppColors.gold.withValues(alpha: 0.25),
-                        checkmarkColor: AppColors.gold,
-                        labelStyle: TextStyle(
-                          color: selectedCats.contains("DX") ? AppColors.gold : Colors.white70,
-                          fontWeight: selectedCats.contains("DX") ? FontWeight.bold : FontWeight.normal,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("Nombre de terrains :", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                          Text("De 2 à 12 courts disponibles", style: TextStyle(color: Colors.white54, fontSize: 11)),
-                        ],
-                      ),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                        ),
-                        child: Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove, color: Colors.white, size: 18),
-                              onPressed: courtsCount > 2 ? () => setModalState(() => courtsCount--) : null,
-                            ),
-                            Text(
-                              "$courtsCount courts",
-                              style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 14),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                              onPressed: courtsCount < 12 ? () => setModalState(() => courtsCount++) : null,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: const Color(0xFF0F172A),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      icon: const Icon(Icons.calendar_month_rounded, size: 20),
-                      label: const Text(
-                        "Générer la Répartition des Terrains",
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => CourtScheduleScreen(
-                              tournament: widget.tournament,
-                              isAuthorized: _isJat,
-                              initialCategories: selectedCats,
-                              initialNumCourts: courtsCount,
-                              bracket: _currentBracket,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+      builder: (ctx) => CourtSchedulePresetsDialog(
+        tournament: widget.tournament,
+        isAuthorized: _isJat,
+        initialBracket: _currentBracket,
+      ),
     );
   }
 
@@ -3074,7 +2886,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.35)),
             ),
-            child: Row(
+            child: const Row(
               children: [
                 const Icon(Icons.checklist_rounded, color: Colors.greenAccent, size: 22),
                 const SizedBox(width: 12),
