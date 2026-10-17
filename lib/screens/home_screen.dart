@@ -118,8 +118,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     margin: const EdgeInsets.only(top: 14, bottom: 4),
                   ),
                   const SizedBox(height: 14),
-                  _buildBeachScoreBanner(context, user?.isBrazilian == true),
-                  const SizedBox(height: 14),
                   HomeRadarCard(user: user, courts: courts),
                   const SizedBox(height: 14),
                   const HomeWeekendRitualCard(),

@@ -135,12 +135,31 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
   static String formatRound(String? rawRound, {bool isBr = false}) {
     if (rawRound == null || rawRound.trim().isEmpty) return isBr ? 'Partida Oficial' : 'Match Officiel';
     final r = rawRound.trim().toLowerCase();
-    if (r.contains('1/32') || r.contains('r64')) return isBr ? '1/32 de Final' : '1/32 de Finale';
-    if (r.contains('1/16') || r.contains('r32')) return isBr ? '1/16 de Final' : '1/16 de Finale';
-    if (r.contains('1/8') || r.contains('r16')) return isBr ? 'Oitavas de Final' : '1/8 de Finale';
-    if (r.contains('1/4') || r.contains('qf')) return isBr ? 'Quartas de Final' : 'Quart de Finale';
-    if (r.contains('1/2') || r.contains('sf')) return isBr ? 'Semifinal' : 'Demi-Finale';
-    if (r.contains('final')) return isBr ? 'Final 🏆' : 'Finale 🏆';
+    if (r.contains('1/32') || r.contains('r64') || r.contains('32e') || r.contains('32ème')) {
+      return isBr ? '1/32 de Final' : '1/32 de Finale';
+    }
+    if (r.contains('1/16') || r.contains('r32') || r.contains('16e') || r.contains('16ème')) {
+      return isBr ? '1/16 de Final' : '1/16 de Finale';
+    }
+    if (r.contains('1/8') || r.contains('r16') || r.contains('huitième') || r.contains('oitava')) {
+      return isBr ? 'Oitavas de Final' : '1/8 de Finale';
+    }
+    if (r.contains('1/4') || r.contains('qf') || r.contains('quart')) {
+      return isBr ? 'Quartas de Final' : 'Quart de Finale';
+    }
+    if (r.contains('1/2') || r.contains('sf') || r.contains('demi') || r.contains('semi')) {
+      return isBr ? 'Semifinal' : 'Demi-Finale';
+    }
+    if (r.contains('3e') || r.contains('petite') || r.contains('terceiro')) {
+      return isBr ? '3º Lugar' : '3e Place';
+    }
+    if (r.contains('poule') || r.contains('grupo') || r.contains('pool')) {
+      return isBr ? 'Fase de Grupos' : 'Poules';
+    }
+    // Ne qualifier de "Finale" que si le libellé ne contient pas de préfixe de tour intermédiaire
+    if (r == 'final' || r == 'finale' || r == 'final 🏆' || r == 'finale 🏆' || r.startsWith('final') || r.startsWith('finale')) {
+      return isBr ? 'Final' : 'Finale';
+    }
     return rawRound.trim();
   }
 

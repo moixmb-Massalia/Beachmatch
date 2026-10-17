@@ -80,10 +80,10 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
     if (r.contains('1/16') || r.contains('r32')) return '1/16 de Finale';
     if (r.contains('1/8') || r.contains('r16') || r.contains('huit')) return '1/8 de Finale';
     if (r.contains('1/4') || r.contains('qf') || r.contains('quart')) return 'Quart de Finale';
-    if (r.contains('1/2') || r.contains('sf') || r.contains('demi')) return 'Demi-Finale';
+    if (r.contains('1/2') || r.contains('sf') || r.contains('demi') || r.contains('semi')) return 'Demi-Finale';
     if (r.contains('3e') || r.contains('petite')) return 'Petite Finale (3e place)';
     if (r.contains('poule') || r.contains('group')) return 'Phase de Poules';
-    if (r.contains('final')) return 'Finale 🏆';
+    if (r == 'final' || r == 'finale' || r == 'final 🏆' || r == 'finale 🏆' || r.startsWith('final') || r.startsWith('finale')) return 'Finale';
     return rawRound.trim();
   }
 
@@ -737,7 +737,7 @@ class _MatchTrackerScreenState extends State<MatchTrackerScreen> with SingleTick
               const Divider(color: Colors.white10, height: 16),
               _buildInfoRow(Icons.waves_rounded, "Surface", widget.tournament['surface'] ?? "Sable fin de plage (Outdoor)"),
               const Divider(color: Colors.white10, height: 16),
-              _buildInfoRow(Icons.sports_rounded, "Tableau", "${match['draw'] ?? 'DH'} (${match['draw'] == 'DD' ? 'Double Dames' : (match['draw'] == 'DX' ? 'Double Mixte' : 'Double Hommes')})"),
+              _buildInfoRow(Icons.sports_rounded, "Tableau", match['draw'] ?? 'DH'),
               const Divider(color: Colors.white10, height: 16),
               _buildInfoRow(Icons.timer_rounded, "Format", "2 sets gagnants (Tie-break à 6-6)"),
             ],
