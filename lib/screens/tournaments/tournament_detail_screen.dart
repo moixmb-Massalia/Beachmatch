@@ -19,6 +19,7 @@ import '../../services/whatsapp_share_service.dart';
 import 'tournament_chat_screen.dart';
 import 'tournament_bracket_screen.dart';
 import '../../widgets/court_schedule_presets_dialog.dart';
+import '../../models/court_schedule_preset.dart';
 import '../public_profile_screen.dart';
 
 class TournamentDetailScreen extends StatefulWidget {
@@ -1213,6 +1214,10 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
       children: [
         // 1. Arbre & Tableau Officiel FFT
         _buildTournamentBracketHeroCard(context),
+        const SizedBox(height: 16),
+
+        // BOUTON FACILE : Planning des Terrains & Matchs a venir
+        _buildCourtScheduleHeroCard(context),
         const SizedBox(height: 16),
 
         // 2. Live Scores en direct jeu par jeu
@@ -3486,5 +3491,156 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
       },
     );
   }
-}
 
+  Widget _buildCourtScheduleHeroCard(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('tournaments')
+          .doc(widget.tournament.id)
+          .collection('court_schedules')
+          .snapshots(),
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? [];
+        final presets = docs.map((d) => CourtSchedulePreset.fromMap(d.data(), d.id)).toList();
+        final official = presets.where((p) => p.isOfficial).firstOrNull ?? presets.firstOrNull;
+
+        final bool hasSchedule = official != null;
+        final int numCourts = official?.numCourts ?? 4;
+        final String cats = official != null && official.categories.isNotEmpty
+            ? official.categories.join(' + ')
+            : widget.tournament.formats.join(' + ');
+
+        return Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: hasSchedule ? AppColors.gold.withValues(alpha: 0.5) : Colors.white12,
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                _showCourtScheduleConfigDialog();
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: hasSchedule ? AppColors.gold.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: hasSchedule ? AppColors.gold.withValues(alpha: 0.4) : Colors.white12,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.stadium_rounded,
+                        color: hasSchedule ? AppColors.gold : Colors.white70,
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text(
+                                "TERRAINS & MATCHS A VENIR",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 13,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              if (hasSchedule)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF16A34A).withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.5)),
+                                  ),
+                                  child: const Text(
+                                    "OFFICIEL",
+                                    style: TextStyle(
+                                      color: Color(0xFF4ADE80),
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            hasSchedule
+                                ? "$numCourts terrains mutualises - $cats - Rotations & Horaires"
+                                : "Consulter la repartition des terrains et des rotations previsionnelles",
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: hasSchedule ? AppColors.gold : Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "Consulter",
+                            style: TextStyle(
+                              color: hasSchedule ? Colors.black : Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            size: 16,
+                            color: hasSchedule ? Colors.black : Colors.white70,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}

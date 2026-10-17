@@ -34,6 +34,10 @@ class TournamentLiveScoresCard extends StatelessWidget {
         final liveMatches = matches.where((m) => m.status == 'LIVE').toList();
         final finishedMatches = matches.where((m) => m.status == 'FINISHED').toList();
 
+        if (tournament.status == 'FINISHED' && liveMatches.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
         return Container(
           margin: const EdgeInsets.only(bottom: 24),
           child: ClipRRect(
