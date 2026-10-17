@@ -18,6 +18,7 @@ import '../../models/partner_request.dart';
 import '../../services/whatsapp_share_service.dart';
 import 'tournament_chat_screen.dart';
 import 'tournament_bracket_screen.dart';
+import 'court_schedule_screen.dart';
 import '../public_profile_screen.dart';
 
 class TournamentDetailScreen extends StatefulWidget {
@@ -32,6 +33,7 @@ class TournamentDetailScreen extends StatefulWidget {
 class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   bool _isAuthorized = false;
   bool _isCheckingAuth = true;
+  int _selectedTabIndex = 0;
 
   @override
   void initState() {
@@ -48,16 +50,51 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
 
     final authEmail = FirebaseAuth.instance.currentUser?.email?.toLowerCase().trim();
     if (authEmail != null && authEmail.isNotEmpty) {
-      if (authEmail == 'moixmb@gmail.com' || authEmail == 'btvarois@gmail.com') {
+      // SuperAdmin absolu : accès partout sur tous les tournois
+      if (authEmail == 'moixmb@gmail.com') {
         if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
         return;
       }
 
-      // Juge-Arbitre (JAT) officiel assigné au tournoi
+      // btvarois@gmail.com : accès UNIQUEMENT aux tournois de son propre club (Beach Tennis Varois) ou à Toulon
+      if (authEmail == 'btvarois@gmail.com') {
+        final clubLower = widget.tournament.club.toLowerCase().trim();
+        final locLower = widget.tournament.location.toLowerCase().trim();
+        final nameLower = widget.tournament.name.toLowerCase().trim();
+        if (clubLower.contains('varois') || locLower.contains('toulon') || nameLower.contains('toulon')) {
+          if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
+          return;
+        }
+      }
+
+      // massalbrice@gmail.com : JAT Marana Beach Tennis & Furiani
+      if (authEmail == 'massalbrice@gmail.com') {
+        final clubLower = widget.tournament.club.toLowerCase().trim();
+        final locLower = widget.tournament.location.toLowerCase().trim();
+        final nameLower = widget.tournament.name.toLowerCase().trim();
+        if (clubLower.contains('marana') || locLower.contains('furiani') || nameLower.contains('marana') || nameLower.contains('furiani') || nameLower.contains('corse')) {
+          if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
+          return;
+        }
+      }
+
+      // Juge-Arbitre (JAT) officiel assigné au tournoi (par email)
       final jatEmail = widget.tournament.contactEmail?.toLowerCase().trim();
       if (jatEmail != null && jatEmail.isNotEmpty && authEmail == jatEmail) {
         if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
         return;
+      }
+
+      // Vérifier si le nom du profil connecté correspond au JAT officiel
+      final refereeRaw = (widget.tournament.referee ?? '').toLowerCase().replaceAll('(jat)', '').replaceAll('(jae2)', '').replaceAll('(jae1)', '').trim();
+      final appUserName = (appUser?.displayName ?? '').toLowerCase().trim();
+      final authDisplayName = (FirebaseAuth.instance.currentUser?.displayName ?? '').toLowerCase().trim();
+      if (refereeRaw.length >= 4) {
+        if ((appUserName.length >= 4 && (refereeRaw.contains(appUserName) || appUserName.contains(refereeRaw))) ||
+            (authDisplayName.length >= 4 && (refereeRaw.contains(authDisplayName) || authDisplayName.contains(refereeRaw)))) {
+          if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
+          return;
+        }
       }
 
       try {
@@ -89,6 +126,8 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   }
 
   void _shareTournament(TournamentModel tournament) {
+    final user = context.read<AppState>().currentUser;
+    final isBr = user?.isBrazilian == true || (tournament.country ?? '').toUpperCase() == 'BR';
     WhatsAppShareService.shareTournamentInvite(
       tournamentName: tournament.name,
       dates: tournament.dateString,
@@ -97,10 +136,21 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
       price: tournament.price,
       phone: tournament.contactPhone,
       tournamentId: tournament.id,
+      isBrazilian: isBr,
     );
   }
 
   void _confirmDelete() {
+    final currentEmail = (FirebaseAuth.instance.currentUser?.email ?? '').toLowerCase().trim();
+    if (currentEmail != 'moixmb@gmail.com') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Action réservée à l'administrateur principal (moixmb@gmail.com)."),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -146,6 +196,210 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showCourtScheduleConfigDialog() {
+    Set<String> selectedCats = {'DH', 'DD'};
+    int courtsCount = 5;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0F172A),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Row(
+                    children: [
+                      Icon(Icons.stadium_rounded, color: AppColors.gold, size: 22),
+                      SizedBox(width: 8),
+                      Text(
+                        "Répartition des Terrains & Rotations",
+                        style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    "Quels tableaux souhaitez-vous programmer ensemble sur les terrains ?",
+                    style: TextStyle(color: Colors.white60, fontSize: 12),
+                  ),
+                  const SizedBox(height: 18),
+
+                  const Text("Tableaux à intégrer :", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      FilterChip(
+                        label: const Text("Double Messieurs (DH)"),
+                        selected: selectedCats.contains("DH"),
+                        onSelected: (selected) {
+                          setModalState(() {
+                            if (selected) {
+                              selectedCats.add("DH");
+                            } else if (selectedCats.length > 1) {
+                              selectedCats.remove("DH");
+                            }
+                          });
+                        },
+                        backgroundColor: Colors.white.withValues(alpha: 0.06),
+                        selectedColor: AppColors.gold.withValues(alpha: 0.25),
+                        checkmarkColor: AppColors.gold,
+                        labelStyle: TextStyle(
+                          color: selectedCats.contains("DH") ? AppColors.gold : Colors.white70,
+                          fontWeight: selectedCats.contains("DH") ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 12,
+                        ),
+                      ),
+                      FilterChip(
+                        label: const Text("Double Dames (DD)"),
+                        selected: selectedCats.contains("DD"),
+                        onSelected: (selected) {
+                          setModalState(() {
+                            if (selected) {
+                              selectedCats.add("DD");
+                            } else if (selectedCats.length > 1) {
+                              selectedCats.remove("DD");
+                            }
+                          });
+                        },
+                        backgroundColor: Colors.white.withValues(alpha: 0.06),
+                        selectedColor: AppColors.gold.withValues(alpha: 0.25),
+                        checkmarkColor: AppColors.gold,
+                        labelStyle: TextStyle(
+                          color: selectedCats.contains("DD") ? AppColors.gold : Colors.white70,
+                          fontWeight: selectedCats.contains("DD") ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 12,
+                        ),
+                      ),
+                      FilterChip(
+                        label: const Text("Double Mixte (DX)"),
+                        selected: selectedCats.contains("DX"),
+                        onSelected: (selected) {
+                          setModalState(() {
+                            if (selected) {
+                              selectedCats.add("DX");
+                            } else if (selectedCats.length > 1) {
+                              selectedCats.remove("DX");
+                            }
+                          });
+                        },
+                        backgroundColor: Colors.white.withValues(alpha: 0.06),
+                        selectedColor: AppColors.gold.withValues(alpha: 0.25),
+                        checkmarkColor: AppColors.gold,
+                        labelStyle: TextStyle(
+                          color: selectedCats.contains("DX") ? AppColors.gold : Colors.white70,
+                          fontWeight: selectedCats.contains("DX") ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Nombre de terrains :", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                          Text("De 2 à 12 courts disponibles", style: TextStyle(color: Colors.white54, fontSize: 11)),
+                        ],
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                        ),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.remove, color: Colors.white, size: 18),
+                              onPressed: courtsCount > 2 ? () => setModalState(() => courtsCount--) : null,
+                            ),
+                            Text(
+                              "$courtsCount courts",
+                              style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.add, color: Colors.white, size: 18),
+                              onPressed: courtsCount < 12 ? () => setModalState(() => courtsCount++) : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: const Color(0xFF0F172A),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: const Icon(Icons.calendar_month_rounded, size: 20),
+                      label: const Text(
+                        "Générer la Répartition des Terrains",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CourtScheduleScreen(
+                              tournament: widget.tournament,
+                              isAuthorized: _isAuthorized,
+                              initialCategories: selectedCats,
+                              initialNumCourts: courtsCount,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -204,10 +458,39 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
       }
     }
 
+    // Calcul dynamique de l'état temporel & compte à rebours
+    String countdownText = "Bientôt";
+    Color countdownColor = const Color(0xFF38BDF8);
+    final start = widget.tournament.startDate;
+    final end = widget.tournament.endDate ?? start;
+    final now = DateTime.now();
+
+    if (widget.tournament.isPassed) {
+      countdownText = "Terminé";
+      countdownColor = Colors.white54;
+    } else if (start != null && end != null && now.isAfter(start) && now.isBefore(end.add(const Duration(days: 1)))) {
+      countdownText = "En direct 🔴";
+      countdownColor = const Color(0xFFEF4444);
+    } else if (start != null) {
+      final diffDays = start.difference(DateTime(now.year, now.month, now.day)).inDays;
+      if (diffDays == 0) {
+        countdownText = "Aujourd'hui !";
+        countdownColor = const Color(0xFF10B981);
+      } else if (diffDays == 1) {
+        countdownText = "Demain !";
+        countdownColor = AppColors.gold;
+      } else if (diffDays > 1) {
+        countdownText = "J-$diffDays";
+        countdownColor = AppColors.gold;
+      }
+    }
+
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFF090D14),
+      bottomNavigationBar: _buildStickyBottomBar(context),
       body: Stack(
         children: [
+          // Fond Signature Sunset / Aerial
           Positioned.fill(
             child: Image.asset(
               'assets/images/beach_court_aerial_1785052250131.jpg',
@@ -222,275 +505,143 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha: 0.4),
-                    Colors.black.withValues(alpha: 0.75),
+                    Colors.black.withValues(alpha: 0.45),
+                    const Color(0xFF090D14).withValues(alpha: 0.90),
+                    const Color(0xFF090D14),
                   ],
+                  stops: const [0.0, 0.45, 1.0],
                 ),
               ),
             ),
           ),
+
+          // Contenu principal avec AppBar Immersive
           CustomScrollView(
             slivers: [
               SliverAppBar(
-                expandedHeight: 250.0,
+                expandedHeight: 170.0,
                 pinned: true,
-                backgroundColor: Colors.transparent,
+                backgroundColor: const Color(0xFF090D14),
                 elevation: 0,
-                iconTheme: const IconThemeData(color: Colors.white),
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                  tooltip: "Retour",
+                  onPressed: () => Navigator.pop(context),
+                ),
+                title: Text(
+                  widget.tournament.name,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 actions: [
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => TournamentChatScreen(tournament: widget.tournament),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 14, top: 10, bottom: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
-                        ),
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF6366F1).withValues(alpha: 0.5),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
+                  if (!_isCheckingAuth && _isAuthorized) ...[
+                    if ((FirebaseAuth.instance.currentUser?.email ?? '').toLowerCase().trim() == 'moixmb@gmail.com')
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 22),
+                        tooltip: "Supprimer le tournoi",
+                        onPressed: () => _confirmDeleteTournament(context),
                       ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.forum_rounded, color: Colors.white, size: 14),
-                          SizedBox(width: 6),
-                          Text(
-                            "Chat du tournoi",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
+                    IconButton(
+                      icon: const Icon(Icons.admin_panel_settings_rounded, color: AppColors.gold, size: 22),
+                      tooltip: "Gestion Tournoi",
+                      onPressed: () => _showAdminManagementModal(context),
                     ),
+                  ],
+                  IconButton(
+                    icon: const Icon(Icons.share_rounded, color: Colors.white, size: 22),
+                    tooltip: "Partager sur WhatsApp",
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _shareTournament(widget.tournament);
+                    },
                   ),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
-                  title: Text(
-                    widget.tournament.category,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-                  ),
-                  background: const SizedBox.shrink(),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  background: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      Text(
-                        widget.tournament.name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.5,
+                      Image.asset(
+                        'assets/images/beach_sunset_players_1785052273648.jpg',
+                        fit: BoxFit.cover,
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              const Color(0xFF090D14).withValues(alpha: 0.8),
+                              const Color(0xFF090D14),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const Icon(CupertinoIcons.location_solid, color: Colors.blueAccent, size: 16),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              widget.tournament.club,
-                              style: const TextStyle(color: Colors.blueAccent, fontSize: 16, fontWeight: FontWeight.bold),
+                      Positioned(
+                        bottom: 12,
+                        left: 16,
+                        right: 16,
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.gold,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                widget.tournament.category,
+                                style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 12),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-
-                      // 💬 CHAT OFFICIEL & SALON DES JOUEURS (ULTRA VISIBLE & DYNAMIQUE)
-                      _buildTournamentChatHeroCard(context),
-
-                      // 🌳 ARBRE & TABLEAU OFFICIEL FFT
-                      _buildTournamentBracketHeroCard(context),
-
-                      // 🔴 LIVE SCORES EN DIRECT (Jeu par Jeu)
-                      TournamentLiveScoresCard(
-                        tournament: widget.tournament,
-                        isAuthorized: !_isCheckingAuth && _isAuthorized,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 🆘 SOS PARTENAIRE DE TOURNOI
-                      _buildPartnerMarketplace(context),
-                      const SizedBox(height: 24),
-
-                      // Dates and Location Card
-                      _buildGlassCard(
-                        child: Column(
-                          children: [
-                            _buildInfoRow(CupertinoIcons.calendar, AppLocalizations.of(context).tournamentDetailDates, widget.tournament.dateString),
-                            if (widget.tournament.address != null) ...[
-                              const Divider(color: Colors.white12, height: 24),
-                              _buildInfoRow(CupertinoIcons.map_pin_ellipse, AppLocalizations.of(context).tournamentDetailAddress, widget.tournament.address!),
-                            ],
-                            const Divider(color: Colors.white12, height: 24),
-                            _buildInfoRow(CupertinoIcons.location, AppLocalizations.of(context).tournamentDetailCity, locationWithDistance),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.6),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.white24),
+                              ),
+                              child: Text(
+                                widget.tournament.dateString,
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12),
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 20),
-
-                      // 🎾 INSTRUCTIONS & COORDONNÉES OFFICIELLES (ULTRA VISIBLE)
-                      _buildRegistrationAndContactCard(context),
-                      const SizedBox(height: 24),
-
-                      // Event Details
-                      Text(AppLocalizations.of(context).tournamentDetailEventDetails, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 16),
-                      _buildGlassCard(
-                        child: Column(
-                          children: [
-                            if (widget.tournament.scheduleDetails != null) ...[
-                              _buildInfoRow(CupertinoIcons.time, AppLocalizations.of(context).tournamentDetailEvents, widget.tournament.scheduleDetails!),
-                              const Divider(color: Colors.white12, height: 24),
-                            ],
-                            if (widget.tournament.balls != null) ...[
-                              _buildInfoRow(CupertinoIcons.circle_grid_hex, AppLocalizations.of(context).tournamentDetailBalls, widget.tournament.balls!),
-                              const Divider(color: Colors.white12, height: 24),
-                            ],
-                            if (widget.tournament.price != null) ...[
-                              _buildInfoRow(CupertinoIcons.money_euro_circle, AppLocalizations.of(context).tournamentDetailPrice, widget.tournament.price!),
-                            ],
-                          ],
-                        ),
-                      ),
-
-                      // 📤 BOUTON PARTAGE WHATSAPP / AMIS
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Color(0xFF25D366), width: 1.5), // WhatsApp green
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.1),
-                          ),
-                          icon: const Icon(Icons.share_rounded, color: Color(0xFF25D366), size: 20),
-                          label: const Text("Partager ce tournoi (WhatsApp / Amis)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          onPressed: () => _shareTournament(widget.tournament),
-                        ),
-                      ),
-
-                      // 👑 PRESIDENT / ADMIN MANAGEMENT ACTIONS
-                      if (!_isCheckingAuth && _isAuthorized) ...[
-                        const SizedBox(height: 24),
-                        Container(
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                            color: AppColors.gold.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 1.5),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(Icons.admin_panel_settings_rounded, color: AppColors.gold, size: 20),
-                                  SizedBox(width: 8),
-                                  Text("Gestion Officielle du Tournoi", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 15)),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              const Text(
-                                "En tant que Président ou Administrateur, vous pouvez modifier ou annuler cet événement.",
-                                style: TextStyle(color: Colors.white70, fontSize: 12),
-                              ),
-                              const SizedBox(height: 14),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.gold,
-                                    foregroundColor: Colors.black,
-                                    padding: const EdgeInsets.symmetric(vertical: 13),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                    elevation: 3,
-                                  ),
-                                  icon: const Icon(Icons.account_tree_rounded, size: 20),
-                                  label: const Text(
-                                    "Tableau de la Compétition (JAT)",
-                                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
-                                  ),
-                                  onPressed: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => TournamentBracketScreen(
-                                        tournament: widget.tournament,
-                                        isAuthorized: _isAuthorized,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  // Edit button
-                                  Expanded(
-                                    child: ElevatedButton.icon(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.gold,
-                                        foregroundColor: Colors.black,
-                                        padding: const EdgeInsets.symmetric(vertical: 12),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                      ),
-                                      icon: const Icon(Icons.edit_rounded, size: 18),
-                                      label: const Text("Modifier", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                      onPressed: _openEditScreen,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  // Delete button
-                                  Expanded(
-                                    child: ElevatedButton.icon(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.redAccent.withValues(alpha: 0.9),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(vertical: 12),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                      ),
-                                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                                      label: const Text("Supprimer", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                      onPressed: _confirmDelete,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-
-                      const SizedBox(height: 40),
                     ],
                   ),
+                ),
+              ),
+
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 1. Profil Instagram Hero Block
+                    _buildInstagramHeroHeader(context, locationWithDistance, countdownText, countdownColor),
+
+                    // 1.bis Bannière Reconnaissance JAT (Confirmation 1-Tap)
+                    if (!_isCheckingAuth && !_isAuthorized)
+                      _buildJatClaimCard(context),
+
+                    // 2. TabBar Instagram (Segmentation - Loi de Hick)
+                    _buildInstagramTabBar(),
+
+                    // 3. Contenu de l'onglet sélectionné
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 250),
+                        child: _buildCurrentTabContent(context, locationWithDistance),
+                      ),
+                    ),
+
+                    // Espacement pour ne pas être masqué par la bottom bar
+                    const SizedBox(height: 100),
+                  ],
                 ),
               ),
             ],
@@ -500,20 +651,1400 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     );
   }
 
-  Widget _buildRegistrationAndContactCard(BuildContext context) {
+  /// 🌟 HERO BLOCK STYLE INSTAGRAM
+  Widget _buildInstagramHeroHeader(
+    BuildContext context,
+    String locationWithDistance,
+    String countdownText,
+    Color countdownColor,
+  ) {
+    final category = widget.tournament.category;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Ligne Profil : Avatar Story Ring + Titre + Badges
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Avatar avec Instagram Story Ring
+              Container(
+                width: 70,
+                height: 70,
+                padding: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [
+                      Color(0xFFF59E0B), // Gold
+                      Color(0xFFEF4444), // Coral
+                      Color(0xFFEC4899), // Pink
+                      Color(0xFF8B5CF6), // Purple
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFFEF4444),
+                      blurRadius: 10,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFF0F172A),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.emoji_events_rounded, color: AppColors.gold, size: 20),
+                        const SizedBox(height: 1),
+                        Text(
+                          category.replaceAll(' ', ''),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+
+              // Informations Principales
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            widget.tournament.name,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.3,
+                              height: 1.2,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Badge Officiel FFT / ITF
+                        const Icon(Icons.verified_rounded, color: Color(0xFF38BDF8), size: 18),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        const Icon(CupertinoIcons.location_solid, color: Colors.blueAccent, size: 13),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            widget.tournament.club,
+                            style: const TextStyle(
+                              color: Colors.blueAccent,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      locationWithDistance,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Bandeau Métriques Sociales (Preuve Sociale)
+          _buildSocialMetricsBar(countdownText, countdownColor),
+
+          const SizedBox(height: 14),
+
+          // Barre d'Actions Rapides Profil Instagram
+          _buildQuickActionBar(context),
+        ],
+      ),
+    );
+  }
+
+  /// 📊 BANDEAU MÉTRIQUES SOCIALES (Instagram Stats Bar)
+  /// 📊 BANDEAU MÉTRIQUES SOCIALES (Coup d'envoi · Tableaux · Tarif)
+  Widget _buildSocialMetricsBar(String countdownText, Color countdownColor) {
+    final price = widget.tournament.price != null && widget.tournament.price!.isNotEmpty
+        ? widget.tournament.price!
+        : "NC";
+    final isBr = (widget.tournament.country ?? '').toUpperCase() == 'BR' ||
+        context.read<AppState>().currentUser?.isBrazilian == true;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF131D2E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        children: [
+          _buildMetricItem(isBr ? "Início" : "Coup d'envoi", countdownText, Icons.timer_outlined, countdownColor),
+          _buildMetricDivider(),
+          _buildFormatsMetricItem(isBr),
+          _buildMetricDivider(),
+          _buildMetricItem(isBr ? "Inscrição" : "Tarif", price, Icons.payments_outlined, AppColors.coral),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormatsMetricItem(bool isBr) {
+    final formats = widget.tournament.formats;
+    if (formats.isEmpty) {
+      return _buildMetricItem(isBr ? "Chaves" : "Tableau", isBr ? "Duplas" : "Double", Icons.groups_rounded, const Color(0xFF34D399));
+    }
+
+    return Expanded(
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.groups_rounded, size: 11, color: Color(0xFF34D399)),
+              const SizedBox(width: 3),
+              Text(
+                formats.length > 1 ? (isBr ? "Chaves (${formats.length})" : "Tableaux (${formats.length})") : (isBr ? "Chave" : "Tableau"),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: formats.map((fmt) {
+                Color badgeBg;
+                Color badgeText;
+                if (fmt == 'DH') {
+                  badgeBg = const Color(0xFF38BDF8).withValues(alpha: 0.2);
+                  badgeText = const Color(0xFF38BDF8);
+                } else if (fmt == 'DD') {
+                  badgeBg = AppColors.coral.withValues(alpha: 0.2);
+                  badgeText = AppColors.coral;
+                } else if (fmt == 'DX') {
+                  badgeBg = const Color(0xFF34D399).withValues(alpha: 0.2);
+                  badgeText = const Color(0xFF34D399);
+                } else {
+                  badgeBg = Colors.white.withValues(alpha: 0.15);
+                  badgeText = Colors.white;
+                }
+
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: badgeText.withValues(alpha: 0.5), width: 0.8),
+                  ),
+                  child: Text(
+                    fmt,
+                    style: TextStyle(
+                      color: badgeText,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricDivider() {
+    return Container(
+      height: 24,
+      width: 1,
+      color: Colors.white.withValues(alpha: 0.1),
+    );
+  }
+
+  Widget _buildMetricItem(String label, String value, IconData icon, Color color) {
+    return Expanded(
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 11, color: color),
+              const SizedBox(width: 3),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ⚡ BARRE D'ACTIONS RAPIDES PROFIL INSTAGRAM
+  Widget _buildQuickActionBar(BuildContext context) {
+    return Row(
+      children: [
+        // Action 1 : S'inscrire (Gros CTA)
+        Expanded(
+          flex: 4,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF008069), // Vert officiel WhatsApp / Action
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              elevation: 2,
+            ),
+            icon: const Icon(Icons.how_to_reg_rounded, size: 17),
+            label: Text(
+              ((widget.tournament.country ?? '').toUpperCase() == 'BR' || context.read<AppState>().currentUser?.isBrazilian == true) ? "Inscrições" : "S'inscrire",
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            onPressed: () => _showContactJATModal(context),
+          ),
+        ),
+        const SizedBox(width: 8),
+
+        // Action 2 : Salon du Tournoi
+        Expanded(
+          flex: 3,
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: const Color(0xFF6366F1).withValues(alpha: 0.15),
+              side: BorderSide(color: const Color(0xFF6366F1).withValues(alpha: 0.5), width: 1.2),
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            icon: const Icon(Icons.forum_rounded, size: 16, color: Color(0xFF818CF8)),
+            label: Text(
+              ((widget.tournament.country ?? '').toUpperCase() == 'BR' || context.read<AppState>().currentUser?.isBrazilian == true) ? "Chat / Resenha" : "Salon",
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+            ),
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TournamentChatScreen(tournament: widget.tournament),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+
+        // Action 3 : Partage WhatsApp
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF25D366).withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFF25D366).withValues(alpha: 0.5), width: 1.2),
+          ),
+          child: IconButton(
+            icon: const Icon(Icons.share_rounded, color: Color(0xFF25D366), size: 19),
+            tooltip: "Partager sur WhatsApp",
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              _shareTournament(widget.tournament);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 📑 SÉLECTEUR D'ONGLETS INSTAGRAM (LOI DE HICK)
+  Widget _buildInstagramTabBar() {
+    final user = context.watch<AppState>().currentUser;
+    final isBr = user?.isBrazilian == true || (widget.tournament.country ?? '').toUpperCase() == 'BR';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF131D2E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: [
+          _buildTabItem(0, Icons.info_outline_rounded, isBr ? "Infos" : "Infos"),
+          _buildTabItem(1, Icons.account_tree_rounded, isBr ? "Chaves" : "Tableaux"),
+          _buildTabItem(2, Icons.chat_bubble_outline_rounded, isBr ? "Resenha" : "Salon"),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabItem(int index, IconData icon, String label) {
+    final isSelected = _selectedTabIndex == index;
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _selectedTabIndex = index);
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.gold : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: AppColors.gold.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: isSelected ? Colors.black : Colors.white60,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.black : Colors.white70,
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 🔄 GESTIONNAIRE DU CONTENU DE L'ONGLET ACTIF
+  Widget _buildCurrentTabContent(BuildContext context, String locationWithDistance) {
+    switch (_selectedTabIndex) {
+      case 0:
+        return _buildInfosTab(context, locationWithDistance);
+      case 1:
+        return _buildCompetitionTab(context);
+      case 2:
+        return _buildChatTab(context);
+      default:
+        return _buildInfosTab(context, locationWithDistance);
+    }
+  }
+
+  /// 📋 ONGLET 1 : INFOS & INSCRIPTIONS
+  Widget _buildInfosTab(BuildContext context, String locationWithDistance) {
+    return Column(
+      key: const ValueKey('tab_infos'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 1. Bannière d'urgence (FOMO)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.gold.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.alarm_on_rounded, color: AppColors.gold, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "INSCRIPTIONS OUVERTES",
+                      style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "Pensez à contacter le JAT pour valider l'inscription de votre paire avant la clôture officielle.",
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12, height: 1.3),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 2. Carte Inscription & Contact JAT Officiel
+        _buildRegistrationAndContactCard(context),
+        const SizedBox(height: 18),
+
+        // 3. Carte Dates & Localisation
+        _buildGlassCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildInfoRow(CupertinoIcons.calendar, AppLocalizations.of(context).tournamentDetailDates, widget.tournament.dateString),
+              if (widget.tournament.address != null) ...[
+                const Divider(color: Colors.white12, height: 24),
+                _buildInfoRow(CupertinoIcons.map_pin_ellipse, AppLocalizations.of(context).tournamentDetailAddress, widget.tournament.address!),
+              ],
+              const Divider(color: Colors.white12, height: 24),
+              _buildInfoRow(CupertinoIcons.location, AppLocalizations.of(context).tournamentDetailCity, locationWithDistance),
+              const SizedBox(height: 14),
+              // Bouton Itinéraire GPS
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.blueAccent.withValues(alpha: 0.5)),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    backgroundColor: Colors.blueAccent.withValues(alpha: 0.08),
+                  ),
+                  icon: const Icon(CupertinoIcons.map_pin_ellipse, size: 16, color: Colors.blueAccent),
+                  label: const Text("Itinéraire GPS (Google Maps / Waze)", style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    final query = Uri.encodeComponent(
+                      widget.tournament.address != null && widget.tournament.address!.isNotEmpty
+                          ? "${widget.tournament.address}, ${widget.tournament.location}"
+                          : "${widget.tournament.club}, ${widget.tournament.location}",
+                    );
+                    _launchUrl("https://www.google.com/maps/search/?api=1&query=$query");
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+
+        // 4. Spécifications du Tournoi (Balles, Prix, Formats)
+        Text(
+          AppLocalizations.of(context).tournamentDetailEventDetails,
+          style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 12),
+        _buildGlassCard(
+          child: Column(
+            children: [
+              if (widget.tournament.scheduleDetails != null) ...[
+                _buildInfoRow(CupertinoIcons.time, AppLocalizations.of(context).tournamentDetailEvents, widget.tournament.scheduleDetails!),
+                const Divider(color: Colors.white12, height: 24),
+              ],
+              if (widget.tournament.balls != null) ...[
+                _buildInfoRow(CupertinoIcons.circle_grid_hex, AppLocalizations.of(context).tournamentDetailBalls, widget.tournament.balls!),
+                const Divider(color: Colors.white12, height: 24),
+              ],
+              _buildInfoRow(
+                CupertinoIcons.money_euro_circle,
+                AppLocalizations.of(context).tournamentDetailPrice,
+                widget.tournament.price != null && widget.tournament.price!.isNotEmpty
+                    ? widget.tournament.price!
+                    : "NC",
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+
+        // 5. Bouton Partager WhatsApp
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Color(0xFF25D366), width: 1.5),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.1),
+            ),
+            icon: const Icon(Icons.share_rounded, color: Color(0xFF25D366), size: 20),
+            label: const Text("Partager ce tournoi (WhatsApp / Amis)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            onPressed: () => _shareTournament(widget.tournament),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildJatClaimCard(BuildContext context) {
+    final referee = widget.tournament.referee;
+    final displayName = referee != null && referee.trim().isNotEmpty ? referee : "Juge-Arbitre (JAT)";
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.gold.withValues(alpha: 0.22),
+            const Color(0xFF1E293B).withValues(alpha: 0.95),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.6), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.gold.withValues(alpha: 0.15),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.gold.withValues(alpha: 0.25),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.sports_score_rounded, color: AppColors.gold, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Espace Juge-Arbitre (JAT)",
+                  style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 12),
+                ),
+                Text(
+                  "Arbitre référent : $displayName",
+                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () {
+              HapticFeedback.heavyImpact();
+              setState(() => _isAuthorized = true);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("👑 Bienvenue $displayName ! Vos accès JAT sont activés."),
+                  backgroundColor: AppColors.gold,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.gold,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text(
+              "C'est moi",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteTournament(BuildContext context) async {
+    final currentEmail = (FirebaseAuth.instance.currentUser?.email ?? '').toLowerCase().trim();
+    if (currentEmail != 'moixmb@gmail.com') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Action réservée à l'administrateur principal (moixmb@gmail.com)."),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+    final nav = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final appState = context.read<AppState>();
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 24),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                "Supprimer ce tournoi ?",
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          "Êtes-vous sûr de vouloir supprimer définitivement le tournoi \"${widget.tournament.name}\" ?\n\nCette action effacera également les tableaux et les résultats associés.",
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Annuler", style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Supprimer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      try {
+        await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournament.id).delete();
+        if (mounted) {
+          appState.loadTournaments();
+          nav.pop();
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text("🗑️ Tournoi supprimé avec succès"),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          messenger.showSnackBar(
+            SnackBar(content: Text("Erreur lors de la suppression : $e"), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  /// 🏆 ONGLET 2 : TABLEAUX & SCORES
+  Widget _buildCompetitionTab(BuildContext context) {
+    return Column(
+      key: const ValueKey('tab_competition'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 1. Arbre & Tableau Officiel FFT
+        _buildTournamentBracketHeroCard(context),
+        const SizedBox(height: 16),
+
+        // 2. Live Scores en direct jeu par jeu
+        TournamentLiveScoresCard(
+          tournament: widget.tournament,
+          isAuthorized: !_isCheckingAuth && _isAuthorized,
+        ),
+        const SizedBox(height: 16),
+
+        // 3. Panneau JAT / Administration si autorisé
+        if (!_isCheckingAuth && _isAuthorized) ...[
+          _buildAdminControlsCard(context),
+          const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+
+  /// 💬 ONGLET 3 : SALON & AMBIANCE DU TOURNOI
+  Widget _buildChatTab(BuildContext context) {
+    return Column(
+      key: const ValueKey('tab_chat'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildTournamentChatHeroCard(context),
+        const SizedBox(height: 16),
+        _buildPartnerMarketplace(context),
+        const SizedBox(height: 16),
+        _buildGlassCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.photo_library_rounded, color: AppColors.gold, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    "Photos & Ambiance du Tournoi",
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Partagez vos photos sur le sable, vos victoires et les temps forts du tournoi directement dans le salon !",
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12.5, height: 1.4),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6366F1),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  icon: const Icon(Icons.chat_bubble_rounded, size: 18),
+                  label: const Text("Ouvrir le Salon de Discussion", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TournamentChatScreen(tournament: widget.tournament),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 👑 CARTE D'ADMINISTRATION & GESTION JAT
+  Widget _buildAdminControlsCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.gold.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.admin_panel_settings_rounded, color: AppColors.gold, size: 20),
+              SizedBox(width: 8),
+              Text("Gestion Officielle du Tournoi", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 15)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            "En tant que JAT, Président ou Administrateur, vous pouvez piloter les matches et modifier l'événement.",
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 3,
+              ),
+              icon: const Icon(Icons.account_tree_rounded, size: 20),
+              label: Text(
+                _isAuthorized ? "Gérer le Tableau (JAT)" : "Voir le Tableau Officiel",
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+              ),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TournamentBracketScreen(
+                    tournament: widget.tournament,
+                    isAuthorized: _isAuthorized,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.gold,
+                side: const BorderSide(color: AppColors.gold, width: 1.5),
+                backgroundColor: AppColors.gold.withValues(alpha: 0.12),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              icon: const Icon(Icons.stadium_rounded, size: 20),
+              label: const Text(
+                "📅 Répartition des Terrains & Rotations",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              onPressed: _showCourtScheduleConfigDialog,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.gold,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  icon: const Icon(Icons.edit_rounded, size: 18),
+                  label: const Text("Modifier", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  onPressed: _openEditScreen,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent.withValues(alpha: 0.9),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                  label: const Text("Supprimer", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  onPressed: _confirmDelete,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ⚓ STICKY BOTTOM BAR PERSISTANTE (ANCRAGE & CALL-TO-ACTION)
+  Widget _buildStickyBottomBar(BuildContext context) {
+    final user = context.watch<AppState>().currentUser;
+    final isBr = user?.isBrazilian == true || (widget.tournament.country ?? '').toUpperCase() == 'BR';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A).withValues(alpha: 0.96),
+        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.12), width: 1)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 16, offset: const Offset(0, -4)),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // Tarif & Dates
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.tournament.price != null && widget.tournament.price!.isNotEmpty
+                        ? widget.tournament.price!
+                        : (isBr ? "Inscrição oficial" : "Inscription officielle"),
+                    style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 15.5),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.tournament.dateString,
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11.5, fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+
+            // Bouton d'Action Express
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF008069), // Vert officiel WhatsApp / Action
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 3,
+              ),
+              icon: const Icon(Icons.how_to_reg_rounded, size: 18),
+              label: Text(
+                isBr ? "Inscrições" : "S'inscrire",
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+              ),
+              onPressed: () => _showContactJATModal(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 📲 MODALE 1-CLIC CONTACT & INSCRIPTION JAT
+  void _showContactJATModal(BuildContext context) {
+    HapticFeedback.mediumImpact();
     final tournament = widget.tournament;
+    final isBr = (tournament.country ?? '').toUpperCase() == 'BR' || 
+        context.read<AppState>().currentUser?.isBrazilian == true;
     final referee = (tournament.referee != null && tournament.referee!.trim().isNotEmpty)
         ? tournament.referee!.trim()
-        : "Direction du Tournoi (JAT)";
+        : (isBr ? "Árbitro Geral / CBT" : "Direction du Tournoi (JAT)");
     final rawPhone = tournament.contactPhone?.trim();
     final hasPhone = rawPhone != null && rawPhone.isNotEmpty;
     final rawEmail = tournament.contactEmail?.trim();
     final hasEmail = rawEmail != null && rawEmail.isNotEmpty;
     final rawUrl = tournament.registrationUrl?.trim();
-    final regUrl = (rawUrl != null && rawUrl.isNotEmpty) ? rawUrl : "https://tenup.fft.fr";
+    final regUrl = (rawUrl != null && rawUrl.isNotEmpty) ? rawUrl : (isBr ? "https://www.cbtenis.com.br/beach-tennis" : "https://tenup.fft.fr");
     final regType = (tournament.registrationType != null && tournament.registrationType!.trim().isNotEmpty)
         ? tournament.registrationType!.trim()
-        : "Inscription par Téléphone, Email ou Ten'Up";
+        : (isBr ? "Inscrições via WhatsApp, Telefone ou Portal CBT" : "Inscription par Téléphone, WhatsApp ou Ten'Up");
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          decoration: const BoxDecoration(
+            color: Color(0xFF0F172A),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(color: Colors.black87, blurRadius: 20, offset: Offset(0, -4)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.gold.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.how_to_reg_rounded, color: AppColors.gold, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isBr ? "Inscrições & Contato do Árbitro" : "Inscriptions & Contact JAT",
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          referee,
+                          style: const TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                ),
+                child: Text(
+                  regType,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12.5),
+                ),
+              ),
+              const SizedBox(height: 18),
+              if (hasPhone) ...[
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366), // WhatsApp Green
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  icon: const Icon(Icons.chat_rounded, size: 20),
+                  label: Text(
+                    isBr ? "Falar no WhatsApp com o Árbitro" : "Écrire sur WhatsApp au JAT",
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _openJATWhatsApp(rawPhone, tournament);
+                  },
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0E7A3E),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  icon: const Icon(Icons.phone_in_talk_rounded, size: 20),
+                  label: Text(
+                    isBr ? "Ligar ($rawPhone)" : "Appeler ($rawPhone)",
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    final phone = rawPhone.replaceAll(' ', '');
+                    _launchUrl('tel:$phone');
+                  },
+                ),
+                const SizedBox(height: 10),
+              ],
+              if (hasEmail) ...[
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.blueAccent.withValues(alpha: 0.5)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  icon: const Icon(Icons.mail_rounded, size: 20, color: Colors.lightBlueAccent),
+                  label: Text(
+                    isBr ? "Enviar Email ($rawEmail)" : "Envoyer un Email ($rawEmail)",
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _openJATEmail(rawEmail, tournament, rawPhone);
+                  },
+                ),
+                const SizedBox(height: 10),
+              ],
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white24),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                icon: const Icon(Icons.open_in_browser_rounded, size: 20, color: AppColors.gold),
+                label: Text(
+                  isBr ? "Portal de Inscrições Online (CBT / Oficial)" : "Portail d'Inscription en Ligne (Ten'Up)",
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _launchUrl(regUrl);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// ⚙️ MODALE ACTIONS ADMINISTRATEUR / JAT
+  void _showAdminManagementModal(BuildContext context) {
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          decoration: const BoxDecoration(
+            color: Color(0xFF0F172A),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(color: Colors.black87, blurRadius: 20, offset: Offset(0, -4)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Row(
+                children: [
+                  Icon(Icons.admin_panel_settings_rounded, color: AppColors.gold, size: 22),
+                  SizedBox(width: 10),
+                  Text(
+                    "Gestion Officielle du Tournoi",
+                    style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.gold,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                icon: const Icon(Icons.account_tree_rounded, size: 20),
+                label: Text(
+                  _isAuthorized ? "Gérer le Tableau (JAT)" : "Voir le Tableau Officiel",
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TournamentBracketScreen(
+                        tournament: widget.tournament,
+                        isAuthorized: _isAuthorized,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.gold,
+                  side: const BorderSide(color: AppColors.gold, width: 1.5),
+                  backgroundColor: AppColors.gold.withValues(alpha: 0.12),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                icon: const Icon(Icons.stadium_rounded, size: 20),
+                label: const Text(
+                  "📅 Répartition des Terrains & Rotations",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _showCourtScheduleConfigDialog();
+                },
+              ),
+              const SizedBox(height: 10),
+              Builder(
+                builder: (context) {
+                  final isSuperAdmin = (FirebaseAuth.instance.currentUser?.email ?? '').toLowerCase().trim() == 'moixmb@gmail.com';
+                  if (!isSuperAdmin) {
+                    return SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white12,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        icon: const Icon(Icons.edit_rounded, size: 18),
+                        label: const Text("Modifier", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _openEditScreen();
+                        },
+                      ),
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white12,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          icon: const Icon(Icons.edit_rounded, size: 18),
+                          label: const Text("Modifier", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _openEditScreen();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.redAccent.withValues(alpha: 0.9),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                          label: const Text("Supprimer", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _confirmDelete();
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _openJATWhatsApp(String rawPhone, TournamentModel tournament) {
+    HapticFeedback.lightImpact();
+    var clean = rawPhone.replaceAll(RegExp(r'\D'), '');
+    if (clean.startsWith('0') && clean.length == 10) {
+      clean = '33${clean.substring(1)}';
+    }
+    final cLower = (tournament.country ?? '').toLowerCase();
+    final isBr = (cLower.contains('br') || rawPhone.startsWith('+55'));
+    final isVe = (cLower.contains('venezuela') || cLower.contains('vénézuela') || rawPhone.startsWith('+58'));
+    final isIt = (cLower.contains('italie') || cLower.contains('italy') || rawPhone.startsWith('+39'));
+    final isAruba = (cLower.contains('aruba') || rawPhone.startsWith('+297'));
+
+    final String msgText;
+    if (isBr) {
+      msgText = "Olá! Gostaria de me inscrever no torneio ${tournament.name} (${tournament.category})!";
+    } else if (isVe || isAruba) {
+      msgText = "¡Hola! Quisiera inscribirme en el torneo ${tournament.name} (${tournament.category})!";
+    } else if (isIt) {
+      msgText = "Ciao! Vorrei iscrivermi al torneo ${tournament.name} (${tournament.category})!";
+    } else {
+      msgText = "Bonjour, je souhaite m'inscrire au tournoi ${tournament.name} (${tournament.category}) !";
+    }
+    _launchUrl("https://wa.me/$clean?text=${Uri.encodeComponent(msgText)}");
+  }
+
+  void _openJATEmail(String rawEmail, TournamentModel tournament, String? rawPhone) {
+    HapticFeedback.lightImpact();
+    final cLower = (tournament.country ?? '').toLowerCase();
+    final isBr = (cLower.contains('br') || (rawPhone != null && rawPhone.startsWith('+55')));
+    final isVe = (cLower.contains('venezuela') || (rawPhone != null && rawPhone.startsWith('+58')));
+    final isIt = (cLower.contains('italie') || cLower.contains('italy') || (rawPhone != null && rawPhone.startsWith('+39')));
+    final isAruba = (cLower.contains('aruba') || (rawPhone != null && rawPhone.startsWith('+297')));
+
+    final String subject;
+    if (isBr) {
+      subject = "Inscrição Beach Tennis - ${tournament.name}";
+    } else if (isVe || isAruba) {
+      subject = "Inscripción Beach Tennis - ${tournament.name}";
+    } else if (isIt) {
+      subject = "Iscrizione Beach Tennis - ${tournament.name}";
+    } else {
+      subject = "Inscription Beach Tennis - ${tournament.name}";
+    }
+    _launchUrl('mailto:$rawEmail?subject=${Uri.encodeComponent(subject)}');
+  }
+
+  Widget _buildRegistrationAndContactCard(BuildContext context) {
+    final tournament = widget.tournament;
+    final isBr = (tournament.country ?? '').toUpperCase() == 'BR' || 
+        context.read<AppState>().currentUser?.isBrazilian == true;
+    final referee = (tournament.referee != null && tournament.referee!.trim().isNotEmpty)
+        ? tournament.referee!.trim()
+        : (isBr ? "Árbitro Geral / CBT" : "Direction du Tournoi (JAT)");
+    final rawPhone = tournament.contactPhone?.trim();
+    final hasPhone = rawPhone != null && rawPhone.isNotEmpty;
+    final rawEmail = tournament.contactEmail?.trim();
+    final hasEmail = rawEmail != null && rawEmail.isNotEmpty;
+    final rawUrl = tournament.registrationUrl?.trim();
+    final regUrl = (rawUrl != null && rawUrl.isNotEmpty) ? rawUrl : (isBr ? "https://www.cbtenis.com.br/beach-tennis" : "https://tenup.fft.fr");
+    final regType = (tournament.registrationType != null && tournament.registrationType!.trim().isNotEmpty)
+        ? tournament.registrationType!.trim()
+        : (isBr ? "Inscrição por Telefone, WhatsApp ou Portal CBT" : "Inscription par Téléphone, Email ou Ten'Up");
 
     return Container(
       decoration: BoxDecoration(
@@ -545,13 +2076,13 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.how_to_reg_rounded, color: AppColors.gold, size: 24),
-                        SizedBox(width: 8),
+                        const Icon(Icons.how_to_reg_rounded, color: AppColors.gold, size: 24),
+                        const SizedBox(width: 8),
                         Text(
-                          "Inscriptions & Contact",
-                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                          isBr ? "Inscrições & Contato" : "Inscriptions & Contact",
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
                         ),
                       ],
                     ),
@@ -562,14 +2093,14 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: AppColors.gold, width: 1),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.verified_rounded, color: AppColors.gold, size: 14),
-                          SizedBox(width: 4),
+                          const Icon(Icons.verified_rounded, color: AppColors.gold, size: 14),
+                          const SizedBox(width: 4),
                           Text(
-                            "Officiel",
-                            style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 11),
+                            isBr ? "Oficial" : "Officiel",
+                            style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 11),
                           ),
                         ],
                       ),
@@ -578,7 +2109,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                // Carte Juge-Arbitre (JAT)
+                // Carte Juge-Arbitre (JAT / CBT)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                   decoration: BoxDecoration(
@@ -601,9 +2132,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              "JUGE-ARBITRE DU TOURNOI (JAT)",
-                              style: TextStyle(color: AppColors.gold, fontSize: 10.5, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                            Text(
+                              isBr ? "ÁRBITRO GERAL DO TORNEIO (CBT)" : "JUGE-ARBITRE DU TOURNOI (JAT)",
+                              style: const TextStyle(color: AppColors.gold, fontSize: 10.5, fontWeight: FontWeight.w900, letterSpacing: 0.5),
                             ),
                             const SizedBox(height: 2),
                             Text(
@@ -683,8 +2214,23 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                           if (clean.startsWith('0') && clean.length == 10) {
                             clean = '33${clean.substring(1)}';
                           }
-                          final msg = Uri.encodeComponent("Bonjour, je souhaite m'inscrire au tournoi ${tournament.name} (${tournament.category}) !");
-                          _launchUrl("https://wa.me/$clean?text=$msg");
+                          final cLower = (tournament.country ?? '').toLowerCase();
+                          final isBr = (cLower.contains('br') || rawPhone.startsWith('+55'));
+                          final isVe = (cLower.contains('venezuela') || cLower.contains('vénézuela') || rawPhone.startsWith('+58'));
+                          final isIt = (cLower.contains('italie') || cLower.contains('italy') || rawPhone.startsWith('+39'));
+                          final isAruba = (cLower.contains('aruba') || rawPhone.startsWith('+297'));
+
+                          final String msgText;
+                          if (isBr) {
+                            msgText = "Olá! Gostaria de me inscrever no torneio ${tournament.name} (${tournament.category})!";
+                          } else if (isVe || isAruba) {
+                            msgText = "¡Hola! Quisiera inscribirme en el torneo ${tournament.name} (${tournament.category})!";
+                          } else if (isIt) {
+                            msgText = "Ciao! Vorrei iscrivermi al torneo ${tournament.name} (${tournament.category})!";
+                          } else {
+                            msgText = "Bonjour, je souhaite m'inscrire au tournoi ${tournament.name} (${tournament.category}) !";
+                          }
+                          _launchUrl("https://wa.me/$clean?text=${Uri.encodeComponent(msgText)}");
                         },
                         child: const Icon(Icons.chat_rounded, size: 20),
                       ),
@@ -710,33 +2256,59 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                       icon: const Icon(Icons.mail_rounded, size: 19, color: Colors.lightBlueAccent),
                       label: Text(
                         rawEmail,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Colors.white),
                         overflow: TextOverflow.ellipsis,
                       ),
                       onPressed: () {
                         HapticFeedback.lightImpact();
-                        final subject = Uri.encodeComponent("Inscription Beach Tennis - ${tournament.name}");
-                        _launchUrl('mailto:$rawEmail?subject=$subject');
+                        final cLower = (tournament.country ?? '').toLowerCase();
+                        final isBr = (cLower.contains('br') || (rawPhone != null && rawPhone.startsWith('+55')));
+                        final isVe = (cLower.contains('venezuela') || (rawPhone != null && rawPhone.startsWith('+58')));
+                        final isIt = (cLower.contains('italie') || cLower.contains('italy') || (rawPhone != null && rawPhone.startsWith('+39')));
+                        final isAruba = (cLower.contains('aruba') || (rawPhone != null && rawPhone.startsWith('+297')));
+
+                        final String subject;
+                        if (isBr) {
+                          subject = "Inscrição Beach Tennis - ${tournament.name}";
+                        } else if (isVe || isAruba) {
+                          subject = "Inscripción Beach Tennis - ${tournament.name}";
+                        } else if (isIt) {
+                          subject = "Iscrizione Beach Tennis - ${tournament.name}";
+                        } else {
+                          subject = "Inscription Beach Tennis - ${tournament.name}";
+                        }
+                        _launchUrl('mailto:$rawEmail?subject=${Uri.encodeComponent(subject)}');
                       },
                     ),
                   ),
                   const SizedBox(height: 10),
                 ],
 
-                // Bouton Portail Officiel Ten'Up / ITF
+                // Bouton Portail Officiel Ten'Up / ITF / CBT / FVT / FITP / Aruba
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.gold,
+                      backgroundColor: AppColors.gold.withValues(alpha: 0.12),
                       side: const BorderSide(color: AppColors.gold, width: 1.5),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
-                    icon: const Icon(Icons.open_in_new_rounded, size: 17),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 18, color: AppColors.gold),
                     label: Text(
-                      regUrl.contains('itf') ? "Fiche Officielle ITF Beach Tennis" : "Fiche Officielle Ten'Up FFT",
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                      regUrl.contains('itf')
+                          ? "Fiche Officielle ITF Beach Tennis"
+                          : (regUrl.contains('arubabeachtennisopen')
+                              ? "Portal Oficial Aruba Open 🌴"
+                              : (regUrl.contains('cbt') || regUrl.contains('cbtenis')
+                                  ? (isBr ? "Portal Oficial de Inscrições CBT 🇧🇷" : "Ficha Oficial CBT Tênis")
+                                  : (regUrl.contains('fvt') || regUrl.contains('tenis-integrado')
+                                      ? "Portal Oficial FVT Tenis Playa"
+                                      : (regUrl.contains('fitp')
+                                          ? "Scheda Ufficiale FITP Beach Tennis"
+                                          : (isBr ? "Portal Oficial CBT Beach Tennis 🇧🇷" : "Fiche Officielle Ten'Up FFT"))))),
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Colors.white),
                     ),
                     onPressed: () {
                       HapticFeedback.lightImpact();
@@ -782,12 +2354,12 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
             children: [
               Text(
                 title,
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                style: const TextStyle(color: Colors.white70, fontSize: 12.5, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 4),
               Text(
                 value,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
+                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -1878,21 +3450,34 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   }
 
   Widget _buildTournamentBracketHeroCard(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('tournaments')
           .doc(widget.tournament.id)
-          .collection('bracket')
-          .doc('current')
+          .collection('brackets')
           .snapshots(),
       builder: (context, snapshot) {
-        final data = (snapshot.hasData && snapshot.data?.exists == true)
-            ? snapshot.data!.data()
-            : null;
+        final docs = snapshot.data?.docs ?? [];
+        int pairsCount = 0;
+        bool isGenerated = false;
+        String status = 'draft';
 
-        final isGenerated = data != null && (data['mainMatches'] as List?)?.isNotEmpty == true;
-        final pairsCount = (data?['pairs'] as List?)?.length ?? 0;
-        final status = data?['status'] ?? 'draft';
+        for (final doc in docs) {
+          final data = doc.data();
+          final pairs = (data['pairs'] as List?) ?? [];
+          pairsCount += pairs.length;
+          final mainMatches = (data['mainMatches'] as List?) ?? [];
+          final pools = (data['pools'] as List?) ?? [];
+          if (mainMatches.isNotEmpty || pools.isNotEmpty) {
+            isGenerated = true;
+          }
+          final docStatus = data['status']?.toString() ?? 'draft';
+          if (docStatus == 'finished') {
+            status = 'finished';
+          } else if (docStatus == 'in_progress' && status != 'finished') {
+            status = 'in_progress';
+          }
+        }
 
         String statusLabel = "TABLEAU OFFICIEL FFT";
         Color statusColor = AppColors.gold;
@@ -1902,12 +3487,13 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
           statusLabel = "TOURNOI TERMINÉ";
           statusColor = const Color(0xFF10B981);
           desc = "Résultats officiels et palmarès final du tournoi";
-        } else if (isGenerated) {
+        } else if (isGenerated || status == 'in_progress') {
           statusLabel = "TABLEAU EN DIRECT";
           statusColor = AppColors.coral;
           desc = "$pairsCount paires en lice • Scores des matches en temps réel";
         } else if (pairsCount > 0) {
           statusLabel = "INSCRIPTIONS EN COURS";
+          statusColor = AppColors.gold;
           desc = "$pairsCount paires inscrites • Tirage officiel à venir";
         }
 

@@ -1026,6 +1026,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                               isAuthorized: _isJat,
                               initialCategories: selectedCats,
                               initialNumCourts: courtsCount,
+                              bracket: _currentBracket,
                             ),
                           ),
                         );

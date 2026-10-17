@@ -1027,4 +1027,184 @@ class TournamentPdfService {
       ),
     );
   }
+
+  /// 🏟️ Génère et exporte la feuille officielle de programmation et rotation des terrains (A4 Paysage)
+  static Future<void> generateAndExportCourtRotationsPdf({
+    required TournamentModel tournament,
+    required List<Map<String, dynamic>> rotations,
+    required int numCourts,
+    required Set<String> categories,
+  }) async {
+    final pdf = pw.Document();
+
+    const navyColor = PdfColor.fromInt(0xFF0F172A);
+    const goldColor = PdfColor.fromInt(0xFFB8860B);
+    const darkGray = PdfColor.fromInt(0xFF334155);
+    const lightGray = PdfColor.fromInt(0xFFF1F5F9);
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.landscape,
+        margin: const pw.EdgeInsets.all(20),
+        header: (context) => pw.Container(
+          padding: const pw.EdgeInsets.only(bottom: 8),
+          decoration: const pw.BoxDecoration(
+            border: pw.Border(bottom: pw.BorderSide(color: navyColor, width: 1.5)),
+          ),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    "FÉDÉRATION FRANÇAISE DE TENNIS · BEACH TENNIS",
+                    style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: darkGray),
+                  ),
+                  pw.Text(
+                    "FEUILLE OFFICIELLE DE PROGRAMMATION ET ROTATION DES TERRAINS",
+                    style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: navyColor),
+                  ),
+                  pw.Text(
+                    "Tournoi : ${cleanText(tournament.name)} (${cleanText(tournament.category)}) · Club : ${cleanText(tournament.club)}",
+                    style: const pw.TextStyle(fontSize: 8.5, color: darkGray),
+                  ),
+                ],
+              ),
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  pw.Text(
+                    "$numCourts Terrains mutualisés · Tableaux : ${categories.join(' + ')}",
+                    style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: goldColor),
+                  ),
+                  pw.Text(
+                    "Date : ${tournament.dateString} · JAT : ${cleanText(tournament.referee ?? 'JAT Officiel')}",
+                    style: const pw.TextStyle(fontSize: 8, color: darkGray),
+                  ),
+                  pw.Text(
+                    "Page ${context.pageNumber} / ${context.pagesCount}",
+                    style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        footer: (context) => _buildFooter(context, darkGray),
+        build: (context) => [
+          pw.SizedBox(height: 8),
+
+          // Grille des rotations
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+            columnWidths: {
+              0: const pw.FixedColumnWidth(80),
+              for (int i = 1; i <= numCourts; i++)
+                i: const pw.FlexColumnWidth(1),
+            },
+            children: [
+              // Header row
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: navyColor),
+                children: [
+                  pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                    child: pw.Text("Horaire / Rotation", style: pw.TextStyle(color: PdfColors.white, fontSize: 8, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.center),
+                  ),
+                  for (int c = 1; c <= numCourts; c++)
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                      child: pw.Text(
+                        c == 1 ? "Court 1 (Central)" : "Court $c",
+                        style: pw.TextStyle(color: c == 1 ? goldColor : PdfColors.white, fontSize: 8, fontWeight: pw.FontWeight.bold),
+                        textAlign: pw.TextAlign.center,
+                      ),
+                    ),
+                ],
+              ),
+
+              // Data rows
+              for (int r = 0; r < rotations.length; r++) ...[
+                () {
+                  final rot = rotations[r];
+                  final courts = (rot['courts'] as List<dynamic>?) ?? [];
+                  final isEven = r % 2 == 0;
+                  return pw.TableRow(
+                    decoration: pw.BoxDecoration(color: isEven ? PdfColors.white : lightGray),
+                    children: [
+                      // Horaire column
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(cleanText(rot['time']?.toString().split(' - ').first ?? ''), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                            pw.Text("Rot. ${r + 1}", style: const pw.TextStyle(fontSize: 7, color: darkGray)),
+                          ],
+                        ),
+                      ),
+
+                      // Court columns
+                      for (int c = 1; c <= numCourts; c++) ...[
+                        () {
+                          final slot = courts.firstWhere(
+                            (item) => item is Map && item['court'] == c,
+                            orElse: () => null,
+                          );
+
+                          if (slot == null || slot['type'] == 'Disponible' || slot['p1'] == 'Court disponible') {
+                            return pw.Container(
+                              padding: const pw.EdgeInsets.all(4),
+                              child: pw.Center(
+                                child: pw.Text("Disponible", style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey500)),
+                              ),
+                            );
+                          }
+
+                          final type = slot['type']?.toString() ?? '';
+                          final tour = slot['tour']?.toString() ?? '';
+                          final p1 = slot['p1']?.toString() ?? '';
+                          final p2 = slot['p2']?.toString() ?? '';
+                          final score = slot['score']?.toString() ?? '';
+
+                          return pw.Container(
+                            padding: const pw.EdgeInsets.all(3),
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: [
+                                pw.Row(
+                                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    pw.Text("[$type] ${cleanText(tour)}", style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: navyColor)),
+                                    if (score.isNotEmpty && score != '-' && score != 'À jouer')
+                                      pw.Text(score, style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: goldColor)),
+                                  ],
+                                ),
+                                pw.SizedBox(height: 1),
+                                pw.Text(cleanText(p1), style: const pw.TextStyle(fontSize: 6.5)),
+                                pw.Text("vs ${cleanText(p2)}", style: const pw.TextStyle(fontSize: 6.5, color: darkGray)),
+                              ],
+                            ),
+                          );
+                        }(),
+                      ],
+                    ],
+                  );
+                }(),
+              ],
+            ],
+          ),
+
+          pw.SizedBox(height: 12),
+          _buildJatSignatureBox(navyColor, darkGray),
+        ],
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (format) async => pdf.save(),
+      name: 'Rotations_Terrains_${tournament.name.replaceAll(' ', '_')}.pdf',
+    );
+  }
 }
