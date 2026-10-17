@@ -1028,8 +1028,8 @@ class TournamentPdfService {
     );
   }
 
-  /// 🏟️ Génère et exporte la feuille officielle de programmation et rotation des terrains (A4 Paysage)
-  static Future<void> generateAndExportCourtRotationsPdf({
+  /// 🏟️ Construit les octets du PDF de programmation et rotation des terrains (A4 Paysage)
+  static Future<Uint8List> buildCourtRotationsPdfBytes({
     required TournamentModel tournament,
     required List<Map<String, dynamic>> rotations,
     required int numCourts,
@@ -1148,10 +1148,9 @@ class TournamentPdfService {
                       // Court columns
                       for (int c = 1; c <= numCourts; c++) ...[
                         () {
-                          final slot = courts.firstWhere(
+                          final slot = courts.where(
                             (item) => item is Map && item['court'] == c,
-                            orElse: () => null,
-                          );
+                          ).firstOrNull as Map?;
 
                           if (slot == null || slot['type'] == 'Disponible' || slot['p1'] == 'Court disponible') {
                             return pw.Container(
@@ -1202,8 +1201,25 @@ class TournamentPdfService {
       ),
     );
 
+    return pdf.save();
+  }
+
+  /// 🏟️ Génère et exporte la feuille officielle de programmation et rotation des terrains (A4 Paysage)
+  static Future<void> generateAndExportCourtRotationsPdf({
+    required TournamentModel tournament,
+    required List<Map<String, dynamic>> rotations,
+    required int numCourts,
+    required Set<String> categories,
+  }) async {
+    final pdfBytes = await buildCourtRotationsPdfBytes(
+      tournament: tournament,
+      rotations: rotations,
+      numCourts: numCourts,
+      categories: categories,
+    );
+
     await Printing.layoutPdf(
-      onLayout: (format) async => pdf.save(),
+      onLayout: (format) async => pdfBytes,
       name: 'Rotations_Terrains_${tournament.name.replaceAll(' ', '_')}.pdf',
     );
   }

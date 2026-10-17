@@ -1124,10 +1124,103 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
                       ? _buildGlobalMatrixView(rotations)
                       : _buildCourtsView(filteredCourts, currentRotation),
                 ),
+
+                // Barre d'action ergonomique pour le JAT (pas de collision avec l'en-tête)
+                if (widget.isAuthorized) _buildBottomActionBar(),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBottomActionBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.5),
+            blurRadius: 10,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        _currentPresetIsOfficial ? Icons.verified_rounded : Icons.science_outlined,
+                        color: _currentPresetIsOfficial ? const Color(0xFF4ADE80) : AppColors.gold,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _currentPresetIsOfficial ? "Répartition Officielle active" : "Scénario de simulation",
+                        style: TextStyle(
+                          color: _currentPresetIsOfficial ? const Color(0xFF4ADE80) : AppColors.gold,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _currentPresetIsOfficial
+                        ? "Terrains officiellement assignés aux matches"
+                        : "Validez pour synchroniser les terrains aux matches",
+                    style: const TextStyle(
+                      color: Colors.white60,
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _currentPresetIsOfficial ? const Color(0xFF16A34A) : AppColors.gold,
+                foregroundColor: _currentPresetIsOfficial ? Colors.white : Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 3,
+              ),
+              icon: _isApplying
+                  ? SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: _currentPresetIsOfficial ? Colors.white : Colors.black,
+                      ),
+                    )
+                  : Icon(
+                      _currentPresetIsOfficial ? Icons.check_circle_rounded : Icons.save_rounded,
+                      size: 16,
+                    ),
+              label: Text(
+                _currentPresetIsOfficial ? "Appliquée (Mettre à jour)" : "Appliquer aux matches",
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+              ),
+              onPressed: _isApplying ? null : _applyCourtsToTournament,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1250,54 +1343,6 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
               ],
             ),
           ),
-          // Bouton Appliquer Terrains au Tableau JAT
-          if (widget.isAuthorized) ...[
-            Tooltip(
-              message: "Enregistrer ces terrains sur les matches du tournoi",
-              child: InkWell(
-                onTap: _isApplying ? null : _applyCourtsToTournament,
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  margin: const EdgeInsets.only(right: 6),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFD97706), Color(0xFFF59E0B)],
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.gold.withValues(alpha: 0.35),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _isApplying
-                          ? const SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                            )
-                          : const Icon(Icons.save_rounded, color: Colors.black, size: 14),
-                      const SizedBox(width: 4),
-                      const Text(
-                        "Appliquer",
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
           // Bouton Config
           IconButton(
             tooltip: "Paramètres terrains & tableaux",
