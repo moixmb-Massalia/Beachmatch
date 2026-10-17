@@ -5,18 +5,20 @@ import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/colors.dart';
 import '../providers/app_state.dart';
-import '../models/match.dart';
 import '../models/user.dart';
 import '../models/news_item.dart';
 import '../services/news_service.dart';
 import '../widgets/beach_weather_widget.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/home_radar_card.dart';
-import '../widgets/home_match_card.dart';
+import '../widgets/home_tournament_3d_globe.dart';
+import '../services/jat_reminder_service.dart';
 import '../widgets/home_weekend_ritual_card.dart';
 import '../widgets/feature_discovery_bubble.dart';
 import 'create_match_screen.dart';
 import 'profile_screen.dart';
+import '../widgets/home_fft_licence_banner.dart';
+import 'tournaments/beach_score_hub_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,69 +28,45 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _selectedFilter = "Tous";
   late final Stream<List<NewsItemModel>> _newsStream;
 
   @override
   void initState() {
     super.initState();
     _newsStream = NewsService().getNewsStream();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkJatEveReminder();
+    });
+  }
+
+  void _checkJatEveReminder() {
+    final appState = context.read<AppState>();
+    final user = appState.currentUser;
+    if (user == null) return;
+
+    final eveTourney = JatReminderService.findEveTournamentForJat(
+      tournaments: appState.tournaments,
+      user: user,
+    );
+
+    if (eveTourney != null && mounted) {
+      JatReminderService.showEveReminderBanner(
+        context,
+        tournament: eveTourney,
+        user: user,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AppState>().currentUser;
-    final allMatches = context.watch<AppState>().matches;
     final courts = context.watch<AppState>().courts;
     final pos = context.watch<AppState>().currentPosition;
-    
-    // Application du filtre sur les parties à venir (exclut les matchs terminés d'hier ou plus vieux)
-    final now = DateTime.now();
-    final activeMatches = allMatches.where((m) => m.scheduledTime.isAfter(now.subtract(const Duration(hours: 3)))).toList();
-
-    List<MatchModel> matches = activeMatches;
-    if (_selectedFilter == "Autour de moi") {
-      if (pos != null) {
-        // Distance réelle GPS <= 40 km
-        final nearbyCourtIds = courts.where((c) {
-          final distKm = Geolocator.distanceBetween(
-            pos.latitude,
-            pos.longitude,
-            c.latitude,
-            c.longitude,
-          ) / 1000.0;
-          return distKm <= 40.0;
-        }).map((c) => c.id).toSet();
-
-        matches = activeMatches.where((m) => nearbyCourtIds.contains(m.courtId)).toList();
-      } else if (user != null) {
-        final userCityWords = user.location.toLowerCase().split(RegExp(r'\s+|,'));
-        final nearbyCourtsIds = courts.where((c) {
-          final courtCityLower = c.city.toLowerCase();
-          return userCityWords.any((word) => word.length > 3 && courtCityLower.contains(word));
-        }).map((c) => c.id).toList();
-        
-        if (nearbyCourtsIds.isNotEmpty) {
-          matches = activeMatches.where((m) => nearbyCourtsIds.contains(m.courtId)).toList();
-        } else {
-          matches = [];
-        }
-      } else {
-        matches = [];
-      }
-    } else if (_selectedFilter == "Niveau 1-4") {
-      matches = activeMatches.where((m) => m.targetLevel <= 4).toList();
-    } else if (_selectedFilter == "Niveau 5+") {
-      matches = activeMatches.where((m) => m.targetLevel >= 5).toList();
-    } else if (_selectedFilter == "Aujourd'hui") {
-      matches = activeMatches.where((m) => 
-        m.scheduledTime.year == now.year && 
-        m.scheduledTime.month == now.month && 
-        m.scheduledTime.day == now.day
-      ).toList();
-    }
+    final tournaments = context.watch<AppState>().tournaments;
 
     return Scaffold(
+      backgroundColor: const Color(0xFF0F141E),
       body: Stack(
         children: [
           // Immersion Beach Background
@@ -126,108 +104,31 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
                 children: [
                   _buildHeader(user),
-                  const FeatureDiscoveryBubble(
+                  if (user != null && !user.isBrazilian && (user.licenceNumber == null || user.licenceNumber!.trim().isEmpty)) ...[
+                    const SizedBox(height: 14),
+                    const HomeFftLicenceBanner(),
+                  ],
+                  FeatureDiscoveryBubble(
                     featureKey: 'home_overview',
-                    title: "Bienvenue sur votre Accueil !",
-                    message: "Consultez la météo des plages en direct, découvrez les parties autour de vous et rejoignez vos partenaires en un clic.",
+                    title: (user?.isBrazilian == true) ? "Bem-vindo ao BeachMatch !" : "Bienvenue sur votre Accueil !",
+                    message: (user?.isBrazilian == true)
+                        ? "Consulte o clima ao vivo, descubra as quadras e partidas perto de você e conecte-se com seus parceiros em um toque."
+                        : "Consultez la météo des plages en direct, découvrez les parties autour de vous et rejoignez vos partenaires en un clic.",
                     icon: Icons.wb_sunny_rounded,
-                    margin: EdgeInsets.only(top: 14, bottom: 4),
+                    margin: const EdgeInsets.only(top: 14, bottom: 4),
                   ),
+                  const SizedBox(height: 14),
+                  _buildBeachScoreBanner(context, user?.isBrazilian == true),
                   const SizedBox(height: 14),
                   HomeRadarCard(user: user, courts: courts),
                   const SizedBox(height: 14),
                   const HomeWeekendRitualCard(),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(AppLocalizations.of(context).homeMatchesTitle, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.coral.withValues(alpha: 0.9),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text("${matches.length} ${AppLocalizations.of(context).homeMatchesLive}", style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                      )
-                    ],
+                  const SizedBox(height: 14),
+                  HomeTournament3dGlobe(
+                    tournaments: tournaments,
+                    user: user,
+                    userPosition: pos,
                   ),
-                  const SizedBox(height: 12),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: ["Tous", "Autour de moi", "Aujourd'hui", "Niveau 1-4", "Niveau 5+"].map((filter) {
-                        final isSelected = _selectedFilter == filter;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(filter),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              if (selected) {
-                                setState(() => _selectedFilter = filter);
-                              }
-                            },
-                            selectedColor: AppColors.gold,
-                            backgroundColor: Colors.black.withValues(alpha: 0.5),
-                            labelStyle: TextStyle(
-                              color: isSelected ? Colors.black : Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                            showCheckmark: false,
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (matches.isEmpty)
-                    _buildGlassContainer(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
-                        child: Column(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: AppColors.gold.withValues(alpha: 0.15),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.sports_tennis, size: 64, color: AppColors.gold),
-                            ),
-                            const SizedBox(height: 24),
-                            Text(
-                              AppLocalizations.of(context).homeEmptyStateTitle,
-                              style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              AppLocalizations.of(context).homeEmptyStateSubtitle,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.w500, height: 1.4),
-                            ),
-                            const SizedBox(height: 32),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.push(context, MaterialPageRoute(builder: (context) => const CreateMatchScreen()));
-                              },
-                              icon: const Icon(Icons.add, size: 20),
-                              label: Text(AppLocalizations.of(context).homeCreateMatchButton, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.gold,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                elevation: 8,
-                                shadowColor: AppColors.gold.withValues(alpha: 0.5),
-                              ),
-                            )
-                          ],
-                        ),
-                      ),
-                    ),
-                  ...matches.map((m) => HomeMatchCard(user: user, match: m, courts: courts)),
                   const SizedBox(height: 24),
                   _buildWeatherCard(user, pos),
                   const SizedBox(height: 24),
@@ -239,11 +140,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      floatingActionButton: matches.isEmpty
-          ? null
-          : Padding(
-              padding: const EdgeInsets.only(bottom: 95.0),
-              child: Container(
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 95.0),
+        child: Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   boxShadow: [
@@ -348,7 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(width: 3),
                             Expanded(
                               child: Text(
-                                user?.location ?? 'France',
+                                user?.location ?? ((user?.isBrazilian == true) ? 'Brasil' : 'France'),
                                 style: const TextStyle(fontSize: 11.5, color: Colors.white70),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -386,14 +285,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.person_rounded, color: Colors.white, size: 15),
-                  SizedBox(width: 4),
+                  const Icon(Icons.person_rounded, color: Colors.white, size: 15),
+                  const SizedBox(width: 4),
                   Text(
-                    "Mon Profil",
-                    style: TextStyle(
+                    (user?.isBrazilian == true) ? "Meu Perfil" : "Mon Profil",
+                    style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w900,
                       fontSize: 12,
@@ -411,7 +310,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildWeatherCard(UserModel? user, Position? pos) {
     final (lat, lon) = pos != null
         ? (pos.latitude, pos.longitude)
-        : getUserCoordinates(user?.location);
+        : getUserCoordinates(user?.location, isBrazilian: user?.isBrazilian == true);
     return BeachWeatherWidget(
       latitude: lat,
       longitude: lon,
@@ -704,6 +603,110 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBeachScoreBanner(BuildContext context, bool isBr) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const BeachScoreHubScreen()),
+        );
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.gold, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.gold.withValues(alpha: 0.18),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+              ),
+              child: const Icon(Icons.scoreboard_rounded, color: AppColors.gold, size: 28),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFF3B30),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        isBr ? "BEACHSCORE PRO · AO VIVO" : "BEACHSCORE PRO · RÉSULTATS CERTIFIÉS",
+                        style: const TextStyle(
+                          color: AppColors.gold,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isBr ? "Placares Oficiais World Tour & Brasil" : "66 Matchs & Scores Homologués",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    isBr
+                        ? "Sand Series São Paulo, Grand Slam Copacabana, BT 400..."
+                        : "ITF Sand Series, Grand Slam Copacabana, BT 400, JATs...",
+                    style: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 11.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.gold,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.black, size: 14),
+            ),
+          ],
         ),
       ),
     );

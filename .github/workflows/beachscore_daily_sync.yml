@@ -1,0 +1,32 @@
+name: BeachScore Daily & 1-Min Alerts Bot
+
+on:
+  schedule:
+    # Exécution toutes les heures pour le cycle de vie des matchs et alertes
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  beachscore_sync:
+    name: Run BeachScore Realtime Engine
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "firebase-admin>=6.0.0,<7.0.0" "google-cloud-firestore>=2.14.0,<2.20.0" requests
+
+      - name: 🤖 Execute BeachScore Engine
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          python backend/beachscore_daily_sync.py

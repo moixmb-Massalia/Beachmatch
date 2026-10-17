@@ -1,18 +1,24 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
+import '../../providers/app_state.dart';
 import '../../theme/colors.dart';
 import '../../services/sound_service.dart';
+import '../../services/whatsapp_share_service.dart';
+import 'quick_scoreboard_screen.dart';
 
-/// 🏆 Écran Officiel BeachScore World Tour
-/// Cycle de vie dynamique 100% temporel :
-/// - ⏳ Programme (À Venir) : Matchs futurs uniquement. Disparaissent automatiquement dès que l'horaire est dépassé.
-/// - 🔴 En Direct & Vidéos : Matchs en cours avec flux vidéo officiel (YouTube ITF / PlayBT / FFT).
-/// - 🏆 Résultats & Palmarès : Matchs terminés avec scores certifiés et vainqueurs.
+/// 🏆 Écran Officiel BeachScore World Tour Puissance 1000
+/// Cycle de vie dynamique 100% temporel & multi-sources :
+/// - ⏳ Programme (À Venir) : Matchs futurs avec horaires et courts officiels.
+/// - 🔴 En Direct & Vidéos : Matchs en cours avec flux vidéo officiel (PlayBT / ITF / FFT).
+/// - 🏆 Résultats & Palmarès : Matchs terminés avec scores certifiés, vainqueurs et stats.
+/// - 🌐 Portails Fédéraux : ITF, FFT Ten'Up, FITP, CBT, RFET.
+/// - 📺 Chaînes YouTube : @PlayBT, @ITFBeachTennisOfficial, @FFTennis, @SuperTennisTV.
 class BeachScoreHubScreen extends StatefulWidget {
-  const BeachScoreHubScreen({super.key});
+  final bool isEmbedded;
+  const BeachScoreHubScreen({super.key, this.isEmbedded = false});
 
   @override
   State<BeachScoreHubScreen> createState() => _BeachScoreHubScreenState();
@@ -23,24 +29,25 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
 
-  String _selectedCountry = 'ALL'; // 'ALL', 'FR', 'IT', 'BR', 'ES', 'RE'
-  String _selectedDraw = 'ALL'; // 'ALL', 'DH', 'DD', 'DX'
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
-  final List<Map<String, String>> _countries = [
-    {'id': 'ALL', 'label': '🌍 Tous'},
-    {'id': 'FR', 'label': '🇫🇷 France'},
-    {'id': 'IT', 'label': '🇮🇹 Italie'},
-    {'id': 'BR', 'label': '🇧🇷 Brésil'},
-    {'id': 'ES', 'label': '🇪🇸 Espagne'},
-    {'id': 'RE', 'label': '🇷🇪 Réunion'},
-  ];
+  String _selectedCategory = 'ALL'; // 'ALL', 'HOMMES', 'FEMMES', 'MIXTES'
+  bool _hasAutoSelectedTab = false;
 
-  final List<Map<String, String>> _draws = [
-    {'id': 'ALL', 'label': 'Tous les Tableaux'},
-    {'id': 'DH', 'label': 'DH · Double Hommes 👨‍🦱'},
-    {'id': 'DD', 'label': 'DD · Double Dames 👩‍🦰'},
-    {'id': 'DX', 'label': 'DX · Double Mixte 🤝'},
-  ];
+  void _checkAutoTabSelection(int liveCount, int scheduledCount, int finishedCount) {
+    if (_hasAutoSelectedTab) return;
+    if (liveCount == 0 && scheduledCount == 0 && finishedCount == 0) return;
+    _hasAutoSelectedTab = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (liveCount > 0) {
+        _tabController.animateTo(1); // En Direct si match live actif
+      } else {
+        _tabController.animateTo(0); // Par défaut toujours sur Résultats
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -55,21 +62,36 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
     _pulseAnimation = Tween<double>(begin: 0.85, end: 1.25).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    // Default country filter is ALL to guarantee immediate match visibility on launch
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     _pulseController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   /// ⏱️ Résolution dynamique et infaillible du statut du match basée sur l'horloge réelle
   static String resolveMatchStatus(Map<String, dynamic> m) {
     final explicitStatus = (m['status'] as String? ?? '').toUpperCase();
-    if (explicitStatus == 'FINISHED' || m['winner'] != null) {
+    if (explicitStatus == 'LIVE') return 'LIVE';
+
+    // 🏆 Tout match avec un score valide ou un vainqueur désigné est TOUJOURS TERMINÉ
+    final rawScore = (m['score']?.toString() ?? '').trim();
+    final hasValidScore = rawScore.isNotEmpty &&
+        rawScore != 'None' &&
+        rawScore != 'null' &&
+        !rawScore.toUpperCase().contains('EXEMPT') &&
+        !rawScore.toUpperCase().contains('BYE');
+    final hasValidSets = (m['set1'] != null && m['set1'].toString().trim().isNotEmpty && m['set1'].toString() != 'None');
+    if (explicitStatus == 'FINISHED' || m['winner'] != null || hasValidScore || hasValidSets) {
       return 'FINISHED';
     }
+
+    if (explicitStatus == 'SCHEDULED') return 'SCHEDULED';
 
     DateTime? scheduledAt;
     if (m['scheduledAt'] is Timestamp) {
@@ -107,23 +129,22 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
       return 'FINISHED';
     }
 
-    if (explicitStatus == 'LIVE') return 'LIVE';
     return 'SCHEDULED';
   }
 
-  static String formatRound(String? rawRound) {
-    if (rawRound == null || rawRound.trim().isEmpty) return 'Match Officiel';
+  static String formatRound(String? rawRound, {bool isBr = false}) {
+    if (rawRound == null || rawRound.trim().isEmpty) return isBr ? 'Partida Oficial' : 'Match Officiel';
     final r = rawRound.trim().toLowerCase();
-    if (r.contains('1/32') || r.contains('r64')) return '1/32 de Finale';
-    if (r.contains('1/16') || r.contains('r32')) return '1/16 de Finale';
-    if (r.contains('1/8') || r.contains('r16')) return '1/8 de Finale';
-    if (r.contains('1/4') || r.contains('qf')) return 'Quart de Finale';
-    if (r.contains('1/2') || r.contains('sf')) return 'Demi-Finale';
-    if (r.contains('final')) return 'Finale 🏆';
+    if (r.contains('1/32') || r.contains('r64')) return isBr ? '1/32 de Final' : '1/32 de Finale';
+    if (r.contains('1/16') || r.contains('r32')) return isBr ? '1/16 de Final' : '1/16 de Finale';
+    if (r.contains('1/8') || r.contains('r16')) return isBr ? 'Oitavas de Final' : '1/8 de Finale';
+    if (r.contains('1/4') || r.contains('qf')) return isBr ? 'Quartas de Final' : 'Quart de Finale';
+    if (r.contains('1/2') || r.contains('sf')) return isBr ? 'Semifinal' : 'Demi-Finale';
+    if (r.contains('final')) return isBr ? 'Final 🏆' : 'Finale 🏆';
     return rawRound.trim();
   }
 
-  String _formatMatchSchedule(Map<String, dynamic> m) {
+  String _formatMatchSchedule(Map<String, dynamic> m, {bool isBr = false}) {
     final dateStr = m['date'] as String? ?? '';
     final timeStr = m['time'] as String? ?? '';
     if (dateStr.isEmpty) return timeStr;
@@ -139,23 +160,25 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
 
         String prefix;
         if (diff == 0) {
-          prefix = "Aujourd'hui";
+          prefix = isBr ? "Hoje" : "Aujourd'hui";
         } else if (diff == 1) {
-          prefix = "Demain";
+          prefix = isBr ? "Amanhã" : "Demain";
         } else if (diff > 1 && diff <= 6) {
-          const days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+          final days = isBr
+              ? ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
+              : ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
           prefix = days[d.weekday - 1];
         } else {
           prefix = "${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}";
         }
 
-        return timeStr.isNotEmpty ? "$prefix à $timeStr" : prefix;
+        return timeStr.isNotEmpty ? (isBr ? "$prefix às $timeStr" : "$prefix à $timeStr") : prefix;
       }
     } catch (_) {}
     return "$dateStr $timeStr".trim();
   }
 
-  Future<void> _openStream(String? url) async {
+  Future<void> _openUrl(String? url) async {
     if (url == null || url.isEmpty) return;
     final uri = Uri.parse(url);
     try {
@@ -165,8 +188,455 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
     } catch (_) {}
   }
 
+  void _shareMatch(Map<String, dynamic> m, Map<String, dynamic> t) {
+    HapticFeedback.lightImpact();
+    final isBr = context.read<AppState>().currentUser?.isBrazilian == true;
+    final tourneyName = (t['name'] as String?) ?? (isBr ? 'Torneio de Beach Tennis' : 'Tournoi Beach Tennis');
+    final city = (t['city'] as String?) ?? '';
+    final round = formatRound(m['round'] as String?, isBr: isBr);
+    final team1 = (m['team1'] as String?) ?? (isBr ? 'Dupla 1' : 'Paire 1');
+    final team2 = (m['team2'] as String?) ?? (isBr ? 'Dupla 2' : 'Paire 2');
+    final score = (m['score'] as String?) ?? '';
+    final date = _formatMatchSchedule(m, isBr: isBr);
+
+    final buffer = StringBuffer();
+    buffer.writeln(isBr ? "🎾 *BeachScore Oficial* 🏖️" : "🎾 *BeachScore Officiel* 🏖️");
+    buffer.writeln("🏆 *$tourneyName* ${city.isNotEmpty ? '($city)' : ''}");
+    buffer.writeln("📍 $round");
+    buffer.writeln("");
+    buffer.writeln("⚡ *$team1* vs *$team2*");
+    if (score.isNotEmpty) {
+      buffer.writeln(isBr ? "📊 *Placar confirmado :* $score" : "📊 *Score certifié :* $score");
+    } else {
+      buffer.writeln(isBr ? "⏰ *Início :* $date" : "⏰ *Coup d'envoi :* $date");
+    }
+    buffer.writeln("");
+    buffer.writeln(isBr ? "📲 Acompanhe todos os placares ao vivo no BeachMatch !" : "📲 Retrouve tous les scores en direct sur BeachMatch !");
+
+    WhatsAppShareService.shareToWhatsAppOrNative(
+      text: buffer.toString(),
+      subject: "Score Beach Tennis : $tourneyName",
+    );
+  }
+
+  /// 🌐 Modale Complète : Portails Fédéraux & Chaînes Officielles YouTube
+  void _showFederationsAndChannelsSheet(BuildContext context) {
+    final isBr = context.read<AppState>().currentUser?.isBrazilian == true;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.78,
+          decoration: const BoxDecoration(
+            color: Color(0xFF0F172A),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black54,
+                blurRadius: 20,
+                offset: Offset(0, -4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.gold.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.language_rounded, color: AppColors.gold, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isBr ? "Portais & Canais Oficiais" : "Portails & Chaînes Officielles",
+                            style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900),
+                          ),
+                          Text(
+                            isBr 
+                                ? "Todos os canais oficiais do Beach Tennis mundial" 
+                                : "Tous les canaux officiels du Beach Tennis mondial",
+                            style: const TextStyle(color: Colors.white60, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: Colors.white12, height: 1),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    Text(
+                      isBr ? "🌐 SITES DAS FEDERAÇÕES OFICIAIS" : "🌐 SITES DES FÉDÉRATIONS OFFICIELLES",
+                      style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 0.8),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildPortalTile(
+                      flag: "🌍",
+                      title: "ITF Beach Tennis World Tour",
+                      subtitle: "Classements mondiaux, calendrier officiel & règlements",
+                      url: "https://www.itftennis.com/en/itf-tours/beach-tennis-tour/",
+                      accentColor: Colors.blueAccent,
+                    ),
+                    _buildPortalTile(
+                      flag: "🇫🇷",
+                      title: "FFT Ten'Up (France & Outre-mer)",
+                      subtitle: "Tournois BT 2000 / BT 1000 et classements nationaux",
+                      url: "https://tenup.fft.fr",
+                      accentColor: Colors.redAccent,
+                    ),
+                    _buildPortalTile(
+                      flag: "🇮🇹",
+                      title: "FITP Beach Tennis (Italie)",
+                      subtitle: "Circuit italien, championnats d'Italie & calendrier FITP",
+                      url: "https://www.federtennis.it/beach-tennis",
+                      accentColor: Colors.greenAccent,
+                    ),
+                    _buildPortalTile(
+                      flag: "🇧🇷",
+                      title: "CBT Beach Tennis (Brésil)",
+                      subtitle: "Circuito Brasileiro, Sand Series Brésil & classements CBT",
+                      url: "https://www.cbtenis.com.br",
+                      accentColor: Colors.amberAccent,
+                    ),
+                    _buildPortalTile(
+                      flag: "🇪🇸",
+                      title: "RFET Tenis Playa (Espagne)",
+                      subtitle: "Circuito Nacional MAPFRE et championnats d'Espagne",
+                      url: "https://www.rfet.es",
+                      accentColor: Colors.orangeAccent,
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      isBr 
+                          ? "📺 CANAIS OFICIAIS YOUTUBE (AO VIVO & REPLAYS HD)" 
+                          : "📺 CHAÎNES OFFICIELLES YOUTUBE (LIVES & REPLAYS HD)",
+                      style: const TextStyle(color: AppColors.coral, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 0.8),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildPortalTile(
+                      icon: Icons.play_circle_fill_rounded,
+                      title: "PlayBT Brasil",
+                      subtitle: "N°1 mondial des directs, Sand Series & tournois majeurs",
+                      url: "https://www.youtube.com/@PlayBT",
+                      accentColor: Colors.redAccent,
+                    ),
+                    _buildPortalTile(
+                      icon: Icons.live_tv_rounded,
+                      title: "ITF Beach Tennis Official",
+                      subtitle: "Finales mondiales, résumés officiels & highlights",
+                      url: "https://www.youtube.com/@ITFBeachTennisOfficial",
+                      accentColor: Colors.redAccent,
+                    ),
+                    _buildPortalTile(
+                      icon: Icons.tv_rounded,
+                      title: "FFTennis TV",
+                      subtitle: "Championnats de France, Open de Palavas & BT 2000",
+                      url: "https://www.youtube.com/@FFTennis",
+                      accentColor: Colors.blueAccent,
+                    ),
+                    _buildPortalTile(
+                      icon: Icons.videocam_rounded,
+                      title: "SuperTennis TV (Italie)",
+                      subtitle: "Diffusions des tournois majeurs italiens & AIBT",
+                      url: "https://www.youtube.com/@SuperTennisTV",
+                      accentColor: Colors.greenAccent,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPortalTile({
+    String? flag,
+    IconData? icon,
+    required String title,
+    required String subtitle,
+    required String url,
+    required Color accentColor,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        leading: Container(
+          width: 42,
+          height: 42,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: accentColor.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: accentColor.withValues(alpha: 0.4)),
+          ),
+          child: flag != null
+              ? Text(flag, style: const TextStyle(fontSize: 20))
+              : Icon(icon ?? Icons.link_rounded, color: accentColor, size: 22),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: const TextStyle(color: Colors.white60, fontSize: 11),
+        ),
+        trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white38, size: 14),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          _openUrl(url);
+        },
+      ),
+    );
+  }
+
+  void _triggerRefresh() {
+    final isBr = context.read<AppState>().currentUser?.isBrazilian == true;
+    HapticFeedback.mediumImpact();
+    SoundService.playRacketPop();
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              isBr ? "Placares e programação sincronizados !" : "Scores et programmes synchronisés !",
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF16253B),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _buildEmbeddedHeader({int? scheduledCount, int? liveCount, int? finishedCount}) {
+    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      color: const Color(0xFF0F172A),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              ScaleTransition(
+                scale: _pulseAnimation,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFF3B30),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0xFFFF3B30),
+                        blurRadius: 8,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isBr ? "BEACHSCORE PRO" : "BEACHSCORE PRO",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              // 🎾 BOUTON MARQUEUR DE SCORE INTERACTIF
+              ElevatedButton.icon(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const QuickScoreboardScreen()),
+                  );
+                },
+                icon: const Icon(Icons.sports_tennis_rounded, size: 14, color: Colors.black),
+                label: Text(
+                  isBr ? "Marcar Jogo" : "Marqueur Score",
+                  style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 11),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.gold,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 2,
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                icon: const Icon(Icons.language_rounded, color: Colors.white70, size: 20),
+                tooltip: isBr ? "Portais & Canais Oficiais" : "Portails & Chaînes Officielles",
+                onPressed: () => _showFederationsAndChannelsSheet(context),
+              ),
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                icon: const Icon(Icons.refresh_rounded, color: AppColors.gold, size: 20),
+                tooltip: isBr ? "Atualizar" : "Actualiser",
+                onPressed: _triggerRefresh,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _buildSubTabBar(
+            scheduledCount: scheduledCount,
+            liveCount: liveCount,
+            finishedCount: finishedCount,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubTabBar({int? scheduledCount, int? liveCount, int? finishedCount}) {
+    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: const Color(0xFF131D31),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: Colors.white24,
+          width: 1.2,
+        ),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        indicator: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          gradient: const LinearGradient(
+            colors: [AppColors.gold, Color(0xFFF59E0B)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.gold.withValues(alpha: 0.40),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        labelColor: Colors.black,
+        unselectedLabelColor: Colors.white,
+        labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+        tabs: [
+          Tab(
+            icon: const Icon(Icons.emoji_events_rounded, size: 15),
+            text: isBr
+                ? (finishedCount != null ? "Resultados ($finishedCount)" : "Resultados")
+                : (finishedCount != null ? "Résultats ($finishedCount)" : "Résultats"),
+            iconMargin: const EdgeInsets.only(bottom: 2),
+          ),
+          Tab(
+            icon: const Icon(Icons.live_tv_rounded, size: 15),
+            text: isBr
+                ? (liveCount != null ? "Ao Vivo ($liveCount)" : "Ao Vivo")
+                : (liveCount != null ? "En Direct ($liveCount)" : "En Direct"),
+            iconMargin: const EdgeInsets.only(bottom: 2),
+          ),
+          Tab(
+            icon: const Icon(Icons.schedule_rounded, size: 15),
+            text: isBr
+                ? (scheduledCount != null ? "Programação ($scheduledCount)" : "Programação")
+                : (scheduledCount != null ? "Programme ($scheduledCount)" : "Programme"),
+            iconMargin: const EdgeInsets.only(bottom: 2),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bodyContent = Stack(
+      children: [
+        Positioned.fill(
+          child: Image.asset(
+            'assets/images/beach_sunset_players_1785052273648.jpg',
+            fit: BoxFit.cover,
+            cacheWidth: 1080,
+          ),
+        ),
+        Positioned.fill(
+          child: Container(
+            color: const Color(0xFF0A0F1D).withValues(alpha: 0.88),
+          ),
+        ),
+
+        SafeArea(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('pro_tournaments').snapshots(),
+            builder: (context, tournamentsSnap) {
+              if (tournamentsSnap.connectionState == ConnectionState.waiting && !tournamentsSnap.hasData) {
+                return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+              }
+              return _buildInnerMatchesStream(tournamentsSnap);
+            },
+          ),
+        ),
+      ],
+    );
+
+    if (widget.isEmbedded) {
+      return bodyContent;
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF0A0F1D),
       appBar: AppBar(
@@ -214,250 +684,290 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.gold),
-            tooltip: "Actualiser les scores",
+            icon: const Icon(Icons.sports_tennis_rounded, color: AppColors.gold),
+            tooltip: "Marqueur de Score / Placar",
             onPressed: () {
-              HapticFeedback.mediumImpact();
-              SoundService.playRacketPop();
-              setState(() {});
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Row(
-                    children: [
-                      Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 18),
-                      SizedBox(width: 8),
-                      Text("Scores et programmes synchronisés !", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                  backgroundColor: const Color(0xFF16253B),
-                  duration: const Duration(seconds: 1),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
+              HapticFeedback.lightImpact();
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const QuickScoreboardScreen()),
               );
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.language_rounded, color: Colors.white70),
+            tooltip: "Portails & Chaînes Officielles",
+            onPressed: () => _showFederationsAndChannelsSheet(context),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.gold),
+            tooltip: "Actualiser les scores",
+            onPressed: _triggerRefresh,
           ),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            child: Container(
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.22),
-                  width: 1.2,
-                ),
+            child: _buildSubTabBar(),
+          ),
+        ),
+      ),
+      body: bodyContent,
+    );
+  }
+
+  Widget _buildInnerMatchesStream(AsyncSnapshot<QuerySnapshot> tournamentsSnap) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('pro_matches').limit(100).snapshots(),
+      builder: (context, matchesSnap) {
+        if (matchesSnap.connectionState == ConnectionState.waiting && !matchesSnap.hasData) {
+          return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+        }
+
+        final tournaments = tournamentsSnap.hasData && tournamentsSnap.data!.docs.isNotEmpty
+            ? tournamentsSnap.data!.docs.map((d) => d.data() as Map<String, dynamic>).toList()
+            : <Map<String, dynamic>>[];
+        tournaments.sort((a, b) {
+          final ordA = (a['order'] as num?)?.toInt() ?? 99;
+          final ordB = (b['order'] as num?)?.toInt() ?? 99;
+          return ordA.compareTo(ordB);
+        });
+
+        final allMatches = matchesSnap.hasData && matchesSnap.data!.docs.isNotEmpty
+            ? matchesSnap.data!.docs.map((d) => d.data() as Map<String, dynamic>).toList()
+            : <Map<String, dynamic>>[];
+
+        final tourneyMap = {for (var t in tournaments) (t['id']?.toString() ?? ''): t};
+
+        final filteredMatches = allMatches.where((m) {
+          final team1 = (m['team1']?.toString() ?? '').trim();
+          final team2 = (m['team2']?.toString() ?? '').trim();
+          if (team1.isEmpty || team2.isEmpty) return false;
+          if (team1.contains('Équipe 1') || team2.contains('Équipe 2')) return false;
+          if (team1.contains('Vainqueur') || team2.contains('Vainqueur')) return false;
+          if (team1.toUpperCase().contains('EXEMPT') || team2.toUpperCase().contains('EXEMPT')) return false;
+          if (team1.toUpperCase().contains('BYE') || team2.toUpperCase().contains('BYE')) return false;
+
+          // 🎾 Filtre par Catégorie Simplifié (Tous, Hommes, Femmes, Mixtes)
+          final draw = (m['draw']?.toString() ?? '').toUpperCase();
+          final gender = (m['gender']?.toString() ?? '').toUpperCase();
+          if (_selectedCategory == 'HOMMES') {
+            if (gender != 'M' && draw != 'DH' && draw != 'DM') return false;
+          } else if (_selectedCategory == 'FEMMES') {
+            if (gender != 'F' && draw != 'DD' && draw != 'DF') return false;
+          } else if (_selectedCategory == 'MIXTES') {
+            if (gender != 'X' && draw != 'DX') return false;
+          }
+
+          final t = tourneyMap[m['tournamentId']] ?? {};
+          if (_searchQuery.isNotEmpty) {
+            final q = _searchQuery.toLowerCase();
+            final team1Low = team1.toLowerCase();
+            final team2Low = team2.toLowerCase();
+            final tourneyName = (t['name']?.toString() ?? '').toLowerCase();
+            final city = (t['city']?.toString() ?? '').toLowerCase();
+            final category = (t['category']?.toString() ?? '').toLowerCase();
+            if (!team1Low.contains(q) &&
+                !team2Low.contains(q) &&
+                !tourneyName.contains(q) &&
+                !city.contains(q) &&
+                !category.contains(q)) {
+              return false;
+            }
+          }
+
+          return true;
+        }).toList();
+
+        // 🏆 1. RÉSULTATS HOMOLOGUÉS : UN MATCH TERMINÉ DOIT OBLIGATOIREMENT AVOIR UN VRAI SCORE !
+        final finishedMatches = filteredMatches.where((m) {
+          final status = resolveMatchStatus(m);
+          String s = (m['score']?.toString() ?? '').trim();
+          if ((s.isEmpty || s == 'None' || s == 'null') && m['set1'] != null && m['set1'].toString().trim().isNotEmpty) {
+            final s1 = m['set1'].toString().trim();
+            final s2 = m['set2']?.toString().trim() ?? '';
+            final s3 = m['set3']?.toString().trim() ?? '';
+            s = [s1, s2, s3].where((x) => x.isNotEmpty && x != 'None').join(' ');
+          }
+          return status == 'FINISHED' && s.isNotEmpty && s != 'None' && s != 'null' && !s.toUpperCase().contains('EXEMPT');
+        }).toList();
+        finishedMatches.sort((a, b) => (b['date'] ?? '').toString().compareTo((a['date'] ?? '').toString()));
+
+        // 🔴 2. MATCHS EN DIRECT
+        final liveMatches = filteredMatches
+            .where((m) => resolveMatchStatus(m) == 'LIVE')
+            .toList();
+
+        // 📅 3. PROGRAMME (MATCHS À VENIR)
+        final scheduledMatches = filteredMatches
+            .where((m) => resolveMatchStatus(m) == 'SCHEDULED')
+            .toList();
+        scheduledMatches.sort((a, b) => (a['date'] ?? '').toString().compareTo((b['date'] ?? '').toString()));
+
+        _checkAutoTabSelection(liveMatches.length, scheduledMatches.length, finishedMatches.length);
+
+        final isBr = Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian ?? false;
+
+        return Column(
+          children: [
+            if (widget.isEmbedded)
+              _buildEmbeddedHeader(
+                scheduledCount: scheduledMatches.length,
+                liveCount: liveMatches.length,
+                finishedCount: finishedMatches.length,
               ),
-              child: TabBar(
+            _buildFilterBar(),
+            Expanded(
+              child: TabBarView(
                 controller: _tabController,
-                indicatorSize: TabBarIndicatorSize.tab,
-                dividerColor: Colors.transparent,
-                indicator: BoxDecoration(
-                  borderRadius: BorderRadius.circular(22),
-                  gradient: const LinearGradient(
-                    colors: [AppColors.gold, Color(0xFFF59E0B)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  // TAB 0 : RÉSULTATS HOMOLOGUÉS AVEC SCORES RÉELS
+                  _buildMatchesList(
+                    matches: finishedMatches,
+                    tourneyMap: tourneyMap,
+                    emptyIcon: Icons.emoji_events_outlined,
+                    emptyTitle: isBr
+                        ? "Nenhum resultado registrado para esta categoria"
+                        : "Aucun résultat pour cette sélection",
+                    emptySubtitle: isBr
+                        ? "Selecione 'Todos' ou faça outra busca !"
+                        : "Sélectionnez 'Tous les Résultats' ou modifiez votre recherche !",
+                    type: 'FINISHED',
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.gold.withValues(alpha: 0.40),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
+                  // TAB 1 : EN DIRECT (LIVE)
+                  _buildMatchesList(
+                    matches: liveMatches,
+                    tourneyMap: tourneyMap,
+                    emptyIcon: Icons.tv_off_rounded,
+                    emptyTitle: isBr
+                        ? "Nenhum jogo ao vivo no momento"
+                        : "Aucun match en direct actuellement",
+                    emptySubtitle: isBr
+                        ? "Consulte a aba Resultados para os placares homologados !"
+                        : "Consultez l'onglet Résultats pour les scores homologués !",
+                    type: 'LIVE',
+                    actionButton: ElevatedButton.icon(
+                      onPressed: () => _tabController.animateTo(0),
+                      icon: const Icon(Icons.emoji_events_rounded, size: 16),
+                      label: Text(isBr
+                          ? "Ver Resultados Homologados"
+                          : "Voir les Résultats Homologués"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
-                  ],
-                ),
-                labelColor: Colors.black,
-                unselectedLabelColor: Colors.white,
-                labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5),
-                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
-                tabs: const [
-                  Tab(
-                    icon: Icon(Icons.schedule_rounded, size: 15),
-                    text: "Programme",
-                    iconMargin: EdgeInsets.only(bottom: 2),
                   ),
-                  Tab(
-                    icon: Icon(Icons.live_tv_rounded, size: 15),
-                    text: "En Direct",
-                    iconMargin: EdgeInsets.only(bottom: 2),
-                  ),
-                  Tab(
-                    icon: Icon(Icons.emoji_events_rounded, size: 15),
-                    text: "Résultats",
-                    iconMargin: EdgeInsets.only(bottom: 2),
+                  // TAB 2 : PROGRAMME (SCHEDULED)
+                  _buildMatchesList(
+                    matches: scheduledMatches,
+                    tourneyMap: tourneyMap,
+                    emptyIcon: Icons.calendar_today_rounded,
+                    emptyTitle: isBr
+                        ? "Nenhum jogo programado para estes filtros"
+                        : "Aucun match à venir pour ces critères",
+                    emptySubtitle: isBr
+                        ? "Altere a categoria ou busque por outro torneio !"
+                        : "Modifiez votre recherche ou sélectionnez une autre catégorie !",
+                    type: 'SCHEDULED',
                   ),
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-      body: Stack(
-        children: [
-          // Immersion Beach Background
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/beach_sunset_players_1785052273648.jpg',
-              fit: BoxFit.cover,
-              cacheWidth: 1080,
-            ),
-          ),
-          Positioned.fill(
-            child: Container(
-              color: const Color(0xFF0A0F1D).withValues(alpha: 0.88),
-            ),
-          ),
-
-          SafeArea(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('pro_tournaments').orderBy('order').snapshots(),
-              builder: (context, tournamentsSnap) {
-                return StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance.collection('pro_matches').limit(60).snapshots(),
-                  builder: (context, matchesSnap) {
-                    final tournaments = tournamentsSnap.hasData && tournamentsSnap.data!.docs.isNotEmpty
-                        ? tournamentsSnap.data!.docs.map((d) => d.data() as Map<String, dynamic>).toList()
-                        : <Map<String, dynamic>>[];
-
-                    final allMatches = matchesSnap.hasData && matchesSnap.data!.docs.isNotEmpty
-                        ? matchesSnap.data!.docs.map((d) => d.data() as Map<String, dynamic>).toList()
-                        : <Map<String, dynamic>>[];
-
-                    // Map des tournois par ID pour enrichir les matchs
-                    final tourneyMap = {for (var t in tournaments) (t['id'] as String? ?? ''): t};
-
-                    // Filtrer selon Pays et Tableau
-                    final filteredMatches = allMatches.where((m) {
-                      final t = tourneyMap[m['tournamentId']] ?? {};
-                      final country = (t['countryCode'] as String? ?? '').toUpperCase();
-                      if (_selectedCountry != 'ALL' && country != _selectedCountry) return false;
-
-                      final draw = (m['draw'] as String? ?? '').toUpperCase();
-                      if (_selectedDraw != 'ALL' && draw != _selectedDraw) return false;
-
-                      return true;
-                    }).toList();
-
-                    // Répartition dynamique selon le cycle temporel
-                    final scheduledMatches = filteredMatches
-                        .where((m) => resolveMatchStatus(m) == 'SCHEDULED')
-                        .toList();
-                    scheduledMatches.sort((a, b) => (a['date'] ?? '').toString().compareTo((b['date'] ?? '').toString()));
-
-                    final liveMatches = filteredMatches
-                        .where((m) => resolveMatchStatus(m) == 'LIVE')
-                        .toList();
-
-                    final finishedMatches = filteredMatches
-                        .where((m) => resolveMatchStatus(m) == 'FINISHED')
-                        .toList();
-                    finishedMatches.sort((a, b) => (b['date'] ?? '').toString().compareTo((a['date'] ?? '').toString()));
-
-                    return Column(
-                      children: [
-                        _buildFilterBar(),
-                        Expanded(
-                          child: TabBarView(
-                            controller: _tabController,
-                            children: [
-                              // 1. ONGLET PROGRAMME (À VENIR)
-                              _buildMatchesList(
-                                matches: scheduledMatches,
-                                tourneyMap: tourneyMap,
-                                emptyIcon: Icons.calendar_today_rounded,
-                                emptyTitle: "Aucun match à venir pour ces filtres",
-                                emptySubtitle: "Sélectionnez un autre pays ou revenez très vite pour les prochaines affiches !",
-                                type: 'SCHEDULED',
-                              ),
-
-                              // 2. ONGLET EN DIRECT (LIVES)
-                              _buildMatchesList(
-                                matches: liveMatches,
-                                tourneyMap: tourneyMap,
-                                emptyIcon: Icons.tv_off_rounded,
-                                emptyTitle: "Aucun match en direct actuellement",
-                                emptySubtitle: "Consultez l'onglet Programme pour voir les affiches de ce week-end et les horaires des diffusions officielles !",
-                                type: 'LIVE',
-                                actionButton: ElevatedButton.icon(
-                                  onPressed: () => _tabController.animateTo(0),
-                                  icon: const Icon(Icons.schedule_rounded, size: 16),
-                                  label: const Text("Voir le Programme des Matchs"),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.gold,
-                                    foregroundColor: Colors.black,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                ),
-                              ),
-
-                              // 3. ONGLET RÉSULTATS (PALMARÈS)
-                              _buildMatchesList(
-                                matches: finishedMatches,
-                                tourneyMap: tourneyMap,
-                                emptyIcon: Icons.emoji_events_outlined,
-                                emptyTitle: "Aucun résultat enregistré",
-                                emptySubtitle: "Les scores des matchs joués apparaîtront ici dès la validation officielle.",
-                                type: 'FINISHED',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 
+
   Widget _buildFilterBar() {
+    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
+    final categories = [
+      {'id': 'ALL', 'label': isBr ? '🌍 Todos' : '🌍 Tous les Résultats'},
+      {'id': 'HOMMES', 'label': isBr ? '🎾 Masculino (DM)' : '🎾 Hommes (DM)'},
+      {'id': 'FEMMES', 'label': isBr ? '🌸 Feminino (DF)' : '🌸 Femmes (DF)'},
+      {'id': 'MIXTES', 'label': isBr ? '⚡ Mistas (DX)' : '⚡ Mixtes (DX)'},
+    ];
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A).withValues(alpha: 0.85),
+        color: const Color(0xFF0F172A),
         border: Border(
           bottom: BorderSide(
-            color: Colors.white.withValues(alpha: 0.08),
+            color: Colors.white.withValues(alpha: 0.12),
             width: 1,
           ),
         ),
       ),
       child: Column(
         children: [
-          // 🌍 1ère Rangée : Filtre Pays
+          // 🔍 Barre de Recherche Simplifiée & Haute Lisibilité (Joueur, Ville, Tournoi)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Container(
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFF16253B),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF334155), width: 1.2),
+              ),
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w600),
+                decoration: InputDecoration(
+                  hintText: isBr
+                      ? "Buscar atleta (Baran, Diaz, Mola...), cidade ou torneio..."
+                      : "Rechercher joueur (Gianotti, Diaz, Mateos...), ville ou tournoi...",
+                  hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12.5),
+                  prefixIcon: const Icon(Icons.search_rounded, color: AppColors.gold, size: 20),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                onChanged: (val) => setState(() => _searchQuery = val.trim()),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+
+          // 🎾 Rangée Unique de Filtres par Catégorie (Tous, Hommes, Femmes, Mixtes)
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
-              children: _countries.map((c) {
-                final isSelected = _selectedCountry == c['id'];
+              children: categories.map((cat) {
+                final isSelected = _selectedCategory == cat['id'];
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: ChoiceChip(
-                    label: Text(c['label']!),
+                    label: Text(cat['label']!),
                     selected: isSelected,
-                    onSelected: (_) => setState(() => _selectedCountry = c['id']!),
+                    onSelected: (_) => setState(() => _selectedCategory = cat['id']!),
                     selectedColor: AppColors.gold,
-                    backgroundColor: Colors.black.withValues(alpha: 0.6),
+                    backgroundColor: const Color(0xFF1E293B),
                     side: BorderSide(
-                      color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.35),
-                      width: isSelected ? 1.5 : 1.0,
+                      color: isSelected ? AppColors.gold : const Color(0xFF475569),
+                      width: isSelected ? 1.6 : 1.2,
                     ),
                     labelStyle: TextStyle(
                       color: isSelected ? Colors.black : Colors.white,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                      fontSize: 12.5,
                     ),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     showCheckmark: false,
                   ),
                 );
@@ -465,37 +975,88 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
             ),
           ),
           const SizedBox(height: 6),
-          // 🏆 2ème Rangée : Filtre Tableaux (DH, DD, DX)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+          // 🌐 Raccourcis Sources Officielles (ITF, CBT, JATs)
+          _buildOfficialSourcesShortcuts(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOfficialSourcesShortcuts() {
+    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
+    final sources = [
+      {
+        'label': '🌍 ITF World Tour',
+        'url': 'https://www.itftennis.com/en/itf-tours/beach-tennis-tour/',
+        'color': const Color(0xFF2563EB),
+      },
+      {
+        'label': '🇧🇷 CBT Brasil',
+        'url': 'https://tenisintegrado.com.br',
+        'color': const Color(0xFFEAB308),
+      },
+      {
+        'label': '📺 PlayBT Ao Vivo',
+        'url': 'https://www.youtube.com/@PlayBT',
+        'color': const Color(0xFFEF4444),
+      },
+      {
+        'label': '🇫🇷 FFT Ten\'Up',
+        'url': 'https://tenup.fft.fr',
+        'color': const Color(0xFF3B82F6),
+      },
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
             child: Row(
-              children: _draws.map((d) {
-                final isSelected = _selectedDraw == d['id'];
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(d['label']!),
-                    selected: isSelected,
-                    onSelected: (_) => setState(() => _selectedDraw = d['id']!),
-                    selectedColor: AppColors.coral,
-                    backgroundColor: Colors.black.withValues(alpha: 0.45),
-                    side: BorderSide(
-                      color: isSelected ? AppColors.coral : Colors.white.withValues(alpha: 0.25),
-                      width: isSelected ? 1.5 : 1.0,
-                    ),
-                    labelStyle: TextStyle(
-                      color: Colors.white,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                      fontSize: 11,
-                    ),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    showCheckmark: false,
-                  ),
-                );
-              }).toList(),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.verified_rounded, size: 14, color: AppColors.gold),
+                const SizedBox(width: 4),
+                Text(
+                  isBr ? "Fontes :" : "Sources :",
+                  style: const TextStyle(color: AppColors.gold, fontSize: 11.5, fontWeight: FontWeight.w900),
+                ),
+              ],
             ),
           ),
+          ...sources.map((s) {
+            final label = s['label'] as String;
+            final url = s['url'] as String;
+            final color = s['color'] as Color;
+            return Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: InkWell(
+                onTap: () => _openUrl(url),
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: color.withValues(alpha: 0.7), width: 1.0),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        label,
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.open_in_new_rounded, size: 11, color: color),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
         ],
       ),
     );
@@ -552,30 +1113,62 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
   }
 
   Widget _buildMatchCard(Map<String, dynamic> m, Map<String, dynamic> t, String type) {
-    final countryFlag = (t['countryFlag'] as String?) ?? '🌍';
+    final countryFlag = (t['countryFlag'] as String?) ?? (t['flag'] as String?) ?? '🌍';
     final tourneyName = (t['name'] as String?) ?? 'Tournoi International';
+    final city = (t['city'] as String?) ?? '';
+    final venue = (t['venue'] as String?) ?? '';
     final category = (t['category'] as String?) ?? 'ITF';
-    final streamUrl = (m['streamUrl'] as String?) ?? (t['streamUrl'] as String?);
-    final court = (m['court'] as String?) ?? 'Court Central';
-    final round = formatRound(m['round'] as String?);
+    final officialSource = (t['officialSource'] as String?) ?? (t['source'] as String?) ?? 'ITF Beach Tennis World Tour';
+    final officialUrl = (t['officialUrl'] as String?) ?? '';
+    // Vidéo directe pour les matchs en direct (si flux direct actif)
+    final liveStreamUrl = (m['streamUrl'] as String?) ?? (t['streamUrl'] as String?);
 
-    final team1 = (m['team1'] as String?) ?? 'Paire A';
-    final team2 = (m['team2'] as String?) ?? 'Paire B';
-    final rawWinner = m['winner'] as int?;
+    // Replay HD précis pour les matchs terminés (uniquement lien vidéo spécifique, pas une chaîne générale)
+    final rawReplay = (m['replayUrl']?.toString()) ?? (m['videoUrl']?.toString()) ?? (m['streamUrl']?.toString());
+    final bool isSpecificVideo = rawReplay != null &&
+        rawReplay.isNotEmpty &&
+        (rawReplay.contains('watch?v=') || rawReplay.contains('youtu.be/') || rawReplay.contains('/video/') || rawReplay.endsWith('.mp4'));
+    final isBr = Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian == true;
+    final specificReplayUrl = isSpecificVideo ? rawReplay : null;
+    final court = (m['court']?.toString()) ?? (isBr ? 'Quadra Central' : 'Court Central');
+    final round = formatRound(m['round']?.toString(), isBr: isBr);
+    final stats = m['stats'] is Map ? (m['stats'] as Map).cast<String, dynamic>() : null;
 
-    final set1 = m['set1'] as String?;
-    final set2 = m['set2'] as String?;
-    final set3 = m['set3'] as String?;
+    final team1 = (m['team1']?.toString()) ?? 'Paire A';
+    final team2 = (m['team2']?.toString()) ?? 'Paire B';
+    final rawWinner = (m['winner'] as num?)?.toInt() ?? int.tryParse(m['winner']?.toString() ?? '');
+
+    final set1 = m['set1']?.toString();
+    final set2 = m['set2']?.toString();
+    final set3 = m['set3']?.toString();
 
     // Extraction et analyse dynamique des scores
-    final rawSets = [set1, set2, set3].where((s) => s != null && s.isNotEmpty && s.contains('/')).cast<String>().toList();
+    List<String> rawSets = [set1, set2, set3]
+        .where((s) => s != null && s.trim().isNotEmpty)
+        .cast<String>()
+        .toList();
+
+    // Si pas de sets ou s'ils ne contiennent aucun délimiteur / ou -, regarder m['score']
+    if (rawSets.isEmpty || !rawSets.any((s) => s.contains('/') || s.contains('-'))) {
+      final generalScore = (m['score'] as String? ?? '').trim();
+      if (generalScore.isNotEmpty) {
+        rawSets = generalScore
+            .split(RegExp(r'[,;\s]+'))
+            .where((s) => s.contains('-') || s.contains('/'))
+            .toList();
+      }
+    }
 
     int setsWon1 = 0;
     int setsWon2 = 0;
     final parsedSets = <Map<String, dynamic>>[];
 
     for (int i = 0; i < rawSets.length; i++) {
-      final parts = rawSets[i].split('/');
+      final s = rawSets[i].trim();
+      final delimiter = s.contains('/') ? '/' : (s.contains('-') ? '-' : null);
+      if (delimiter == null) continue;
+      final parts = s.split(delimiter);
+      if (parts.isEmpty) continue;
       final s1 = parts[0].trim();
       final s2 = parts.length > 1 ? parts[1].trim() : '';
       final n1 = int.tryParse(s1) ?? 0;
@@ -613,59 +1206,100 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF111A2E).withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF141D30),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: type == 'LIVE'
-              ? Colors.redAccent.withValues(alpha: 0.8)
+              ? const Color(0xFFFF3B30)
               : (type == 'FINISHED'
-                  ? AppColors.gold.withValues(alpha: 0.45)
-                  : Colors.white.withValues(alpha: 0.18)),
-          width: type == 'LIVE' ? 1.8 : 1.2,
+                  ? AppColors.gold
+                  : const Color(0xFF38BDF8)),
+          width: type == 'LIVE' ? 2.0 : 1.5,
         ),
         boxShadow: [
           BoxShadow(
             color: type == 'LIVE'
-                ? Colors.redAccent.withValues(alpha: 0.25)
+                ? const Color(0xFFFF3B30).withValues(alpha: 0.35)
                 : (type == 'FINISHED'
-                    ? AppColors.gold.withValues(alpha: 0.12)
-                    : Colors.black.withValues(alpha: 0.3)),
-            blurRadius: 12,
+                    ? AppColors.gold.withValues(alpha: 0.22)
+                    : Colors.black.withValues(alpha: 0.5)),
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // En-tête Tournoi & Tour
+            Row(
               children: [
-                // En-tête Tournoi & Tour
-                Row(
-                  children: [
-                    Text(countryFlag, style: const TextStyle(fontSize: 18)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            tourneyName,
-                            style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w900),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            "$category · $court",
-                            style: const TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.w500),
-                          ),
-                        ],
+                Text(countryFlag, style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tourneyName,
+                        style: const TextStyle(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.w900),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
+                      Text(
+                        "${city.isNotEmpty ? '$city · ' : ''}$category · $court",
+                        style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 12.5, fontWeight: FontWeight.w700),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (officialSource.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Wrap(
+                          spacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: AppColors.gold.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 0.7),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.verified_rounded, size: 9, color: AppColors.gold),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    officialSource,
+                                    style: const TextStyle(color: AppColors.gold, fontSize: 9.5, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (officialUrl.isNotEmpty)
+                              InkWell(
+                                onTap: () => _openUrl(officialUrl),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      "Fiche officielle",
+                                      style: TextStyle(color: Colors.lightBlueAccent, fontSize: 10, decoration: TextDecoration.underline),
+                                    ),
+                                    SizedBox(width: 2),
+                                    Icon(Icons.open_in_new_rounded, size: 10, color: Colors.lightBlueAccent),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                       decoration: BoxDecoration(
@@ -696,7 +1330,25 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                   ],
                 ),
 
-                const Divider(color: Colors.white12, height: 22),
+                if (venue.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on_rounded, size: 13, color: AppColors.gold),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          venue,
+                          style: const TextStyle(color: Color(0xFFE2E8F0), fontSize: 11.5, fontWeight: FontWeight.w600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
+                const Divider(color: Colors.white12, height: 20),
 
                 // TABLEAU DES SCORES
                 if (hasScore) ...[
@@ -709,11 +1361,11 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                         child: SizedBox(
                           width: 36,
                           child: Text(
-                            ps['label'] as String,
+                            ps['label']?.toString() ?? '',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
-                              color: Colors.white60,
-                              fontSize: 11,
+                              color: Colors.white,
+                              fontSize: 11.5,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 0.5,
                             ),
@@ -729,8 +1381,8 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                     name: team1,
                     isMatchWinner: effectiveWinner == 1,
                     sets: parsedSets.map((ps) => {
-                      'score': ps['s1'] as String,
-                      'isSetWinner': ps['s1Won'] as bool,
+                      'score': ps['s1']?.toString() ?? '',
+                      'isSetWinner': ps['s1Won'] == true,
                     }).toList(),
                     isLive: type == 'LIVE',
                   ),
@@ -741,8 +1393,8 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                     name: team2,
                     isMatchWinner: effectiveWinner == 2,
                     sets: parsedSets.map((ps) => {
-                      'score': ps['s2'] as String,
-                      'isSetWinner': ps['s2Won'] as bool,
+                      'score': ps['s2']?.toString() ?? '',
+                      'isSetWinner': ps['s2Won'] == true,
                     }).toList(),
                     isLive: type == 'LIVE',
                   ),
@@ -770,14 +1422,14 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.hourglass_top_rounded, color: AppColors.gold, size: 16),
-                        SizedBox(width: 8),
+                        const Icon(Icons.hourglass_top_rounded, color: AppColors.gold, size: 16),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            "Score officiel en cours de validation par le juge-arbitre",
-                            style: TextStyle(color: AppColors.gold, fontSize: 11.5, fontWeight: FontWeight.bold),
+                            isBr ? "Placar oficial em validação pelo árbitro geral" : "Score officiel en cours de validation par le juge-arbitre",
+                            style: const TextStyle(color: AppColors.gold, fontSize: 11.5, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
@@ -800,7 +1452,42 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                   ),
                 ],
 
-                // Pied de carte : Horaire ou Statut ou Bouton Vidéo
+                // 📊 Statistiques de match (si disponibles)
+                if (stats != null && stats.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (stats['duration'] != null) ...[
+                          const Icon(Icons.timer_outlined, size: 12, color: Colors.white70),
+                          const SizedBox(width: 4),
+                          Text(stats['duration'].toString(), style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                          const SizedBox(width: 10),
+                        ],
+                        if (stats['aces'] != null) ...[
+                          const Icon(Icons.flash_on_rounded, size: 12, color: AppColors.gold),
+                          const SizedBox(width: 4),
+                          Text("Aces: ${stats['aces']}", style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                          const SizedBox(width: 10),
+                        ],
+                        if (stats['breakPoints'] != null) ...[
+                          const Icon(Icons.sports_tennis_rounded, size: 12, color: AppColors.coral),
+                          const SizedBox(width: 4),
+                          Text("Breaks: ${stats['breakPoints']}", style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+
+                // Pied de carte : Horaire/Statut + Actions (Vidéo, Fédé, Partage)
                 const SizedBox(height: 14),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -811,7 +1498,7 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                           const Icon(Icons.schedule_rounded, size: 15, color: AppColors.gold),
                           const SizedBox(width: 6),
                           Text(
-                            _formatMatchSchedule(m),
+                            _formatMatchSchedule(m, isBr: isBr),
                             style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -831,9 +1518,9 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                             ),
                           ),
                           const SizedBox(width: 7),
-                          const Text(
-                            "EN DIRECT SUR LE COURT",
-                            style: TextStyle(color: Colors.redAccent, fontSize: 11.5, fontWeight: FontWeight.w900),
+                          Text(
+                            isBr ? "AO VIVO NA QUADRA" : "EN DIRECT SUR LE COURT",
+                            style: const TextStyle(color: Colors.redAccent, fontSize: 11.5, fontWeight: FontWeight.w900),
                           ),
                         ],
                       )
@@ -856,11 +1543,12 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                             children: [
                               const Icon(Icons.emoji_events_rounded, size: 14, color: AppColors.gold),
                               const SizedBox(width: 6),
-                              Flexible(
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 180),
                                 child: Text(
                                   winnerName != null
-                                      ? "Vainqueur : $winnerName"
-                                      : "Score Final Homologué",
+                                      ? (isBr ? "Vencedores : $winnerName" : "Vainqueur : $winnerName")
+                                      : (isBr ? "Placar Confirmado" : "Score Certifié"),
                                   style: const TextStyle(
                                     color: AppColors.gold,
                                     fontSize: 11.5,
@@ -875,49 +1563,107 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                         ),
                       ),
 
-                    // Bouton Direct Vidéo / Replay
-                    if (streamUrl != null && streamUrl.isNotEmpty)
-                      InkWell(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          _openStream(streamUrl);
-                        },
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFD32F2F)]),
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.redAccent.withValues(alpha: 0.35),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
+                    // Actions rapides : Direct HD (si match en direct), Replay HD (si match terminé avec vidéo précise), Partager WhatsApp
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 🔴 1. Bouton Vidéo Direct (UNIQUEMENT pour match en cours avec flux direct)
+                        if (type == 'LIVE' && liveStreamUrl != null && liveStreamUrl.isNotEmpty) ...[
+                          InkWell(
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              _openUrl(liveStreamUrl);
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFD32F2F)]),
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.redAccent.withValues(alpha: 0.35),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
-                            ],
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 14),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    isBr ? "Ao Vivo HD" : "Direct HD",
+                                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 15),
-                              const SizedBox(width: 5),
-                              Text(
-                                type == 'LIVE' ? "Direct Vidéo HD" : "Replay HD",
-                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
+                          const SizedBox(width: 6),
+                        ],
+
+                        // 🎬 2. Bouton Replay HD (UNIQUEMENT pour match terminé avec résumé vidéo précis)
+                        if (type == 'FINISHED' && specificReplayUrl != null && specificReplayUrl.isNotEmpty) ...[
+                          InkWell(
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              _openUrl(specificReplayUrl);
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(colors: [Color(0xFF38BDF8), Color(0xFF0284C7)]),
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.lightBlueAccent.withValues(alpha: 0.3),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
-                            ],
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 14),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    "Replay HD",
+                                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+
+                        // 📤 3. Bouton Partager 1-Clic WhatsApp
+                        InkWell(
+                          onTap: () => _shareMatch(m, t),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF25D366).withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF25D366).withValues(alpha: 0.5)),
+                            ),
+                            child: const Icon(Icons.share_rounded, color: Color(0xFF25D366), size: 15),
                           ),
                         ),
-                      ),
+                      ],
+                    ),
                   ],
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
+        );
+      }
 
   Widget _buildScoreboardTeamRow({
     required String name,
@@ -961,8 +1707,8 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                   name,
                   style: TextStyle(
                     color: isMatchWinner ? AppColors.gold : Colors.white,
-                    fontSize: 13.5,
-                    fontWeight: isMatchWinner ? FontWeight.w900 : FontWeight.w600,
+                    fontSize: 14.5,
+                    fontWeight: isMatchWinner ? FontWeight.w900 : FontWeight.w700,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -973,15 +1719,15 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
                   margin: const EdgeInsets.only(left: 6),
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                   decoration: BoxDecoration(
-                    color: AppColors.gold.withValues(alpha: 0.2),
+                    color: AppColors.gold.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: AppColors.gold.withValues(alpha: 0.6), width: 0.8),
+                    border: Border.all(color: AppColors.gold, width: 1.0),
                   ),
                   child: const Text(
                     "WIN",
                     style: TextStyle(
                       color: AppColors.gold,
-                      fontSize: 9,
+                      fontSize: 9.5,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.5,
                     ),
@@ -991,8 +1737,8 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
           ),
         ),
         ...sets.map((s) {
-          final score = s['score'] as String;
-          final isSetWinner = s['isSetWinner'] as bool;
+          final score = s['score']?.toString() ?? '';
+          final isSetWinner = s['isSetWinner'] == true;
           return Padding(
             padding: const EdgeInsets.only(left: 6),
             child: _buildVibrantScorePill(
@@ -1010,20 +1756,20 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
     required bool isSetWinner,
   }) {
     return Container(
-      width: 36,
-      height: 32,
+      width: 38,
+      height: 34,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         gradient: isSetWinner
             ? const LinearGradient(
-                colors: [Color(0xFFD4AF37), Color(0xFFF59E0B)],
+                colors: [Color(0xFFFFD700), Color(0xFFF59E0B)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               )
-            : LinearGradient(
+            : const LinearGradient(
                 colors: [
-                  const Color(0xFF0F172A).withValues(alpha: 0.95),
-                  const Color(0xFF1E293B).withValues(alpha: 0.90),
+                  Color(0xFF1E293B),
+                  Color(0xFF0F172A),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -1031,23 +1777,23 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isSetWinner
-              ? const Color(0xFFFFE066)
-              : Colors.white.withValues(alpha: 0.25),
-          width: isSetWinner ? 1.5 : 1.0,
+              ? const Color(0xFFFFF080)
+              : Colors.white54,
+          width: isSetWinner ? 1.5 : 1.2,
         ),
         boxShadow: isSetWinner
             ? [
                 BoxShadow(
-                  color: AppColors.gold.withValues(alpha: 0.45),
+                  color: AppColors.gold.withValues(alpha: 0.5),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
               ]
             : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.4),
+                const BoxShadow(
+                  color: Colors.black54,
                   blurRadius: 4,
-                  offset: const Offset(0, 1),
+                  offset: Offset(0, 1),
                 ),
               ],
       ),
@@ -1056,7 +1802,7 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
         style: TextStyle(
           color: isSetWinner ? Colors.black : Colors.white,
           fontWeight: FontWeight.w900,
-          fontSize: 14,
+          fontSize: 15,
         ),
       ),
     );

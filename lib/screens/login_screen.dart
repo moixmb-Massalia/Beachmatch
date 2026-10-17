@@ -340,6 +340,30 @@ class _LoginScreenState extends State<LoginScreen> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             ),
                           ),
+                          const SizedBox(height: 12),
+
+                          // 🎾 Accès Libre / Invité (BeachScore & Tournois)
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const MainNavigationScreen(initialIndex: 2),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.scoreboard_rounded, color: AppColors.gold, size: 20),
+                            label: const Text(
+                              "Accès Libre · Voir BeachScore & Résultats",
+                              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1E293B),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: const BorderSide(color: AppColors.gold, width: 1.4),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                          ),
                           const SizedBox(height: 20),
 
                           // EULA / CGU Notice (Apple Guideline 1.2)

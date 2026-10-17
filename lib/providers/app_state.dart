@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +9,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../models/court.dart';
 import '../models/match.dart';
@@ -46,10 +48,10 @@ String translateAuthError(String code) {
 
 class AppState extends ChangeNotifier {
   AppState() {
+    _loadSavedLocale();
     _determinePosition();
-    // Chargement immédiat et résilient des tournois et terrains dès l'instanciation
-    loadTournaments(notify: false);
-    _loadCourtsInternal();
+    // Chargement immédiat et résilient de TOUTES les données (tournois, terrains, matchs) pour visiteurs et connectés
+    loadData();
 
     if (kIsWeb) {
       () async {
@@ -66,7 +68,29 @@ class AppState extends ChangeNotifier {
         if (user != null) {
           final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
           if (userDoc.exists && userDoc.data() != null) {
-            _currentUser = UserModel.fromMap(userDoc.data()!, userDoc.id);
+            final data = Map<String, dynamic>.from(userDoc.data()!);
+            bool needsSync = false;
+            if ((data['displayName'] == null || (data['displayName'] as String).isEmpty) && (user.displayName?.isNotEmpty == true)) {
+              data['displayName'] = user.displayName;
+              data['name'] = user.displayName;
+              needsSync = true;
+            }
+            if ((data['email'] == null || (data['email'] as String).isEmpty) && (user.email?.isNotEmpty == true)) {
+              data['email'] = user.email;
+              needsSync = true;
+            }
+            if ((data['photoUrl'] == null || (data['photoUrl'] as String).isEmpty) && (user.photoURL?.isNotEmpty == true)) {
+              data['photoUrl'] = user.photoURL;
+              needsSync = true;
+            }
+            if (data['country'] == null || (data['country'] as String).trim().isEmpty) {
+              data['country'] = _detectDefaultCountry();
+              needsSync = true;
+            }
+            if (needsSync) {
+              await FirebaseFirestore.instance.collection('users').doc(user.uid).set(data, SetOptions(merge: true));
+            }
+            _currentUser = UserModel.fromMap(data, userDoc.id);
             if (_currentUser != null && _currentUser!.isBanned) {
               await FirebaseAuth.instance.signOut();
               _currentUser = null;
@@ -77,7 +101,40 @@ class AppState extends ChangeNotifier {
             if (!kIsWeb) {
               await _updateFCMToken();
             }
+          } else {
+            final detectedCountry = _detectDefaultCountry();
+            final defaultLocation = detectedCountry == 'BR'
+                ? 'Brasil'
+                : (detectedCountry == 'ES'
+                    ? 'España'
+                    : (detectedCountry == 'IT'
+                        ? 'Italia'
+                        : (detectedCountry == 'RE' ? 'La Réunion' : 'France')));
+            final newUserData = <String, dynamic>{
+              'displayName': user.displayName ?? '',
+              'name': user.displayName ?? '',
+              'email': user.email ?? '',
+              'photoUrl': user.photoURL,
+              'country': detectedCountry,
+              'location': defaultLocation,
+              'createdAt': FieldValue.serverTimestamp(),
+            };
+            await FirebaseFirestore.instance.collection('users').doc(user.uid).set(newUserData, SetOptions(merge: true));
+            _currentUser = UserModel.fromMap(newUserData, user.uid);
+            if (!kIsWeb) {
+              await _updateFCMToken();
+            }
           }
+          if (_currentLocale == null && _currentUser != null) {
+            if (_currentUser!.isBrazilian || _currentUser!.country == 'BR') {
+              _currentLocale = const Locale('pt', 'BR');
+            } else if (_currentUser!.country == 'ES') {
+              _currentLocale = const Locale('es');
+            } else if (_currentUser!.country == 'IT') {
+              _currentLocale = const Locale('it');
+            }
+          }
+          await _checkAndApplyPreauthorizedRoles(user.uid, user.email);
           await loadData();
         } else {
           _tokenRefreshSub?.cancel();
@@ -90,6 +147,74 @@ class AppState extends ChangeNotifier {
         debugPrint("Erreur authStateChanges: $e");
       }
     });
+  }
+
+  Future<void> _checkAndApplyPreauthorizedRoles(String uid, String? email) async {
+    if (email == null || email.trim().isEmpty) return;
+    final cleanEmail = email.toLowerCase().trim();
+    try {
+      final preauthDoc = await FirebaseFirestore.instance.collection('preauthorized_jats').doc(cleanEmail).get();
+      bool isPreauth = preauthDoc.exists;
+      String jatName = isPreauth ? (preauthDoc.data()!['name'] ?? 'JAT Officiel') : 'JAT Officiel';
+      if (!isPreauth && cleanEmail == 'massalbrice@gmail.com') {
+        isPreauth = true;
+        jatName = 'Brice MASSAL (JAT Marana)';
+      }
+
+      if (isPreauth) {
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        if (userDoc.exists) {
+          final currentIsReferee = userDoc.data()?['isReferee'] == true;
+          if (!currentIsReferee) {
+            await FirebaseFirestore.instance.collection('users').doc(uid).set({
+              'isReferee': true,
+              'role': 'JAT',
+              'verifiedJat': true,
+              'jatName': jatName,
+            }, SetOptions(merge: true));
+            if (_currentUser != null) {
+              _currentUser = _currentUser!.copyWith(isReferee: true);
+              notifyListeners();
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Erreur preauthorized_jats auto-promotion: $e");
+    }
+  }
+
+  String _detectDefaultCountry() {
+    if (_currentPosition != null) {
+      final pos = _currentPosition!;
+      if (pos.latitude >= -22.0 && pos.latitude <= -20.0 && pos.longitude >= 55.0 && pos.longitude <= 56.5) return 'RE';
+      if (pos.latitude >= -34.0 && pos.latitude <= 6.0 && pos.longitude >= -74.0 && pos.longitude <= -34.0) return 'BR';
+      if (pos.latitude >= 35.5 && pos.latitude <= 47.5 && pos.longitude >= 6.5 && pos.longitude <= 19.0) return 'IT';
+      if (pos.latitude >= 36.0 && pos.latitude <= 44.0 && pos.longitude >= -9.5 && pos.longitude <= 3.5) return 'ES';
+      if (pos.latitude >= 14.0 && pos.latitude <= 18.5 && pos.longitude >= -63.5 && pos.longitude <= -60.5) return 'ANT';
+      if (pos.latitude >= 41.0 && pos.latitude <= 51.5 && pos.longitude >= -5.5 && pos.longitude <= 10.0) return 'FR';
+    }
+
+    try {
+      final locale = WidgetsBinding.instance.platformDispatcher.locale;
+      final countryCode = (locale.countryCode ?? '').toUpperCase();
+      final lang = locale.languageCode.toLowerCase();
+
+      if (countryCode == 'BR' || lang == 'pt') return 'BR';
+      if (countryCode == 'RE') return 'RE';
+      if (countryCode == 'IT' || lang == 'it') return 'IT';
+      if (countryCode == 'ES' || lang == 'es') return 'ES';
+      if (countryCode == 'AW' || countryCode == 'VE') return 'VE';
+      if (countryCode == 'FR' || lang == 'fr') return 'FR';
+    } catch (_) {}
+
+    try {
+      final offset = DateTime.now().timeZoneOffset.inHours;
+      if (offset >= -4 && offset <= -2) return 'BR';
+      if (offset == 4) return 'RE';
+    } catch (_) {}
+
+    return 'FR';
   }
 
   Future<void> _determinePosition() async {
@@ -133,6 +258,41 @@ class AppState extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isJoiningMatch => _isJoiningMatch;
   String? get error => _error;
+
+  Locale? _currentLocale;
+  Locale? get currentLocale => _currentLocale;
+
+  Future<void> _loadSavedLocale() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedLocale = prefs.getString('app_locale');
+      if (savedLocale != null && savedLocale.isNotEmpty) {
+        final parts = savedLocale.split('_');
+        if (parts.length > 1) {
+          _currentLocale = Locale(parts[0], parts[1]);
+        } else {
+          _currentLocale = Locale(parts[0]);
+        }
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Error loading saved locale: $e");
+    }
+  }
+
+  Future<void> setLocale(Locale newLocale) async {
+    _currentLocale = newLocale;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final code = newLocale.countryCode != null && newLocale.countryCode!.isNotEmpty
+          ? '${newLocale.languageCode}_${newLocale.countryCode}'
+          : newLocale.languageCode;
+      await prefs.setString('app_locale', code);
+    } catch (e) {
+      debugPrint("Error saving locale: $e");
+    }
+  }
 
   List<CourtModel> _courts = [];
   List<CourtModel> get courts => _courts;
@@ -405,12 +565,16 @@ class AppState extends ChangeNotifier {
         
         if (!userDoc.exists || userDoc.data() == null) {
           isNewUser = true;
+          final detectedCountry = _detectDefaultCountry();
           _currentUser = UserModel(
             id: user.uid,
             displayName: user.displayName ?? "Nouveau Joueur",
             level: 1,
             eloScore: 0,
-            location: _currentPosition != null ? "Ma Position" : "Non définie",
+            location: _currentPosition != null
+                ? "Ma Position"
+                : (detectedCountry == 'BR' ? 'Brasil' : 'Non définie'),
+            country: detectedCountry,
             isPremium: false,
             createdAt: DateTime.now(),
             isAdmin: user.email == 'moixmb@gmail.com',
@@ -459,6 +623,7 @@ class AppState extends ChangeNotifier {
       eloScore: eloScore ?? 0,
       ranking: ranking,
       location: _currentUser!.location,
+      country: _currentUser!.country,
       isPremium: false,
       createdAt: _currentUser!.createdAt,
       licenceNumber: licenceNumber,
@@ -469,6 +634,7 @@ class AppState extends ChangeNotifier {
     final userData = _currentUser!.toMap();
     userData['searchTokens'] = _generateSearchTokens(pseudo, licenceNumber);
     await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set(userData);
+    await _checkAndApplyPreauthorizedRoles(_currentUser!.id, FirebaseAuth.instance.currentUser?.email);
     await loadData();
   }
   
@@ -504,6 +670,18 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> updateUserPseudo(String newPseudo) async {
+    if (_currentUser == null) return;
+    final trimmed = newPseudo.trim();
+    if (trimmed.isEmpty) return;
+    _currentUser = _currentUser!.copyWith(displayName: trimmed);
+    await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set({
+      'displayName': trimmed,
+      'name': trimmed,
+    }, SetOptions(merge: true));
+    notifyListeners();
+  }
+
   Future<void> updateProfile({
     required String displayName,
     required String location,
@@ -514,12 +692,43 @@ class AppState extends ChangeNotifier {
     int? eloScore,
     String? preferredPosition,
     String? availability,
+    String? clubId,
+    String? clubName,
   }) async {
     if (_currentUser == null) return;
-    
+    final locNorm = location.toLowerCase();
+    String updatedCountry = _currentUser!.country;
+    if (locNorm.contains('bresil') ||
+        locNorm.contains('brasil') ||
+        locNorm.contains('sao paulo') ||
+        locNorm.contains('rio de janeiro') ||
+        locNorm.contains('curitiba') ||
+        locNorm.contains('florianopolis') ||
+        locNorm.contains('fortaleza') ||
+        locNorm.contains('salvador') ||
+        locNorm.contains('belo horizonte') ||
+        locNorm.contains('brasilia') ||
+        locNorm.contains('cuiaba') ||
+        locNorm.contains('palmas') ||
+        locNorm.contains('manaus') ||
+        locNorm.contains('goiania') ||
+        locNorm.contains('vitoria') ||
+        locNorm.contains('natal') ||
+        locNorm.contains('recife') ||
+        locNorm.contains('campinas') ||
+        locNorm.contains('santos') ||
+        locNorm.contains('balneario')) {
+      updatedCountry = 'BR';
+    }
+
+    final isBr = updatedCountry.toUpperCase() == 'BR' || _currentUser!.isBrazilian;
+    final finalCbtId = isBr && licenceNumber != null && licenceNumber.isNotEmpty ? licenceNumber : _currentUser!.cbtId;
+    final finalCbtCat = isBr && ranking != null && ranking.isNotEmpty ? ranking : _currentUser!.cbtCategory;
+
     _currentUser = _currentUser!.copyWith(
       displayName: displayName,
       location: location,
+      country: updatedCountry,
       level: level,
       photoUrl: photoUrl,
       licenceNumber: licenceNumber,
@@ -527,13 +736,19 @@ class AppState extends ChangeNotifier {
       eloScore: eloScore ?? _currentUser!.eloScore,
       preferredPosition: preferredPosition ?? _currentUser!.preferredPosition,
       availability: availability ?? _currentUser!.availability,
+      clubId: clubId ?? _currentUser!.clubId,
+      clubName: clubName ?? _currentUser!.clubName,
+      cbtId: finalCbtId,
+      cbtCategory: finalCbtCat,
     );
     
     final searchTokens = _generateSearchTokens(displayName, licenceNumber);
 
     await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set({
       'displayName': displayName,
+      'name': displayName,
       'location': location,
+      'country': updatedCountry,
       'level': level,
       'searchTokens': searchTokens,
       if (photoUrl != null) 'photoUrl': photoUrl,
@@ -542,8 +757,20 @@ class AppState extends ChangeNotifier {
       if (eloScore != null) 'eloScore': eloScore,
       if (preferredPosition != null) 'preferredPosition': preferredPosition,
       if (availability != null) 'availability': availability,
+      if (clubId != null) 'clubId': clubId,
+      if (clubName != null) 'clubName': clubName,
+      if (finalCbtId != null) 'cbtId': finalCbtId,
+      if (finalCbtCat != null) 'cbtCategory': finalCbtCat,
     }, SetOptions(merge: true));
     
+    if (clubId != null) {
+      await FirebaseFirestore.instance.collection('clubs').doc(clubId).update({
+        'membersIds': FieldValue.arrayUnion([_currentUser!.id]),
+      }).catchError((_) {});
+    } else if (_currentUser!.isBrazilian) {
+      _smartMatchBrazilianPlayerArena();
+    }
+
     notifyListeners();
   }
 
@@ -751,7 +978,7 @@ class AppState extends ChangeNotifier {
       } catch (_) {}
     } finally {
       _isLoadingTournaments = false;
-      notifyListeners();
+      if (notify) notifyListeners();
     }
   }
 
@@ -775,7 +1002,12 @@ class AppState extends ChangeNotifier {
           .get()
           .timeout(const Duration(seconds: 10));
       _players = usersSnapshot.docs
-          .where((doc) => doc.id != _currentUser?.id)
+          .where((doc) {
+            if (doc.id == _currentUser?.id) return false;
+            final data = doc.data();
+            final name = (data['displayName'] ?? data['name'] ?? '').toString().trim();
+            return name.isNotEmpty && name != 'Joueur Inconnu';
+          })
           .map((doc) => UserModel.fromMap(doc.data(), doc.id))
           .toList();
     } catch (e) {
@@ -796,8 +1028,23 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  String _normalizeClubString(String s) {
+    return s
+        .toLowerCase()
+        .replaceAll(RegExp(r'[éèêë]'), 'e')
+        .replaceAll(RegExp(r'[àâä]'), 'a')
+        .replaceAll(RegExp(r'[îï]'), 'i')
+        .replaceAll(RegExp(r'[ôö]'), 'o')
+        .replaceAll(RegExp(r'[ùûü]'), 'u')
+        .replaceAll(RegExp(r'[ç]'), 'c')
+        .replaceAll(RegExp(r'[^a-z0-9]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
   void _syncUserRankingWithFFT() async {
     if (_currentUser == null || _currentUser!.licenceNumber == null || _currentUser!.licenceNumber!.isEmpty) return;
+    if (_currentUser!.isBrazilian) return; // Ne pas synchroniser les licences/IDs brésiliens avec la FFT
     final cleanLic = _currentUser!.licenceNumber!.replaceAll(RegExp(r'\D'), '');
     if (cleanLic.isEmpty) return;
     try {
@@ -805,13 +1052,139 @@ class AppState extends ChangeNotifier {
       if (fftDoc.exists && fftDoc.data() != null) {
         final fftData = fftDoc.data()!;
         final officialRank = (fftData['level'] ?? fftData['ranking'] ?? fftData['rank'])?.toString();
+        final rawClub = (fftData['club'] ?? '').toString().trim();
+
+        bool needUpdate = false;
+        String? newRank = _currentUser!.ranking;
+        String? newClubId = _currentUser!.clubId;
+        String? newClubName = _currentUser!.clubName;
+
         if (officialRank != null && officialRank.isNotEmpty && officialRank != _currentUser!.ranking) {
-          _currentUser = _currentUser!.copyWith(ranking: officialRank);
-          await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).update({'ranking': officialRank});
+          newRank = officialRank;
+          needUpdate = true;
+        }
+
+        if (rawClub.isNotEmpty && (_currentUser!.clubName == null || _currentUser!.clubName!.isEmpty || _currentUser!.clubId == null)) {
+          newClubName = rawClub;
+          needUpdate = true;
+
+          try {
+            // 1. Direct match by name in clubs collection
+            final directQuery = await FirebaseFirestore.instance
+                .collection('clubs')
+                .where('name', isEqualTo: rawClub)
+                .limit(1)
+                .get();
+
+            if (directQuery.docs.isNotEmpty) {
+              newClubId = directQuery.docs.first.id;
+              newClubName = directQuery.docs.first.data()['name'] ?? rawClub;
+            } else {
+              // 2. Fuzzy match across clubs
+              final allClubsSnap = await FirebaseFirestore.instance.collection('clubs').limit(400).get();
+              final normRaw = _normalizeClubString(rawClub);
+              for (var cDoc in allClubsSnap.docs) {
+                final cName = (cDoc.data()['name'] ?? '').toString();
+                final normC = _normalizeClubString(cName);
+                if (normC == normRaw ||
+                    (normC.length > 4 && normRaw.contains(normC)) ||
+                    (normRaw.length > 4 && normC.contains(normRaw))) {
+                  newClubId = cDoc.id;
+                  newClubName = cName;
+                  break;
+                }
+              }
+            }
+          } catch (e) {
+            debugPrint("Erreur matching club: $e");
+          }
+        }
+
+        if (needUpdate) {
+          _currentUser = _currentUser!.copyWith(
+            ranking: newRank,
+            clubId: newClubId,
+            clubName: newClubName,
+          );
+          final Map<String, dynamic> updateData = {
+            if (newRank != null) 'ranking': newRank,
+            if (newClubName != null) 'clubName': newClubName,
+            if (newClubId != null) 'clubId': newClubId,
+          };
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(_currentUser!.id)
+              .set(updateData, SetOptions(merge: true));
+
+          if (newClubId != null) {
+            await FirebaseFirestore.instance.collection('clubs').doc(newClubId).update({
+              'membersIds': FieldValue.arrayUnion([_currentUser!.id])
+            }).catchError((_) {});
+          }
           notifyListeners();
         }
       }
     } catch (_) {}
+  }
+
+  void _smartMatchBrazilianPlayerArena() async {
+    if (_currentUser == null || !_currentUser!.isBrazilian) return;
+    if (_currentUser!.clubId != null && _currentUser!.clubId!.isNotEmpty) return;
+
+    final loc = _currentUser!.location.toLowerCase().trim();
+    if (loc.isEmpty || loc == 'non renseigné' || loc == 'non définie' || loc == 'cidade não definida') return;
+
+    try {
+      final brClubsSnap = await FirebaseFirestore.instance
+          .collection('clubs')
+          .where('country', isEqualTo: 'BR')
+          .limit(50)
+          .get();
+
+      if (brClubsSnap.docs.isEmpty) return;
+
+      String? matchedClubId;
+      String? matchedClubName;
+
+      for (var cDoc in brClubsSnap.docs) {
+        final data = cDoc.data();
+        final city = (data['city'] ?? '').toString().toLowerCase();
+        final name = (data['name'] ?? '').toString().toLowerCase();
+        final state = (data['state'] ?? '').toString().toLowerCase();
+
+        if (city.isNotEmpty && (loc.contains(city) || city.contains(loc))) {
+          matchedClubId = cDoc.id;
+          matchedClubName = data['name'] ?? city;
+          break;
+        } else if (name.isNotEmpty && loc.contains(name)) {
+          matchedClubId = cDoc.id;
+          matchedClubName = data['name'] ?? name;
+          break;
+        } else if (state.isNotEmpty && loc.endsWith(state)) {
+          matchedClubId = cDoc.id;
+          matchedClubName = data['name'];
+        }
+      }
+
+      if (matchedClubId != null && matchedClubName != null) {
+        _currentUser = _currentUser!.copyWith(
+          clubId: matchedClubId,
+          clubName: matchedClubName,
+        );
+        await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set({
+          'clubId': matchedClubId,
+          'clubName': matchedClubName,
+        }, SetOptions(merge: true));
+
+        await FirebaseFirestore.instance.collection('clubs').doc(matchedClubId).update({
+          'membersIds': FieldValue.arrayUnion([_currentUser!.id]),
+        }).catchError((_) {});
+
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Erreur smartMatchBrazilianPlayerArena: $e");
+    }
   }
 
   Future<void> loadData() async {
@@ -824,9 +1197,13 @@ class AppState extends ChangeNotifier {
     ]);
     notifyListeners();
 
-    // 2. Synchronisation profil & FFT en arrière-plan sans bloquer l'UI
+    // 2. Synchronisation profil & FFT / CBT en arrière-plan sans bloquer l'UI
     if (_currentUser != null) {
-      _syncUserRankingWithFFT();
+      if (_currentUser!.isBrazilian) {
+        _smartMatchBrazilianPlayerArena();
+      } else {
+        _syncUserRankingWithFFT();
+      }
     }
   }
 
@@ -917,6 +1294,8 @@ class AppState extends ChangeNotifier {
     List<String>? invitedPlayerIds,
     bool isPrivate = false,
     String description = '',
+    String? pixKey,
+    double? courtCost,
   }) async {
     if (_currentUser == null) return null;
     
@@ -925,7 +1304,7 @@ class AppState extends ChangeNotifier {
       participants.addAll(invitedPlayerIds);
     }
     
-    final newMatch = {
+    final newMatch = <String, dynamic>{
       'hostId': _currentUser!.id,
       'courtId': courtId,
       'scheduledTime': scheduledTime,
@@ -935,6 +1314,12 @@ class AppState extends ChangeNotifier {
       'isPrivate': isPrivate,
       'description': description,
     };
+    if (pixKey != null && pixKey.trim().isNotEmpty) {
+      newMatch['pixKey'] = pixKey.trim();
+    }
+    if (courtCost != null && courtCost > 0) {
+      newMatch['courtCost'] = courtCost;
+    }
     
     final docRef = await FirebaseFirestore.instance.collection('matches').add(newMatch);
     await loadData();
@@ -1078,11 +1463,15 @@ class AppState extends ChangeNotifier {
     return _courts.where((c) {
       // Country filter
       if (_selectedCourtCountry == 'FR') {
-        if (c.country.toLowerCase() != 'france') return false;
+        final ctry = c.country.toLowerCase();
+        if (ctry != 'france' && !ctry.contains('reunion') && !ctry.contains('réunion') && !ctry.contains('guadeloupe') && !ctry.contains('martinique') && !ctry.contains('caledonie') && !ctry.contains('calédonie')) return false;
       } else if (_selectedCourtCountry == 'ES') {
         if (!c.country.toLowerCase().contains('espagne') && !c.country.toLowerCase().contains('spain')) return false;
       } else if (_selectedCourtCountry == 'IT') {
         if (!c.country.toLowerCase().contains('italie') && !c.country.toLowerCase().contains('italy')) return false;
+      } else if (_selectedCourtCountry == 'BR') {
+        final ctry = c.country.toLowerCase();
+        if (ctry != 'br' && !ctry.contains('bresil') && !ctry.contains('brésil') && !ctry.contains('brazil') && !ctry.contains('brasil')) return false;
       }
 
       // Access Type filter

@@ -1,0 +1,43 @@
+name: BeachMatch Weekly Sync Bot
+
+on:
+  schedule:
+    # Exécution programmée chaque lundi matin à 04h00 UTC
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+    # Permet de lancer le robot manuellement depuis l'interface GitHub
+    inputs:
+      dry_run:
+        description: 'Mode simulation (aucun changement dans Firestore)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  weekly_sync:
+    name: Run Weekly Sync Bot
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "firebase-admin>=6.0.0,<7.0.0" "google-cloud-firestore>=2.14.0,<2.20.0" requests beautifulsoup4
+
+      - name: 🤖 Execute Weekly Sync Bot
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python backend/weekly_sync_bot.py --dry-run
+          else
+            python backend/weekly_sync_bot.py
+          fi
