@@ -64,27 +64,24 @@ def main():
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     today_str = now.strftime('%Y-%m-%d')
     
-    # 0. CONSOLIDATION CERTIFIÉE MONDE, BRÉSIL & TOURNOIS JAT
-    print("\n[0] CONSOLIDATION CERTIFIÉE MONDE, BRÉSIL & TOURNOIS JAT...")
+    # 0. CONSOLIDATION CERTIFIÉE MONDE, BRÉSIL & EUROPE
+    print("\n[0] CONSOLIDATION CERTIFIÉE MONDE, BRÉSIL & EUROPE...")
     try:
         try:
             from backend.sync_beachscore_certified_feed import (
-                clean_junk_matches,
+                clean_junk_and_jat_matches,
                 seed_certified_tournaments,
                 seed_itf_and_cbt_matches,
-                sync_in_app_jat_tournaments,
             )
         except ImportError:
             from sync_beachscore_certified_feed import (
-                clean_junk_matches,
+                clean_junk_and_jat_matches,
                 seed_certified_tournaments,
                 seed_itf_and_cbt_matches,
-                sync_in_app_jat_tournaments,
             )
-        clean_junk_matches(db)
+        clean_junk_and_jat_matches(db)
         seed_certified_tournaments(db)
         seed_itf_and_cbt_matches(db)
-        sync_in_app_jat_tournaments(db)
         print("  ✅ Synchronisation certifiée réussie.")
     except Exception as e:
         print(f"  ⚠️ Erreur lors de la synchro certifiée : {e}")

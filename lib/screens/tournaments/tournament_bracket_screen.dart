@@ -2888,9 +2888,9 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
             ),
             child: const Row(
               children: [
-                const Icon(Icons.checklist_rounded, color: Colors.greenAccent, size: 22),
-                const SizedBox(width: 12),
-                const Expanded(
+                Icon(Icons.checklist_rounded, color: Colors.greenAccent, size: 22),
+                SizedBox(width: 12),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -2909,7 +2909,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                     ],
                   ),
                 ),
-                const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white38, size: 14),
+                Icon(Icons.arrow_forward_ios_rounded, color: Colors.white38, size: 14),
               ],
             ),
           ),
