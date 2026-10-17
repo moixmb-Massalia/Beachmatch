@@ -147,6 +147,10 @@ def discover_channel_matches(db=None, max_per_channel=5):
 
                 parsed = parse_match_title(title)
                 status = 'SCHEDULED'
+                if parsed['team1'] == 'Équipe 1' or parsed['team2'] == 'Équipe 2' or parsed['tournament'] in ['World Tour', 'MIXED C']:
+                    print(f"    ⚠️ Titre non reconnu avec précision, ignoré pour éviter la pollution : {title}")
+                    continue
+
                 time_str = 'Programmé'
 
                 if live_status == 'is_live':
