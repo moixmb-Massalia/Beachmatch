@@ -16,7 +16,9 @@ import 'create_match_screen.dart';
 import '../services/chat_service.dart';
 import '../services/beachy_service.dart';
 import '../widgets/beachy_floating_bubble.dart';
+import '../widgets/choose_pseudo_modal.dart';
 import '../l10n/app_localizations.dart';
+import '../services/app_update_service.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   final int initialIndex;
@@ -26,14 +28,34 @@ class MainNavigationScreen extends StatefulWidget {
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
+class _MainNavigationScreenState extends State<MainNavigationScreen> with WidgetsBindingObserver {
   late int _currentIndex;
   Stream<int>? _unreadCountStream;
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex.clamp(0, 5);
+    WidgetsBinding.instance.addObserver(this);
+    _currentIndex = widget.initialIndex.clamp(0, 4);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ChoosePseudoModal.showIfNeeded(context);
+        AppUpdateService.checkUpdate(context);
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      AppUpdateService.checkUpdate(context, silent: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
   
   @override
@@ -45,6 +67,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     } else if (currentUser == null) {
       _unreadCountStream = null;
     }
+    if (currentUser != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ChoosePseudoModal.showIfNeeded(context);
+        }
+      });
+    }
   }
 
   final List<Widget> _screens = [
@@ -53,7 +82,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     const CompetitionScreen(),
     const CommunityScreen(),
     const MessagesScreen(),
-    const ProfileScreen(),
   ];
 
   void _handleBeachyAction(BeachyAction action) {
@@ -81,7 +109,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         );
         break;
       case BeachyActionType.openProfile:
-        setState(() => _currentIndex = 5);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ProfileScreen()),
+        );
         break;
       case BeachyActionType.none:
         break;
@@ -139,8 +170,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     children: [
                       _buildNavItem(0, CupertinoIcons.home, CupertinoIcons.house_fill, AppLocalizations.of(context).navHome),
                       _buildNavItem(1, CupertinoIcons.map, CupertinoIcons.map_fill, AppLocalizations.of(context).navCourts),
-                      _buildNavItem(2, Icons.emoji_events_outlined, Icons.emoji_events, "Tournois"),
-                      _buildNavItem(3, CupertinoIcons.person_3, CupertinoIcons.person_3_fill, "Communauté"),
+                      _buildNavItem(2, Icons.emoji_events_outlined, Icons.emoji_events, AppLocalizations.of(context).navTournaments),
+                      _buildNavItem(
+                        3,
+                        CupertinoIcons.person_3,
+                        CupertinoIcons.person_3_fill,
+                        (currentUser?.isBrazilian == true || Localizations.localeOf(context).languageCode == 'pt')
+                            ? "Comunidade"
+                            : (Localizations.localeOf(context).languageCode == 'es'
+                                ? "Comunidad"
+                                : (Localizations.localeOf(context).languageCode == 'it' || Localizations.localeOf(context).languageCode == 'en'
+                                    ? "Community"
+                                    : "Communauté")),
+                      ),
                       StreamBuilder<int>(
                         stream: _unreadCountStream ?? const Stream.empty(),
                         builder: (context, snapshot) {
@@ -154,7 +196,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                           );
                         },
                       ),
-                      _buildNavItem(5, CupertinoIcons.person_crop_circle, CupertinoIcons.person_crop_circle_fill, "Profil"),
                     ],
                   ),
                 ),
@@ -179,7 +220,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(horizontal: isSelected ? 8 : 4, vertical: 5),
+        padding: EdgeInsets.symmetric(horizontal: isSelected ? 12 : 6, vertical: 5),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.coral.withValues(alpha: 0.25) : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
@@ -198,7 +239,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     isSelected ? activeIcon : icon,
                     key: ValueKey<bool>(isSelected),
                     color: isSelected ? AppColors.gold : Colors.white70,
-                    size: isSelected ? 22 : 20,
+                    size: isSelected ? 24 : 22,
                   ),
                 ),
                 if (badgeCount > 0)
@@ -235,7 +276,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 9.5,
+                fontSize: 10.5,
                 fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
                 color: isSelected ? Colors.white : Colors.white70,
               ),

@@ -18,7 +18,6 @@ import '../widgets/feature_discovery_bubble.dart';
 import 'create_match_screen.dart';
 import 'profile_screen.dart';
 import '../widgets/home_fft_licence_banner.dart';
-import 'tournaments/beach_score_hub_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -104,16 +103,30 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
                 children: [
                   _buildHeader(user),
-                  if (user != null && !user.isBrazilian && (user.licenceNumber == null || user.licenceNumber!.trim().isEmpty)) ...[
+                  if (user != null && (user.country.toUpperCase() == 'FR' || user.country.toUpperCase() == 'RE' || user.country.toUpperCase() == 'ANT') && (user.licenceNumber == null || user.licenceNumber!.trim().isEmpty)) ...[
                     const SizedBox(height: 14),
                     const HomeFftLicenceBanner(),
                   ],
                   FeatureDiscoveryBubble(
                     featureKey: 'home_overview',
-                    title: (user?.isBrazilian == true) ? "Bem-vindo ao BeachMatch !" : "Bienvenue sur votre Accueil !",
-                    message: (user?.isBrazilian == true)
+                    title: (user?.isBrazilian == true || Localizations.localeOf(context).languageCode == 'pt')
+                        ? "Bem-vindo ao BeachMatch !"
+                        : (Localizations.localeOf(context).languageCode == 'es'
+                            ? "¡Bienvenido a BeachMatch!"
+                            : (Localizations.localeOf(context).languageCode == 'it'
+                                ? "Benvenuto su BeachMatch!"
+                                : (Localizations.localeOf(context).languageCode == 'en'
+                                    ? "Welcome to BeachMatch!"
+                                    : "Bienvenue sur votre Accueil !"))),
+                    message: (user?.isBrazilian == true || Localizations.localeOf(context).languageCode == 'pt')
                         ? "Consulte o clima ao vivo, descubra as quadras e partidas perto de você e conecte-se com seus parceiros em um toque."
-                        : "Consultez la météo des plages en direct, découvrez les parties autour de vous et rejoignez vos partenaires en un clic.",
+                        : (Localizations.localeOf(context).languageCode == 'es'
+                            ? "Consulta el clima en vivo, descubre pistas y partidos cerca de ti y únete a tus compañeros con un solo toque."
+                            : (Localizations.localeOf(context).languageCode == 'it'
+                                ? "Controlla il meteo in tempo reale, scopri i campi e le partite vicino a te e unisciti ai tuoi compagni con un tocco."
+                                : (Localizations.localeOf(context).languageCode == 'en'
+                                    ? "Check real-time beach weather, discover courts and matches nearby, and team up with your partners in one tap."
+                                    : "Consultez la météo des plages en direct, découvrez les parties autour de vous et rejoignez vos partenaires en un clic."))),
                     icon: Icons.wb_sunny_rounded,
                     margin: const EdgeInsets.only(top: 14, bottom: 4),
                   ),
@@ -601,110 +614,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBeachScoreBanner(BuildContext context, bool isBr) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const BeachScoreHubScreen()),
-        );
-      },
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.gold, width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.gold.withValues(alpha: 0.18),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
-              ),
-              child: const Icon(Icons.scoreboard_rounded, color: AppColors.gold, size: 28),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFF3B30),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        isBr ? "BEACHSCORE PRO · AO VIVO" : "BEACHSCORE PRO · RÉSULTATS CERTIFIÉS",
-                        style: const TextStyle(
-                          color: AppColors.gold,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    isBr ? "Placares Oficiais World Tour & Brasil" : "66 Matchs & Scores Homologués",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    isBr
-                        ? "Sand Series São Paulo, Grand Slam Copacabana, BT 400..."
-                        : "ITF Sand Series, Grand Slam Copacabana, BT 400, JATs...",
-                    style: const TextStyle(
-                      color: Color(0xFF94A3B8),
-                      fontSize: 11.5,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.gold,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.black, size: 14),
-            ),
-          ],
         ),
       ),
     );

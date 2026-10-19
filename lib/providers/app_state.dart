@@ -125,13 +125,17 @@ class AppState extends ChangeNotifier {
               await _updateFCMToken();
             }
           }
-          if (_currentLocale == null && _currentUser != null) {
-            if (_currentUser!.isBrazilian || _currentUser!.country == 'BR') {
+          if (_currentUser != null) {
+            if (_currentUser!.isBrazilian || _currentUser!.country.toUpperCase() == 'BR') {
               _currentLocale = const Locale('pt', 'BR');
-            } else if (_currentUser!.country == 'ES') {
+            } else if (_currentUser!.country.toUpperCase() == 'ES') {
               _currentLocale = const Locale('es');
-            } else if (_currentUser!.country == 'IT') {
+            } else if (_currentUser!.country.toUpperCase() == 'IT') {
               _currentLocale = const Locale('it');
+            } else if (_currentUser!.country.toUpperCase() == 'FR' || _currentUser!.country.toUpperCase() == 'RE' || _currentUser!.country.toUpperCase() == 'ANT') {
+              _currentLocale = const Locale('fr');
+            } else if (_currentUser!.country.isNotEmpty && _currentLocale == null) {
+              _currentLocale = const Locale('en');
             }
           }
           await _checkAndApplyPreauthorizedRoles(user.uid, user.email);
@@ -272,6 +276,21 @@ class AppState extends ChangeNotifier {
           _currentLocale = Locale(parts[0], parts[1]);
         } else {
           _currentLocale = Locale(parts[0]);
+        }
+        notifyListeners();
+      } else {
+        final sysLocale = WidgetsBinding.instance.platformDispatcher.locale;
+        final lang = sysLocale.languageCode.toLowerCase();
+        if (lang == 'pt') {
+          _currentLocale = const Locale('pt', 'BR');
+        } else if (lang == 'it') {
+          _currentLocale = const Locale('it');
+        } else if (lang == 'es') {
+          _currentLocale = const Locale('es');
+        } else if (lang == 'fr') {
+          _currentLocale = const Locale('fr');
+        } else {
+          _currentLocale = const Locale('en');
         }
         notifyListeners();
       }

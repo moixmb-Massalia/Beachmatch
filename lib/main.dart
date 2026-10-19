@@ -24,9 +24,12 @@ import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'providers/app_state.dart';
 import 'screens/tournaments/beach_score_hub_screen.dart';
+import 'screens/profile_screen.dart';
+import 'services/crash_detector_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  CrashDetectorService.initialize();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
@@ -103,9 +106,12 @@ class BeachMatchApp extends StatefulWidget {
 }
 
 class _BeachMatchAppState extends State<BeachMatchApp> {
+  late final Stream<User?> _authStream;
+
   @override
   void initState() {
     super.initState();
+    _authStream = FirebaseAuth.instance.authStateChanges();
     if (!kIsWeb) {
       try {
         // Listen to foreground messages
@@ -224,9 +230,9 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
       navigatorKey.currentState?.pushReplacement(
         MaterialPageRoute(builder: (_) => const MainNavigationScreen(initialIndex: 2)),
       );
-    } else if (type == 'ranking_update') {
-      navigatorKey.currentState?.pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainNavigationScreen(initialIndex: 2)),
+    } else if (type == 'ranking_update' || type == 'ranking_announcement') {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => const ProfileScreen()),
       );
     } else if (type == 'pro_match_live') {
       final streamUrl = message.data['streamUrl'];
@@ -282,11 +288,12 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
 
   @override
   Widget build(BuildContext context) {
+    final currentLocale = context.select<AppState, Locale?>((s) => s.currentLocale);
     return MaterialApp(
       navigatorKey: navigatorKey,
       title: 'BeachMatch',
       debugShowCheckedModeBanner: false,
-      locale: const Locale('fr'),
+      locale: currentLocale,
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -299,25 +306,32 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
         Locale('es'),
         Locale('it'),
         Locale('pt'),
+        Locale('pt', 'BR'),
       ],
       localeResolutionCallback: (locale, supportedLocales) {
         if (locale != null) {
+          for (var supportedLocale in supportedLocales) {
+            if (supportedLocale.languageCode == locale.languageCode &&
+                (supportedLocale.countryCode != null && supportedLocale.countryCode == locale.countryCode)) {
+              return supportedLocale;
+            }
+          }
           for (var supportedLocale in supportedLocales) {
             if (supportedLocale.languageCode == locale.languageCode) {
               return supportedLocale;
             }
           }
         }
-        return const Locale('fr');
+        return const Locale('en');
       },
       theme: ThemeData(
-        scaffoldBackgroundColor: AppColors.background,
+        scaffoldBackgroundColor: const Color(0xFF0F141E),
         primaryColor: AppColors.primary,
         colorScheme: ColorScheme.fromSeed(
           seedColor: AppColors.primary,
           primary: AppColors.primary,
           secondary: AppColors.gold,
-          surface: AppColors.background,
+          surface: const Color(0xFF141923),
         ),
         textTheme: GoogleFonts.outfitTextTheme(
           Theme.of(context).textTheme,
@@ -340,13 +354,13 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
         );
       },
       home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
+        stream: _authStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
-              backgroundColor: AppColors.background,
+              backgroundColor: Color(0xFF0F141E),
               body: Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
+                child: CircularProgressIndicator(color: AppColors.coral),
               ),
             );
           }

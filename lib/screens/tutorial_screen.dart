@@ -16,44 +16,233 @@ class _TutorialScreenState extends State<TutorialScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  final List<Map<String, dynamic>> _pages = [
-    {
-      'icon': Icons.sports_tennis_rounded,
-      'title': "Bienvenue !",
-      'subtitle': "La communauté n°1 du Beach Tennis",
-      'description': "Bienvenue sur BeachMatch ! Trouvez des terrains, organisez vos matchs entre passionnés et suivez la compétition officielle."
-    },
-    {
-      'icon': CupertinoIcons.map_fill,
-      'title': "Carte & Spots Plage",
-      'subtitle': "Terrains gratuits & Clubs",
-      'description': "Découvrez les terrains gratuits sur le sable ou les clubs officiels éclairés avec météo marine en temps réel et itinéraires."
-    },
-    {
-      'icon': Icons.groups_rounded,
-      'title': "Organisez vos Matchs",
-      'subtitle': "Parties amicales & ELO",
-      'description': "Créez une partie en sélectionnant votre terrain en un clic, invitez vos partenaires, validez vos scores et progressez dans l'arène."
-    },
-    {
-      'icon': CupertinoIcons.calendar,
-      'title': "Tournois Homologués FFT",
-      'subtitle': "Du BT 25 au BT 2000",
-      'description': "Consultez le calendrier national officiel, lancez un 'SOS Partenaire' pour trouver un binôme et inscrivez votre équipe."
-    },
-    {
-      'icon': Icons.sports_rounded,
-      'title': "Live Scoring & Arbitrage",
-      'subtitle': "Suivi point par point",
-      'description': "Arbitrez facilement vos rencontres au bord du filet : scores en direct, tie-break, super tie-break et statistiques de jeu."
-    },
-    {
-      'icon': Icons.emoji_events_rounded,
-      'title': "Classement FFT & Tavernes",
-      'subtitle': "3 300+ Joueurs & Clubs",
-      'description': "Accédez au classement officiel Ten'Up de tous les licenciés français et échangez dans la Taverne interactive de votre club."
-    },
-  ];
+  String _detectLanguage(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final user = appState.currentUser;
+    if (user != null && (user.isBrazilian || user.country.toUpperCase() == 'BR')) {
+      return 'pt';
+    }
+    if (user != null && user.country.isNotEmpty) {
+      final c = user.country.toUpperCase();
+      if (c == 'IT') return 'it';
+      if (c == 'ES') return 'es';
+      if (c == 'FR' || c == 'RE' || c == 'ANT') return 'fr';
+    }
+    if (appState.currentLocale != null) {
+      final code = appState.currentLocale!.languageCode.toLowerCase();
+      if (['pt', 'it', 'es', 'fr', 'en'].contains(code)) return code;
+    }
+    final devLocale = Localizations.maybeLocaleOf(context) ??
+        WidgetsBinding.instance.platformDispatcher.locale;
+    final devLang = devLocale.languageCode.toLowerCase();
+    if (['pt', 'it', 'es', 'fr', 'en'].contains(devLang)) return devLang;
+    return 'en';
+  }
+
+  List<Map<String, dynamic>> _getLocalizedPages(String lang) {
+    switch (lang) {
+      case 'pt':
+        return [
+          {
+            'icon': Icons.sports_tennis_rounded,
+            'title': "Bem-vindo(a) !",
+            'subtitle': "A comunidade nº 1 de Beach Tennis",
+            'description': "Bem-vindo(a) ao BeachMatch! Encontre arenas de areia, organize partidas com amigos e acompanhe torneios oficiais."
+          },
+          {
+            'icon': CupertinoIcons.map_fill,
+            'title': "Mapa & Arenas",
+            'subtitle': "Quadras públicas & Arenas privadas",
+            'description': "Descubra as melhores arenas de praia, confira a previsão do clima e vento em tempo real e trace sua rota até a quadra."
+          },
+          {
+            'icon': Icons.groups_rounded,
+            'title': "Organize seus Jogos",
+            'subtitle': "Partidas amigáveis & Desafios",
+            'description': "Crie jogos na sua arena favorita em 1 clique, convide parceiros, confirme os placares e evolua na classificação."
+          },
+          {
+            'icon': CupertinoIcons.calendar,
+            'title': "Torneios CBT & ITF",
+            'subtitle': "Do Circuito Amador ao Profissional",
+            'description': "Acompanhe o calendário oficial de torneios, use o 'SOS Parceiro' para achar uma dupla e inscreva sua equipe com facilidade."
+          },
+          {
+            'icon': Icons.sports_rounded,
+            'title': "Placar ao Vivo & Arbitragem",
+            'subtitle': "Acompanhamento ponto a ponto",
+            'description': "Apite ou acompanhe jogos na beira da quadra: placar em tempo real, tie-break, super tie-break e estatísticas completas."
+          },
+          {
+            'icon': Icons.emoji_events_rounded,
+            'title': "Ranking & Comunidade",
+            'subtitle': "Jogadores & Arenas Oficiais",
+            'description': "Consulte o ranking, descubra os melhores atletas do circuito e interaja no chat exclusivo da sua arena."
+          },
+        ];
+
+      case 'en':
+        return [
+          {
+            'icon': Icons.sports_tennis_rounded,
+            'title': "Welcome!",
+            'subtitle': "The #1 Beach Tennis Community",
+            'description': "Welcome to BeachMatch! Find beach courts and clubs, organize matches with players and follow official competitions."
+          },
+          {
+            'icon': CupertinoIcons.map_fill,
+            'title': "Map & Beach Spots",
+            'subtitle': "Free Courts & Official Clubs",
+            'description': "Discover public sand courts or lighted official clubs with real-time marine weather, wind forecast and GPS routes."
+          },
+          {
+            'icon': Icons.groups_rounded,
+            'title': "Organize your Matches",
+            'subtitle': "Friendly Games & Challenges",
+            'description': "Create a match at your favorite court in one click, invite partners, submit scores and climb the ranks."
+          },
+          {
+            'icon': CupertinoIcons.calendar,
+            'title': "Official & ITF Tournaments",
+            'subtitle': "From Open to Pro Circuit",
+            'description': "Browse the official tournament calendar, send a 'Partner SOS' to find a teammate and register your team."
+          },
+          {
+            'icon': Icons.sports_rounded,
+            'title': "Live Scoring & Umpiring",
+            'subtitle': "Point-by-point live tracker",
+            'description': "Easily referee matches court-side: live scores, tie-break, super tie-break and complete match statistics."
+          },
+          {
+            'icon': Icons.emoji_events_rounded,
+            'title': "Rankings & Community",
+            'subtitle': "Players & Official Clubs",
+            'description': "Access official rankings, discover top beach tennis athletes and chat inside your club's interactive lounge."
+          },
+        ];
+
+      case 'es':
+        return [
+          {
+            'icon': Icons.sports_tennis_rounded,
+            'title': "¡Bienvenido/a!",
+            'subtitle': "La comunidad nº 1 de Beach Tennis",
+            'description': "¡Bienvenido/a a BeachMatch! Encuentra pistas y clubes, organiza partidos entre apasionados y sigue torneos oficiales."
+          },
+          {
+            'icon': CupertinoIcons.map_fill,
+            'title': "Mapa & Pistas de Playa",
+            'subtitle': "Pistas gratuitas & Clubes",
+            'description': "Descubre pistas en la arena o clubes oficiales con previsión de viento y clima en tiempo real e itinerarios."
+          },
+          {
+            'icon': Icons.groups_rounded,
+            'title': "Organiza tus Partidos",
+            'subtitle': "Partidas amistosas & Retos",
+            'description': "Crea una partida en tu pista favorita en un clic, invita compañeros, valida resultados y sube de nivel."
+          },
+          {
+            'icon': CupertinoIcons.calendar,
+            'title': "Torneos Oficiales & ITF",
+            'subtitle': "Del circuito amateur al profesional",
+            'description': "Consulta el calendario oficial de torneos, lanza un 'SOS Compañero' para formar pareja e inscribe a tu equipo."
+          },
+          {
+            'icon': Icons.sports_rounded,
+            'title': "Marcador en Vivo & Arbitraje",
+            'subtitle': "Seguimiento punto a punto",
+            'description': "Arbitra fácilmente a pie de pista: marcador en directo, tie-break, super tie-break y estadísticas de juego."
+          },
+          {
+            'icon': Icons.emoji_events_rounded,
+            'title': "Ranking & Comunidad",
+            'subtitle': "Jugadores & Clubes Oficiales",
+            'description': "Accede al ranking oficial, descubre a los mejores jugadores y conversa en la taberna interactiva de tu club."
+          },
+        ];
+
+      case 'it':
+        return [
+          {
+            'icon': Icons.sports_tennis_rounded,
+            'title': "Benvenuto/a!",
+            'subtitle': "La community n°1 del Beach Tennis",
+            'description': "Benvenuto/a su BeachMatch! Trova campi e circoli, organizza partite tra appassionati e segui i tornei ufficiali."
+          },
+          {
+            'icon': CupertinoIcons.map_fill,
+            'title': "Mappa & Campi Spiaggia",
+            'subtitle': "Campi liberi & Circoli",
+            'description': "Scopri i campi sulla sabbia o i circoli con meteo vento in tempo reale e percorsi GPS diretti."
+          },
+          {
+            'icon': Icons.groups_rounded,
+            'title': "Organizza le tue Partite",
+            'subtitle': "Sfide amichevoli & Tornei",
+            'description': "Crea una partita in 1 clic sul tuo campo preferito, invita compagni, valida i punteggi e migliora il livello."
+          },
+          {
+            'icon': CupertinoIcons.calendar,
+            'title': "Tornei FITP & ITF",
+            'subtitle': "Dall'amatoriale al circuito Pro",
+            'description': "Consulta il calendario ufficiale dei tornei, lancia un 'SOS Compagno' per trovare una coppia e iscrivi la tua squadra."
+          },
+          {
+            'icon': Icons.sports_rounded,
+            'title': "Live Score & Arbitraggio",
+            'subtitle': "Punto per punto in diretta",
+            'description': "Arbitra o segui le partite a bordo campo: punteggio in tempo reale, tie-break, super tie-break e statistiche."
+          },
+          {
+            'icon': Icons.emoji_events_rounded,
+            'title': "Classifica & Community",
+            'subtitle': "Migliaia di Giocatori & Circoli",
+            'description': "Consulta le classifiche ufficiali e scambia messaggi nella bacheca interattiva del tuo circolo."
+          },
+        ];
+
+      case 'fr':
+      default:
+        return [
+          {
+            'icon': Icons.sports_tennis_rounded,
+            'title': "Bienvenue !",
+            'subtitle': "La communauté n°1 du Beach Tennis",
+            'description': "Bienvenue sur BeachMatch ! Trouvez des terrains, organisez vos matchs entre passionnés et suivez la compétition officielle."
+          },
+          {
+            'icon': CupertinoIcons.map_fill,
+            'title': "Carte & Spots Plage",
+            'subtitle': "Terrains gratuits & Clubs",
+            'description': "Découvrez les terrains gratuits sur le sable ou les clubs officiels éclairés avec météo marine en temps réel et itinéraires."
+          },
+          {
+            'icon': Icons.groups_rounded,
+            'title': "Organisez vos Matchs",
+            'subtitle': "Parties amicales & Défis",
+            'description': "Créez une partie en sélectionnant votre terrain en un clic, invitez vos partenaires, validez vos scores et progressez dans l'arène."
+          },
+          {
+            'icon': CupertinoIcons.calendar,
+            'title': "Tournois Homologués FFT & ITF",
+            'subtitle': "Du BT 25 au circuit Pro",
+            'description': "Consultez le calendrier officiel, lancez un 'SOS Partenaire' pour trouver un binôme et inscrivez votre équipe."
+          },
+          {
+            'icon': Icons.sports_rounded,
+            'title': "Live Scoring & Arbitrage",
+            'subtitle': "Suivi point par point",
+            'description': "Arbitrez facilement vos rencontres au bord du filet : scores en direct, tie-break, super tie-break et statistiques de jeu."
+          },
+          {
+            'icon': Icons.emoji_events_rounded,
+            'title': "Classement & Tavernes",
+            'subtitle': "Joueurs & Clubs Officiels",
+            'description': "Accédez au classement officiel de tous les compétiteurs et échangez dans la Taverne interactive de votre club."
+          },
+        ];
+    }
+  }
 
   @override
   void dispose() {
@@ -73,8 +262,8 @@ class _TutorialScreenState extends State<TutorialScreen> {
     }
   }
 
-  void _nextPage() {
-    if (_currentPage < _pages.length - 1) {
+  void _nextPage(int totalPages) {
+    if (_currentPage < totalPages - 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 320),
         curve: Curves.easeInOutCubic,
@@ -86,6 +275,37 @@ class _TutorialScreenState extends State<TutorialScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final lang = _detectLanguage(context);
+    final pages = _getLocalizedPages(lang);
+
+    final guideTitle = lang == 'pt'
+        ? "BeachMatch Guia"
+        : (lang == 'es'
+            ? "Guía BeachMatch"
+            : (lang == 'it'
+                ? "Guida BeachMatch"
+                : (lang == 'en' ? "BeachMatch Guide" : "Guide BeachMatch")));
+
+    final skipLabel = lang == 'pt'
+        ? "Pular"
+        : (lang == 'es'
+            ? "Saltar"
+            : (lang == 'it' ? "Salta" : (lang == 'en' ? "Skip" : "Passer")));
+
+    final nextLabel = lang == 'pt'
+        ? "Próximo"
+        : (lang == 'es'
+            ? "Siguiente"
+            : (lang == 'it' ? "Avanti" : (lang == 'en' ? "Next" : "Suivant")));
+
+    final startLabel = lang == 'pt'
+        ? "Vamos lá ! 🚀"
+        : (lang == 'es'
+            ? "¡Vamos! 🚀"
+            : (lang == 'it'
+                ? "Cominciamo! 🚀"
+                : (lang == 'en' ? "Let's Go! 🚀" : "C'est parti ! 🚀")));
+
     return Scaffold(
       body: Stack(
         children: [
@@ -115,7 +335,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
                           const Icon(Icons.sports_tennis, color: AppColors.gold, size: 20),
                           const SizedBox(width: 8),
                           Text(
-                            "BeachMatch Guide",
+                            guideTitle,
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.8),
                               fontWeight: FontWeight.bold,
@@ -131,7 +351,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
                           foregroundColor: Colors.white70,
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         ),
-                        child: const Text("Passer", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                        child: Text(skipLabel, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                       ),
                     ],
                   ),
@@ -146,9 +366,9 @@ class _TutorialScreenState extends State<TutorialScreen> {
                         _currentPage = index;
                       });
                     },
-                    itemCount: _pages.length,
+                    itemCount: pages.length,
                     itemBuilder: (context, index) {
-                      final page = _pages[index];
+                      final page = pages[index];
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24.0),
                         child: Column(
@@ -260,7 +480,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(
-                          _pages.length,
+                          pages.length,
                           (index) => AnimatedContainer(
                             duration: const Duration(milliseconds: 250),
                             margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -278,7 +498,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
                         width: double.infinity,
                         height: 54,
                         child: ElevatedButton(
-                          onPressed: _nextPage,
+                          onPressed: () => _nextPage(pages.length),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.coral,
                             foregroundColor: Colors.white,
@@ -289,7 +509,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
                             ),
                           ),
                           child: Text(
-                            _currentPage == _pages.length - 1 ? "C'est parti ! 🚀" : "Suivant",
+                            _currentPage == pages.length - 1 ? startLabel : nextLabel,
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.bold,

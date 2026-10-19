@@ -26,9 +26,71 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
+  String _detectLang(BuildContext context) {
+    final appState = context.watch<AppState>();
+    if (appState.currentLocale != null) {
+      final code = appState.currentLocale!.languageCode.toLowerCase();
+      if (['pt', 'it', 'es', 'fr', 'en'].contains(code)) return code;
+    }
+    final devLocale = Localizations.maybeLocaleOf(context) ??
+        WidgetsBinding.instance.platformDispatcher.locale;
+    final devLang = devLocale.languageCode.toLowerCase();
+    if (['pt', 'it', 'es', 'fr', 'en'].contains(devLang)) return devLang;
+    return 'en';
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLoading = context.watch<AppState>().isLoading;
+    final lang = _detectLang(context);
+
+    final title = lang == 'pt'
+        ? "Criar uma conta"
+        : (lang == 'es'
+            ? "Crear una cuenta"
+            : (lang == 'it'
+                ? "Crea un account"
+                : (lang == 'en' ? "Create an Account" : "Créer un compte")));
+
+    final subtitle = lang == 'pt'
+        ? "Junte-se à comunidade oficial BeachMatch."
+        : (lang == 'es'
+            ? "Únete a la comunidad oficial BeachMatch."
+            : (lang == 'it'
+                ? "Unisciti alla community ufficiale BeachMatch."
+                : (lang == 'en'
+                    ? "Join the official BeachMatch community."
+                    : "Rejoignez la communauté officielle BeachMatch.")));
+
+    final nameLabel = lang == 'pt'
+        ? "Nome completo"
+        : (lang == 'es'
+            ? "Nombre completo"
+            : (lang == 'it' ? "Nome completo" : (lang == 'en' ? "Full Name" : "Nom complet")));
+
+    final emailLabel = lang == 'pt'
+        ? "E-mail"
+        : (lang == 'es'
+            ? "Correo electrónico"
+            : (lang == 'it' ? "Indirizzo Email" : (lang == 'en' ? "Email Address" : "Adresse Email")));
+
+    final passwordLabel = lang == 'pt'
+        ? "Senha"
+        : (lang == 'es' ? "Contraseña" : (lang == 'it' ? "Password" : (lang == 'en' ? "Password" : "Mot de passe")));
+
+    final emptyFieldsMsg = lang == 'pt'
+        ? "Por favor, preencha todos os campos"
+        : (lang == 'es'
+            ? "Por favor, completa todos los campos"
+            : (lang == 'it'
+                ? "Compila tutti i campi"
+                : (lang == 'en' ? "Please fill in all fields" : "Veuillez remplir tous les champs")));
+
+    final submitLabel = lang == 'pt'
+        ? "Cadastre-se"
+        : (lang == 'es'
+            ? "Registrarse"
+            : (lang == 'it' ? "Registrati" : (lang == 'en' ? "Sign Up" : "S'inscrire")));
 
     return Scaffold(
       body: Stack(
@@ -83,13 +145,13 @@ class _SignupScreenState extends State<SignupScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                const Row(
+                                Row(
                                   children: [
-                                    Icon(Icons.sports_tennis, color: AppColors.gold, size: 28),
-                                    SizedBox(width: 10),
+                                    const Icon(Icons.sports_tennis, color: AppColors.gold, size: 28),
+                                    const SizedBox(width: 10),
                                     Text(
-                                      "Créer un compte",
-                                      style: TextStyle(
+                                      title,
+                                      style: const TextStyle(
                                         fontSize: 24,
                                         fontWeight: FontWeight.w900,
                                         color: Colors.white,
@@ -98,22 +160,22 @@ class _SignupScreenState extends State<SignupScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 6),
-                                const Text(
-                                  "Rejoignez la communauté officielle BeachMatch.",
-                                  style: TextStyle(fontSize: 13, color: Colors.white70),
+                                Text(
+                                  subtitle,
+                                  style: const TextStyle(fontSize: 13, color: Colors.white70),
                                 ),
                                 const SizedBox(height: 24),
 
                                 // Name
-                                _buildTextField("Nom complet", Icons.person_outline, _nameController),
+                                _buildTextField(nameLabel, Icons.person_outline, _nameController),
                                 const SizedBox(height: 16),
 
                                 // Email
-                                _buildTextField("Adresse Email", Icons.email_outlined, _emailController, keyboardType: TextInputType.emailAddress),
+                                _buildTextField(emailLabel, Icons.email_outlined, _emailController, keyboardType: TextInputType.emailAddress),
                                 const SizedBox(height: 16),
 
                                 // Password
-                                _buildTextField("Mot de passe", Icons.lock_outline, _passwordController, isPassword: true),
+                                _buildTextField(passwordLabel, Icons.lock_outline, _passwordController, isPassword: true),
                                 const SizedBox(height: 28),
 
                                 // Signup Button
@@ -125,7 +187,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
                                     if (name.isEmpty || email.isEmpty || password.isEmpty) {
                                       ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text("Veuillez remplir tous les champs")),
+                                        SnackBar(content: Text(emptyFieldsMsg)),
                                       );
                                       return;
                                     }
@@ -153,7 +215,7 @@ class _SignupScreenState extends State<SignupScreen> {
                                   ),
                                   child: isLoading
                                       ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                      : const Text("S'inscrire", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                      : Text(submitLabel, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                 ),
                               ],
                             ),

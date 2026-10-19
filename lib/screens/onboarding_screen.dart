@@ -75,8 +75,91 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
+  String _detectLang(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final user = appState.currentUser;
+    if (user != null && (user.isBrazilian || user.country.toUpperCase() == 'BR')) {
+      return 'pt';
+    }
+    if (appState.currentLocale != null) {
+      final code = appState.currentLocale!.languageCode.toLowerCase();
+      if (['pt', 'it', 'es', 'fr', 'en'].contains(code)) return code;
+    }
+    final devLocale = Localizations.maybeLocaleOf(context) ??
+        WidgetsBinding.instance.platformDispatcher.locale;
+    final devLang = devLocale.languageCode.toLowerCase();
+    if (['pt', 'it', 'es', 'fr', 'en'].contains(devLang)) return devLang;
+    return 'en';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final lang = _detectLang(context);
+
+    final title = lang == 'pt'
+        ? "Bem-vindo(a) !"
+        : (lang == 'es'
+            ? "¡Bienvenido/a!"
+            : (lang == 'it'
+                ? "Benvenuto/a!"
+                : (lang == 'en' ? "Welcome!" : "Bienvenue !")));
+
+    final subtitle = lang == 'pt'
+        ? "Vamos configurar o seu perfil de atleta."
+        : (lang == 'es'
+            ? "Configuremos tu perfil de jugador."
+            : (lang == 'it'
+                ? "Configuriamo il tuo profilo giocatore."
+                : (lang == 'en'
+                    ? "Let's set up your player profile."
+                    : "Configurons votre profil joueur.")));
+
+    final licenceLabel = lang == 'pt'
+        ? "Registro CBT / Atleta (Opcional)"
+        : (lang == 'es'
+            ? "Número de licencia (Opcional)"
+            : (lang == 'it'
+                ? "Tessera / Licenza (Opzionale)"
+                : (lang == 'en' ? "License ID (Optional)" : "Numéro de licence (Optionnel)")));
+
+    final verifyBtnLabel = lang == 'pt'
+        ? "Verificar"
+        : (lang == 'es' ? "Verificar" : (lang == 'it' ? "Verifica" : (lang == 'en' ? "Verify" : "Vérifier")));
+
+    final nameLabel = lang == 'pt'
+        ? "Nome e Sobrenome"
+        : (lang == 'es'
+            ? "Nombre y Apellidos"
+            : (lang == 'it' ? "Nome e Cognome" : (lang == 'en' ? "First and Last Name" : "Prénom et Nom")));
+
+    final levelLabel = lang == 'pt'
+        ? "Seu Nível"
+        : (lang == 'es' ? "Tu Nivel" : (lang == 'it' ? "Il tuo Livello" : (lang == 'en' ? "Your Level" : "Votre Niveau")));
+
+    final levelDesc = lang == 'pt'
+        ? "Nível 1: Iniciante\nNível 3: Jogador regular\nNível 5: Pro / Competidor"
+        : (lang == 'es'
+            ? "Nivel 1: Principiante\nNivel 3: Jugador regular\nNivel 5: Pro / Competidor"
+            : (lang == 'it'
+                ? "Livello 1: Principiante\nLivello 3: Giocatore regolare\nLivello 5: Pro / Agonista"
+                : (lang == 'en'
+                    ? "Level 1: Beginner\nLevel 3: Regular player\nLevel 5: Pro / Competitor"
+                    : "Niveau 1: Débutant complet\nNiveau 3: Joueur régulier\nNiveau 5: Pro/Compétiteur")));
+
+    final emptyNameMsg = lang == 'pt'
+        ? "Por favor, digite seu nome e sobrenome"
+        : (lang == 'es'
+            ? "Por favor, introduce tu nombre y apellidos"
+            : (lang == 'it'
+                ? "Inserisci nome e cognome"
+                : (lang == 'en' ? "Please enter your first and last name" : "Veuillez entrer votre Prénom et Nom")));
+
+    final startBtnLabel = lang == 'pt'
+        ? "Vamos lá ! 🚀"
+        : (lang == 'es'
+            ? "¡Vamos! 🚀"
+            : (lang == 'it' ? "Cominciamo! 🚀" : (lang == 'en' ? "Let's Go! 🚀" : "C'est parti !")));
+
     return Scaffold(
       body: Stack(
         children: [
@@ -113,21 +196,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Text(
-                            "Bienvenue !",
-                            style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: AppColors.textMain),
+                          Text(
+                            title,
+                            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: AppColors.textMain),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            "Configurons votre profil joueur.",
-                            style: TextStyle(fontSize: 16, color: AppColors.textMuted),
+                          Text(
+                            subtitle,
+                            style: const TextStyle(fontSize: 16, color: AppColors.textMuted),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 32),
 
                           // Licence
-                          const Text("Numéro de licence (Optionnel)", style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text(licenceLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
                           const SizedBox(height: 8),
                           Row(
                             children: [
@@ -135,7 +218,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 child: TextField(
                                   controller: _licenceController,
                                   decoration: InputDecoration(
-                                    hintText: "Ex: 1234567A",
+                                    hintText: lang == 'pt' ? "Ex: CBT12345" : "Ex: 1234567A",
                                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                                     filled: true,
                                     fillColor: Colors.white,
@@ -153,20 +236,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 ),
                                 child: _isVerifying 
                                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                    : const Text("Vérifier"),
+                                    : Text(verifyBtnLabel),
                               ),
                             ],
                           ),
                           const SizedBox(height: 16),
 
                           // Pseudo -> Real Name
-                          const Text("Prénom et Nom", style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text(nameLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
                           const SizedBox(height: 8),
                           TextField(
                             controller: _pseudoController,
                             readOnly: _isLicenceVerified,
                             decoration: InputDecoration(
-                              hintText: "Ex: Rafa Nadal",
+                              hintText: lang == 'pt' ? "Ex: André Baran" : "Ex: Rafa Nadal",
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                               filled: true,
                               fillColor: _isLicenceVerified ? Colors.grey[200] : Colors.white,
@@ -175,7 +258,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           const SizedBox(height: 16),
 
                           // Level
-                          const Text("Votre Niveau", style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text(levelLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
                           const SizedBox(height: 8),
                           Wrap(
                             spacing: 8,
@@ -184,8 +267,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             children: List.generate(5, (index) {
                               final level = index + 1;
                               final isSelected = _selectedLevel == level;
+                              final prefix = lang == 'en' ? 'Lvl' : (lang == 'pt' ? 'Nív.' : 'Niv.');
                               return ChoiceChip(
-                                label: Text("Niv. $level", style: TextStyle(color: isSelected ? Colors.white : AppColors.textMain)),
+                                label: Text("$prefix $level", style: TextStyle(color: isSelected ? Colors.white : AppColors.textMain)),
                                 selected: isSelected,
                                 selectedColor: AppColors.primary,
                                 backgroundColor: Colors.white,
@@ -196,9 +280,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             }),
                           ),
                           const SizedBox(height: 16),
-                          const Text(
-                            "Niveau 1: Débutant complet\nNiveau 3: Joueur régulier\nNiveau 5: Pro/Compétiteur",
-                            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                          Text(
+                            levelDesc,
+                            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 32),
@@ -208,7 +292,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             onPressed: () async {
                               if (_pseudoController.text.trim().isEmpty) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("Veuillez entrer votre Prénom et Nom")),
+                                  SnackBar(content: Text(emptyNameMsg)),
                                 );
                                 return;
                               }
@@ -240,7 +324,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 18),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             ),
-                            child: const Text("C'est parti !", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            child: Text(startBtnLabel, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                           ),
                         ],
                       ),

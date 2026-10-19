@@ -63,8 +63,125 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  String _detectLang(BuildContext context) {
+    final appState = context.watch<AppState>();
+    if (appState.currentLocale != null) {
+      final code = appState.currentLocale!.languageCode.toLowerCase();
+      if (['pt', 'it', 'es', 'fr', 'en'].contains(code)) return code;
+    }
+    final devLocale = Localizations.maybeLocaleOf(context) ??
+        WidgetsBinding.instance.platformDispatcher.locale;
+    final devLang = devLocale.languageCode.toLowerCase();
+    if (['pt', 'it', 'es', 'fr', 'en'].contains(devLang)) return devLang;
+    return 'en';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final lang = _detectLang(context);
+
+    final slogan = lang == 'pt'
+        ? "Encontre seu parceiro sob o sol."
+        : (lang == 'es'
+            ? "Encuentra tu compañero bajo el sol."
+            : (lang == 'it'
+                ? "Trova il tuo compagno sotto il sole."
+                : (lang == 'en' ? "Find your partner under the sun." : "Trouvez votre partenaire sous le soleil.")));
+
+    final emailLabel = lang == 'pt'
+        ? "E-mail"
+        : (lang == 'es'
+            ? "Correo electrónico"
+            : (lang == 'it' ? "Indirizzo Email" : (lang == 'en' ? "Email Address" : "Adresse Email")));
+
+    final passwordLabel = lang == 'pt'
+        ? "Senha"
+        : (lang == 'es' ? "Contraseña" : (lang == 'it' ? "Password" : (lang == 'en' ? "Password" : "Mot de passe")));
+
+    final forgotPasswordLabel = lang == 'pt'
+        ? "Esqueceu a senha?"
+        : (lang == 'es'
+            ? "¿Olvidaste tu contraseña?"
+            : (lang == 'it' ? "Password dimenticata?" : (lang == 'en' ? "Forgot password?" : "Mot de passe oublié ?")));
+
+    final forgotDialogTitle = lang == 'pt'
+        ? "Recuperar senha"
+        : (lang == 'es'
+            ? "Recuperar contraseña"
+            : (lang == 'it' ? "Password dimenticata" : (lang == 'en' ? "Reset Password" : "Mot de passe oublié")));
+
+    final forgotDialogHint = lang == 'pt'
+        ? "Seu endereço de e-mail"
+        : (lang == 'es'
+            ? "Tu correo electrónico"
+            : (lang == 'it' ? "Il tuo indirizzo email" : (lang == 'en' ? "Your email address" : "Votre adresse email")));
+
+    final cancelLabel = lang == 'pt'
+        ? "Cancelar"
+        : (lang == 'es' ? "Cancelar" : (lang == 'it' ? "Annulla" : (lang == 'en' ? "Cancel" : "Annuler")));
+
+    final sendLabel = lang == 'pt'
+        ? "Enviar"
+        : (lang == 'es' ? "Enviar" : (lang == 'it' ? "Invia" : (lang == 'en' ? "Send" : "Envoyer")));
+
+    final resetSentLabel = lang == 'pt'
+        ? "E-mail de recuperação enviado!"
+        : (lang == 'es'
+            ? "¡Correo de restablecimiento enviado!"
+            : (lang == 'it'
+                ? "Email di ripristino inviata!"
+                : (lang == 'en' ? "Password reset email sent!" : "Email de réinitialisation envoyé !")));
+
+    final loginBtnLabel = lang == 'pt'
+        ? "Entrar"
+        : (lang == 'es' ? "Iniciar sesión" : (lang == 'it' ? "Accedi" : (lang == 'en' ? "Log In" : "Se connecter")));
+
+    final orDivider = lang == 'pt'
+        ? "OU"
+        : (lang == 'es' ? "O" : (lang == 'it' ? "OPPURE" : (lang == 'en' ? "OR" : "OU")));
+
+    final googleBtnLabel = lang == 'pt'
+        ? "Continuar com o Google"
+        : (lang == 'es'
+            ? "Continuar con Google"
+            : (lang == 'it' ? "Continua con Google" : (lang == 'en' ? "Continue with Google" : "Continuer avec Google")));
+
+    final appleBtnLabel = lang == 'pt'
+        ? "Continuar com a Apple"
+        : (lang == 'es'
+            ? "Continuar con Apple"
+            : (lang == 'it' ? "Continua con Apple" : (lang == 'en' ? "Continue with Apple" : "Continuer avec Apple")));
+
+    final guestBtnLabel = lang == 'pt'
+        ? "Acesso Livre · Ver BeachScore & Resultados"
+        : (lang == 'es'
+            ? "Acceso Libre · Ver BeachScore y Resultados"
+            : (lang == 'it'
+                ? "Accesso Libero · Guarda BeachScore & Risultati"
+                : (lang == 'en'
+                    ? "Free Access · View BeachScore & Results"
+                    : "Accès Libre · Voir BeachScore & Résultats")));
+
+    final eulaNotice = lang == 'pt'
+        ? "Ao entrar, você concorda com os Termos de Uso (EULA) e a Política de Privacidade do BeachMatch."
+        : (lang == 'es'
+            ? "Al iniciar sesión, aceptas las Condiciones de Uso (EULA) y la Política de Privacidad de BeachMatch."
+            : (lang == 'it'
+                ? "Accedendo, accetti i Termini di Utilizzo (EULA) e l'Informativa sulla Privacy di BeachMatch."
+                : (lang == 'en'
+                    ? "By signing in, you agree to BeachMatch Terms of Use (EULA) and Privacy Policy."
+                    : "En vous connectant, vous acceptez les Conditions Générales d'Utilisation (CGU / EULA) et la Politique de Confidentialité de BeachMatch.")));
+
+    final noAccountLabel = lang == 'pt'
+        ? "Não tem uma conta? "
+        : (lang == 'es'
+            ? "¿No tienes cuenta? "
+            : (lang == 'it' ? "Non hai un account? " : (lang == 'en' ? "Don't have an account? " : "Pas encore de compte ? ")));
+
+    final signUpActionLabel = lang == 'pt'
+        ? "Cadastre-se"
+        : (lang == 'es' ? "Regístrate" : (lang == 'it' ? "Registrati" : (lang == 'en' ? "Sign Up" : "S'inscrire")));
+
     return Scaffold(
       body: Stack(
         children: [
@@ -147,9 +264,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            "Trouvez votre partenaire sous le soleil.",
-                            style: TextStyle(fontSize: 16, color: AppColors.textMuted),
+                          Text(
+                            slogan,
+                            style: const TextStyle(fontSize: 16, color: AppColors.textMuted),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 40),
@@ -159,7 +276,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: _emailController,
                             focusNode: _emailFocusNode,
                             decoration: InputDecoration(
-                              labelText: "Adresse Email",
+                              labelText: emailLabel,
                               prefixIcon: const Icon(Icons.email_outlined, color: AppColors.primary),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(16),
@@ -178,7 +295,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             focusNode: _passwordFocusNode,
                             obscureText: _obscurePassword,
                             decoration: InputDecoration(
-                              labelText: "Mot de passe",
+                              labelText: passwordLabel,
                               prefixIcon: const Icon(Icons.lock_outline, color: AppColors.primary),
                               suffixIcon: IconButton(
                                 icon: Icon(
@@ -209,13 +326,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 showDialog(
                                   context: context,
                                   builder: (context) => AlertDialog(
-                                    title: const Text("Mot de passe oublié"),
+                                    title: Text(forgotDialogTitle),
                                     content: TextField(
                                       controller: emailController,
-                                      decoration: const InputDecoration(hintText: "Votre adresse email"),
+                                      decoration: InputDecoration(hintText: forgotDialogHint),
                                     ),
                                     actions: [
-                                      TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
+                                      TextButton(onPressed: () => Navigator.pop(context), child: Text(cancelLabel)),
                                       ElevatedButton(
                                         onPressed: () async {
                                           if (emailController.text.isNotEmpty) {
@@ -223,7 +340,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                               await context.read<AppState>().resetPassword(emailController.text);
                                               if (context.mounted) {
                                                 Navigator.pop(context);
-                                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Email de réinitialisation envoyé !")));
+                                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(resetSentLabel)));
                                               }
                                             } catch (e) {
                                               if (context.mounted) {
@@ -232,13 +349,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                             }
                                           }
                                         },
-                                        child: const Text("Envoyer"),
+                                        child: Text(sendLabel),
                                       )
                                     ],
                                   ),
                                 );
                               },
-                              child: const Text("Mot de passe oublié ?", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                              child: Text(forgotPasswordLabel, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -269,19 +386,19 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             child: context.watch<AppState>().isLoading 
                                 ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                : const Text("Se connecter", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                : Text(loginBtnLabel, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                           ),
                           const SizedBox(height: 24),
                           
                           // Or Divider
-                          const Row(
+                          Row(
                             children: [
-                              Expanded(child: Divider(color: AppColors.surfaceAlt)),
+                              const Expanded(child: Divider(color: AppColors.surfaceAlt)),
                               Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 16),
-                                child: Text("OU", style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.bold)),
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                child: Text(orDivider, style: const TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.bold)),
                               ),
-                              Expanded(child: Divider(color: AppColors.surfaceAlt)),
+                              const Expanded(child: Divider(color: AppColors.surfaceAlt)),
                             ],
                           ),
                           const SizedBox(height: 24),
@@ -304,7 +421,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               }
                             },
                             icon: const Icon(Icons.g_mobiledata, size: 32, color: Colors.black87),
-                            label: const Text("Continuer avec Google", style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
+                            label: Text(googleBtnLabel, style: const TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
                             style: OutlinedButton.styleFrom(
                               backgroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -332,7 +449,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               }
                             },
                             icon: const Icon(Icons.apple, size: 28, color: Colors.white),
-                            label: const Text("Continuer avec Apple", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                            label: Text(appleBtnLabel, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                             style: OutlinedButton.styleFrom(
                               backgroundColor: Colors.black,
                               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -353,9 +470,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               );
                             },
                             icon: const Icon(Icons.scoreboard_rounded, color: AppColors.gold, size: 20),
-                            label: const Text(
-                              "Accès Libre · Voir BeachScore & Résultats",
-                              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                            label: Text(
+                              guestBtnLabel,
+                              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                             ),
                             style: OutlinedButton.styleFrom(
                               backgroundColor: const Color(0xFF1E293B),
@@ -370,7 +487,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 8.0),
                             child: Text(
-                              "En vous connectant, vous acceptez les Conditions Générales d'Utilisation (CGU / EULA) et la Politique de Confidentialité de BeachMatch.",
+                              eulaNotice,
                               textAlign: TextAlign.center,
                               style: TextStyle(color: AppColors.textMuted.withValues(alpha: 0.8), fontSize: 10, height: 1.3),
                             ),
@@ -381,7 +498,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Text("Pas encore de compte ? ", style: TextStyle(color: AppColors.textMain, fontWeight: FontWeight.w600)),
+                              Text(noAccountLabel, style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.w600)),
                               GestureDetector(
                                 onTap: () {
                                   Navigator.push(
@@ -389,7 +506,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     MaterialPageRoute(builder: (context) => const SignupScreen()),
                                   );
                                 },
-                                child: const Text("S'inscrire", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 16)),
+                                child: Text(signUpActionLabel, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 16)),
                               ),
                             ],
                           ),

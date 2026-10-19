@@ -15,8 +15,30 @@ import '../screens/map_screen.dart';
 import 'pulsing_radar_dot.dart';
 
 /// Calcule des coordonnées approximatives à partir d'un nom de ville/localisation
-(double, double) getUserCoordinates(String? location) {
+(double, double) getUserCoordinates(String? location, {bool isBrazilian = false}) {
   final text = (location ?? '').toLowerCase();
+
+  // Villes et régions du Brésil 🇧🇷
+  if (text.contains('fortaleza') || text.contains('ceará') || text.contains('ceara')) return (-3.7319, -38.5267);
+  if (text.contains('são paulo') || text.contains('sao paulo')) return (-23.5505, -46.6333);
+  if (text.contains('rio de janeiro') || text.contains('copacabana') || text.contains('ipanema') || text.contains('leblon')) return (-22.9068, -43.1729);
+  if (text.contains('cuiabá') || text.contains('cuiaba') || text.contains('mato grosso')) return (-15.6014, -56.0979);
+  if (text.contains('brasília') || text.contains('brasilia') || text.contains('distrito federal')) return (-15.7975, -47.8919);
+  if (text.contains('santos') || text.contains('gonzaga')) return (-23.9618, -46.3322);
+  if (text.contains('curitiba') || text.contains('paraná') || text.contains('parana')) return (-25.4284, -49.2733);
+  if (text.contains('florianópolis') || text.contains('florianopolis') || text.contains('santa catarina') || text.contains('camboriú') || text.contains('camboriu')) return (-27.5954, -48.5480);
+  if (text.contains('salvador') || text.contains('bahia')) return (-12.9777, -38.5016);
+  if (text.contains('belo horizonte') || text.contains('minas')) return (-19.9245, -43.9352);
+  if (text.contains('palmas') || text.contains('tocantins')) return (-10.1847, -48.3336);
+  if (text.contains('porto alegre')) return (-30.0346, -51.2177);
+  if (text.contains('ribeirão') || text.contains('ribeirao')) return (-21.1767, -47.8208);
+  if (text.contains('campinas')) return (-22.9071, -47.0632);
+  if (text.contains('vitória') || text.contains('vitoria') || text.contains('espírito santo')) return (-20.3155, -40.3128);
+  if (text.contains('natal') || text.contains('rio grande do norte')) return (-5.7945, -35.2110);
+  if (text.contains('recife') || text.contains('pernambuco')) return (-8.0476, -34.8770);
+  if (text.contains('bresil') || text.contains('brasil') || isBrazilian) return (-15.7801, -47.9292); // Centre Brésil par défaut
+
+  // Villes de France 🇫🇷
   if (text.contains('marseille')) return (43.2965, 5.3698);
   if (text.contains('nice') || text.contains('cannes') || text.contains('antibes')) return (43.7102, 7.2620);
   if (text.contains('bordeaux') || text.contains('arcachon')) return (44.8378, -0.5792);
@@ -50,7 +72,12 @@ class HomeRadarCard extends StatelessWidget {
     // Écoute sélective du GPS pour éviter les rebuilds inutiles
     final pos = context.select<AppState, Position?>((s) => s.currentPosition);
     final bool hasGps = pos != null;
-    final userCoords = hasGps ? (pos.latitude, pos.longitude) : getUserCoordinates(user?.location);
+    final locale = WidgetsBinding.instance.platformDispatcher.locale;
+    final bool isBr = (user?.isBrazilian == true) ||
+        (user?.country.toUpperCase() == 'BR') ||
+        (locale.countryCode?.toUpperCase() == 'BR') ||
+        (locale.languageCode.toLowerCase() == 'pt');
+    final userCoords = hasGps ? (pos.latitude, pos.longitude) : getUserCoordinates(user?.location, isBrazilian: isBr);
 
     // Trier les terrains par distance réelle
     final List<Map<String, dynamic>> courtsWithDist = courts.map((court) {
@@ -66,12 +93,12 @@ class HomeRadarCard extends StatelessWidget {
       };
     }).toList();
 
-    courtsWithDist.sort((a, b) => (a['distKm'] as double).compareTo(b['distKm'] as double));
+    courtsWithDist.sort((a, b) => ((a['distKm'] as num?)?.toDouble() ?? 0.0).compareTo((b['distKm'] as num?)?.toDouble() ?? 0.0));
 
     final nearest = courtsWithDist.first;
-    final CourtModel nearestCourt = nearest['court'];
-    final double nearestDist = nearest['distKm'];
-    final int closeCourtsCount = courtsWithDist.where((c) => (c['distKm'] as double) <= 35.0).length;
+    final CourtModel nearestCourt = nearest['court'] as CourtModel;
+    final double nearestDist = (nearest['distKm'] as num?)?.toDouble() ?? 0.0;
+    final int closeCourtsCount = courtsWithDist.where((c) => ((c['distKm'] as num?)?.toDouble() ?? 0.0) <= 35.0).length;
 
     // Détermination propre et claire du libellé de position
     final rawLoc = (user?.location ?? '').trim().toLowerCase();
@@ -86,11 +113,13 @@ class HomeRadarCard extends StatelessWidget {
     bool showGpsAction = false;
     final userLocation = user?.location;
     if (hasGps) {
-      locationLabel = nearestCourt.city.isNotEmpty ? "Autour de moi (${nearestCourt.city})" : "Autour de moi (GPS)";
+      locationLabel = nearestCourt.city.isNotEmpty 
+          ? (isBr ? "Perto de mim (${nearestCourt.city})" : "Autour de moi (${nearestCourt.city})") 
+          : (isBr ? "Perto de mim (GPS)" : "Autour de moi (GPS)");
     } else if (userLocation != null && userLocation.isNotEmpty && !isClubOrGeneric) {
       locationLabel = userLocation.split(',').first.trim();
     } else {
-      locationLabel = "Activer le GPS 📍";
+      locationLabel = isBr ? "Ativar GPS 📍" : "Activer le GPS 📍";
       showGpsAction = true;
     }
 
@@ -207,7 +236,9 @@ class HomeRadarCard extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              nearestCourt.accessType == 'CLUB_ONLY' ? "Club" : "Terrain",
+                              nearestCourt.accessType == 'CLUB_ONLY' 
+                                  ? (isBr ? "Arena" : "Club") 
+                                  : (isBr ? "Quadra" : "Terrain"),
                               style: const TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(width: 3),
@@ -232,14 +263,18 @@ class HomeRadarCard extends StatelessWidget {
                     ),
                     _buildRadarMetricChip(
                       icon: Icons.sports_tennis,
-                      label: "$closeCourtsCount spot${closeCourtsCount > 1 ? 's' : ''} proche${closeCourtsCount > 1 ? 's' : ''}",
+                      label: isBr
+                          ? "$closeCourtsCount ${closeCourtsCount > 1 ? 'quadras próximas' : 'quadra próxima'}"
+                          : "$closeCourtsCount spot${closeCourtsCount > 1 ? 's' : ''} proche${closeCourtsCount > 1 ? 's' : ''}",
                       color: AppColors.gold,
                     ),
                     _buildRadarMetricChip(
                       icon: Icons.check_circle_outline,
                       label: nearestCourt.accessType == 'BEACH_FREE'
-                          ? "Plage libre"
-                          : (nearestCourt.accessType == 'CLUB_ONLY' ? "Club affilié" : "Complexe sportif"),
+                          ? (isBr ? "Praia livre" : "Plage libre")
+                          : (nearestCourt.accessType == 'CLUB_ONLY' 
+                              ? (isBr ? "Arena / Clube" : "Club affilié") 
+                              : (isBr ? "Complexo esportivo" : "Complexe sportif")),
                       color: const Color(0xFF00D2FF),
                     ),
                   ],
@@ -250,11 +285,11 @@ class HomeRadarCard extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () => _showRadarScannerModal(context, courtsWithDist),
+                    onPressed: () => _showRadarScannerModal(context, courtsWithDist, isBr: isBr),
                     icon: const Icon(Icons.radar, size: 18, color: Colors.white),
-                    label: const Text(
-                      "Explorer les terrains autour de moi",
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                    label: Text(
+                      isBr ? "Explorar quadras e arenas perto de mim" : "Explorer les terrains autour de moi",
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.coral,
@@ -342,7 +377,7 @@ class HomeRadarCard extends StatelessWidget {
     }
   }
 
-  static void _showRadarScannerModal(BuildContext context, List<Map<String, dynamic>> courtsWithDist) {
+  static void _showRadarScannerModal(BuildContext context, List<Map<String, dynamic>> courtsWithDist, {bool isBr = false}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -370,15 +405,23 @@ class HomeRadarCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Row(
+                Row(
                   children: [
-                    PulsingRadarDot(color: Color(0xFF00D2FF), size: 12),
-                    SizedBox(width: 10),
-                    Text("Radar des Terrains", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+                    const PulsingRadarDot(color: Color(0xFF00D2FF), size: 12),
+                    const SizedBox(width: 10),
+                    Text(
+                      isBr ? "Radar de Quadras & Arenas" : "Radar des Terrains",
+                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                const Text("Spots de beach tennis classés par proximité immédiate (cliquez pour ouvrir)", style: TextStyle(color: Colors.white70, fontSize: 13)),
+                Text(
+                  isBr
+                      ? "Quadras e arenas de beach tennis por proximidade (toque para abrir)"
+                      : "Spots de beach tennis classés par proximité immédiate (cliquez pour ouvrir)",
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
                 const SizedBox(height: 16),
                 Expanded(
                   child: ListView.builder(
@@ -387,6 +430,11 @@ class HomeRadarCard extends StatelessWidget {
                       final item = courtsWithDist[index];
                       final CourtModel court = item['court'];
                       final double dist = item['distKm'];
+
+                      final accessLabel = court.accessType == 'BEACH_FREE'
+                          ? (isBr ? 'Praia livre' : 'Plage libre')
+                          : (court.accessType == 'CLUB_ONLY' ? (isBr ? 'Arena' : 'Club') : (isBr ? 'Complexo' : 'Complexe'));
+                      final placeLabel = court.city.isNotEmpty ? court.city : (court.country.isNotEmpty ? court.country : (isBr ? 'Brasil' : 'França'));
 
                       return GestureDetector(
                         onTap: () {
@@ -418,7 +466,7 @@ class HomeRadarCard extends StatelessWidget {
                                   children: [
                                     Text(court.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
                                     const SizedBox(height: 2),
-                                    Text("${court.city.isNotEmpty ? court.city : court.country} · ${court.accessType == 'BEACH_FREE' ? 'Plage libre' : (court.accessType == 'CLUB_ONLY' ? 'Club' : 'Complexe')}", style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                                    Text("$placeLabel · $accessLabel", style: const TextStyle(color: Colors.white60, fontSize: 11)),
                                   ],
                                 ),
                               ),
@@ -438,7 +486,7 @@ class HomeRadarCard extends StatelessWidget {
                                     children: [
                                       IconButton(
                                         icon: const Icon(Icons.directions, color: Colors.blueAccent, size: 20),
-                                        tooltip: "Itinéraire GPS",
+                                        tooltip: isBr ? "Itinerário GPS" : "Itinéraire GPS",
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(),
                                         onPressed: () {
@@ -449,7 +497,7 @@ class HomeRadarCard extends StatelessWidget {
                                       const SizedBox(width: 10),
                                       IconButton(
                                         icon: const Icon(Icons.add_circle, color: AppColors.coral, size: 20),
-                                        tooltip: "Créer un match",
+                                        tooltip: isBr ? "Criar partida" : "Créer un match",
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(),
                                         onPressed: () {
