@@ -79,7 +79,6 @@ void main() {
           dhBracket.mainMatches.length;
 
       expect(totalMatches, equals(19));
-      print("Total real matches to schedule across courts: $totalMatches");
     });
   });
 }

@@ -1168,12 +1168,15 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
                         size: 16,
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        _currentPresetIsOfficial ? "Répartition Officielle active" : "Scénario de simulation",
-                        style: TextStyle(
-                          color: _currentPresetIsOfficial ? const Color(0xFF4ADE80) : AppColors.gold,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
+                      Expanded(
+                        child: Text(
+                          _currentPresetIsOfficial ? "Répartition Officielle" : "Simulation",
+                          style: TextStyle(
+                            color: _currentPresetIsOfficial ? const Color(0xFF4ADE80) : AppColors.gold,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -1181,22 +1184,24 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
                   const SizedBox(height: 2),
                   Text(
                     _currentPresetIsOfficial
-                        ? "Terrains officiellement assignés aux matches"
-                        : "Validez pour synchroniser les terrains aux matches",
+                        ? "Terrains assignés aux matches"
+                        : "Synchroniser avec les matches",
                     style: const TextStyle(
                       color: Colors.white60,
                       fontSize: 10.5,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: _currentPresetIsOfficial ? const Color(0xFF16A34A) : AppColors.gold,
                 foregroundColor: _currentPresetIsOfficial ? Colors.white : Colors.black,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 3,
               ),
@@ -1214,7 +1219,7 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
                       size: 16,
                     ),
               label: Text(
-                _currentPresetIsOfficial ? "Appliquée (Mettre à jour)" : "Appliquer aux matches",
+                _currentPresetIsOfficial ? "Mettre à jour" : "Appliquer",
                 style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
               ),
               onPressed: _isApplying ? null : _applyCourtsToTournament,

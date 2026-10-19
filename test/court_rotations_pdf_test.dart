@@ -81,6 +81,5 @@ void main() {
 
     expect(pdfBytes, isNotNull);
     expect(pdfBytes.length, greaterThan(1000));
-    print("PDF bytes generated cleanly: ${pdfBytes.length} bytes");
   });
 }

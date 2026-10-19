@@ -3295,22 +3295,31 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
           }
         }
 
-        String statusLabel = "TABLEAU OFFICIEL FFT";
+        final isBr = (widget.tournament.country ?? '').toUpperCase() == 'BR' ||
+            context.read<AppState>().currentUser?.isBrazilian == true;
+        final isItf = widget.tournament.category.toUpperCase().contains('ITF') ||
+            (widget.tournament.category.toUpperCase().contains('BT') && (widget.tournament.country ?? '').toUpperCase() != 'FR');
+
+        String statusLabel = isItf ? "TABLEAU OFFICIEL ITF" : (isBr ? "CHAVE OFICIAL CBT" : "TABLEAU OFFICIEL FFT");
         Color statusColor = AppColors.gold;
-        String desc = "Consultez l'arbre, les têtes de série et les résultats des matches";
+        String desc = isBr 
+            ? "Consulte a chave, cabeças de chave e resultados"
+            : "Consultez l'arbre, les têtes de série et les résultats des matches";
 
         if (status == 'finished') {
-          statusLabel = "TOURNOI TERMINÉ";
+          statusLabel = isBr ? "TORNEIO ENCERRADO" : "TOURNOI TERMINÉ";
           statusColor = const Color(0xFF10B981);
-          desc = "Résultats officiels et palmarès final du tournoi";
+          desc = isBr ? "Resultados oficiais e premiação final" : "Résultats officiels et palmarès final du tournoi";
         } else if (isGenerated || status == 'in_progress') {
-          statusLabel = "TABLEAU EN DIRECT";
+          statusLabel = isBr ? "CHAVE AO VIVO" : "TABLEAU EN DIRECT";
           statusColor = AppColors.coral;
-          desc = "$pairsCount paires en lice • Scores des matches en temps réel";
+          desc = isBr 
+              ? "$pairsCount duplas inscritas • Resultados em tempo real" 
+              : "$pairsCount paires en lice • Scores des matches en temps réel";
         } else if (pairsCount > 0) {
-          statusLabel = "INSCRIPTIONS EN COURS";
+          statusLabel = isBr ? "INSCRIÇÕES ABERTAS" : "INSCRIPTIONS EN COURS";
           statusColor = AppColors.gold;
-          desc = "$pairsCount paires inscrites • Tirage officiel à venir";
+          desc = isBr ? "$pairsCount duplas inscritas • Chave oficial em breve" : "$pairsCount paires inscrites • Tirage officiel à venir";
         }
 
         return GestureDetector(
@@ -3493,6 +3502,8 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   }
 
   Widget _buildCourtScheduleHeroCard(BuildContext context) {
+    final isBr = (widget.tournament.country ?? '').toUpperCase() == 'BR' ||
+        context.read<AppState>().currentUser?.isBrazilian == true;
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('tournaments')
@@ -3539,15 +3550,15 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                 _showCourtScheduleConfigDialog();
               },
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 child: Row(
                   children: [
                     Container(
-                      width: 48,
-                      height: 48,
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
                         color: hasSchedule ? AppColors.gold.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: hasSchedule ? AppColors.gold.withValues(alpha: 0.4) : Colors.white12,
                         ),
@@ -3555,80 +3566,86 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                       child: Icon(
                         Icons.stadium_rounded,
                         color: hasSchedule ? AppColors.gold : Colors.white70,
-                        size: 26,
+                        size: 24,
                       ),
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              const Text(
-                                "TERRAINS & MATCHS A VENIR",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 13,
-                                  letterSpacing: 0.5,
+                              Flexible(
+                                child: Text(
+                                  isBr ? "TERRENOS & JOGOS" : "TERRAINS & MATCHS",
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 12.5,
+                                    letterSpacing: 0.4,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              if (hasSchedule)
+                              if (hasSchedule) ...[
+                                const SizedBox(width: 6),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFF16A34A).withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(6),
+                                    borderRadius: BorderRadius.circular(5),
                                     border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.5)),
                                   ),
-                                  child: const Text(
-                                    "OFFICIEL",
-                                    style: TextStyle(
+                                  child: Text(
+                                    isBr ? "OFICIAL" : "OFFICIEL",
+                                    style: const TextStyle(
                                       color: Color(0xFF4ADE80),
-                                      fontSize: 9,
+                                      fontSize: 8.5,
                                       fontWeight: FontWeight.w900,
                                     ),
                                   ),
                                 ),
+                              ],
                             ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 3),
                           Text(
                             hasSchedule
-                                ? "$numCourts terrains mutualises - $cats - Rotations & Horaires"
-                                : "Consulter la repartition des terrains et des rotations previsionnelles",
+                                ? "$numCourts ${isBr ? 'quadras' : 'terrains'} · $cats · Horaires"
+                                : (isBr ? "Consultar distribuição e horários" : "Consulter les rotations prévisionnelles"),
                             style: const TextStyle(
                               color: Colors.white70,
-                              fontSize: 11.5,
+                              fontSize: 11,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                       decoration: BoxDecoration(
                         color: hasSchedule ? AppColors.gold : Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            "Consulter",
+                            isBr ? "Ver" : "Consulter",
                             style: TextStyle(
                               color: hasSchedule ? Colors.black : Colors.white,
-                              fontSize: 11,
+                              fontSize: 10.5,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
                           const SizedBox(width: 2),
                           Icon(
                             Icons.chevron_right_rounded,
-                            size: 16,
+                            size: 14,
                             color: hasSchedule ? Colors.black : Colors.white70,
                           ),
                         ],
