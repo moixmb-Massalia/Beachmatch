@@ -1,5 +1,5 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -23,6 +23,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late TextEditingController _locationController;
   late TextEditingController _licenceController;
   late TextEditingController _rankingController;
+  late TextEditingController _clubController;
   int _selectedLevel = 1;
   bool _isSaving = false;
   bool _isVerifying = false;
@@ -40,16 +41,18 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   void initState() {
     super.initState();
     final user = context.read<AppState>().currentUser;
+    final isBr = user?.isBrazilian == true;
     _nameController = TextEditingController(text: user?.displayName ?? "");
     _locationController = TextEditingController(text: user?.location ?? "");
-    _licenceController = TextEditingController(text: user?.licenceNumber ?? '');
-    _rankingController = TextEditingController(text: user?.ranking ?? '');
+    _licenceController = TextEditingController(text: isBr ? (user?.cbtId ?? user?.licenceNumber ?? '') : (user?.licenceNumber ?? ''));
+    _rankingController = TextEditingController(text: isBr ? (user?.cbtCategory ?? user?.ranking ?? '') : (user?.ranking ?? ''));
+    _clubController = TextEditingController(text: user?.clubName ?? "");
     _selectedLevel = user?.level ?? 1;
     _existingPhotoUrl = user?.photoUrl;
     _isLookingForPartner = user?.isLookingForPartner ?? false;
     _preferredPosition = user?.preferredPosition;
     _availability = user?.availability;
-    _isLicenceVerified = (user?.licenceNumber != null && user!.licenceNumber!.trim().isNotEmpty);
+    _isLicenceVerified = (!isBr && user?.licenceNumber != null && user!.licenceNumber!.trim().isNotEmpty);
     _verifiedEloScore = user?.eloScore ?? 0;
     _clubId = user?.clubId;
     _clubName = user?.clubName;
@@ -61,6 +64,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _locationController.dispose();
     _licenceController.dispose();
     _rankingController.dispose();
+    _clubController.dispose();
     super.dispose();
   }
 
@@ -213,21 +217,25 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         photoUrl = await ref.getDownloadURL();
       }
 
+      final isBr = appState.currentUser?.isBrazilian == true;
       final currentLicence = _licenceController.text.trim();
       final licenceToSave = currentLicence.isNotEmpty ? currentLicence : null;
+      final clubNameToSave = _clubController.text.trim().isNotEmpty ? _clubController.text.trim() : _clubName;
 
       await appState.updateProfile(
         displayName: _nameController.text.trim(),
         location: _locationController.text.trim(),
         level: _selectedLevel,
         photoUrl: photoUrl,
-        licenceNumber: licenceToSave,
+        licenceNumber: isBr ? null : licenceToSave,
         ranking: _rankingController.text.trim().isNotEmpty ? _rankingController.text.trim() : null,
         eloScore: (_isLicenceVerified && _verifiedEloScore > 0) ? _verifiedEloScore : appState.currentUser?.eloScore,
         preferredPosition: _preferredPosition,
         availability: _availability,
         clubId: _clubId,
-        clubName: _clubName,
+        clubName: clubNameToSave,
+        cbtId: isBr ? licenceToSave : null,
+        cbtCategory: isBr && _rankingController.text.trim().isNotEmpty ? _rankingController.text.trim() : null,
       );
 
       if (_isLookingForPartner != appState.currentUser?.isLookingForPartner) {
@@ -395,124 +403,220 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                           ),
                           const SizedBox(height: 18),
 
-                          // N° Licence / CBT ID
-                          Builder(
-                            builder: (context) {
-                              final isBr = context.read<AppState>().currentUser?.isBrazilian == true;
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    isBr ? "ID / Filiação CBT (Opcional)" : AppLocalizations.of(context).profileEditLicence,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: TextFormField(
-                                          controller: _licenceController,
-                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                          decoration: InputDecoration(
-                                            hintText: isBr ? "Ex: 207929" : "Ex: 1234567A",
-                                            hintStyle: const TextStyle(color: Colors.white54),
-                                            filled: true,
-                                            fillColor: Colors.white.withValues(alpha: 0.15),
-                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
-                                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
-                                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
-                                          ),
-                                        ),
+                          // Section Spécifique Fédération (CBT pour le Brésil, FFT pour la France)
+                          if (isBr) ...[
+                            // Categoria CBT
+                            const Text("Categoria CBT · Beach Tennis 🇧🇷", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                            const SizedBox(height: 4),
+                            Text("Selecione sua categoria oficial de torneios ou nível de jogo", style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6))),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                'Iniciante',
+                                'Categoria D',
+                                'Categoria C',
+                                'Categoria B',
+                                'Categoria A',
+                                'PRO',
+                              ].map((cat) {
+                                final isSelected = _rankingController.text.trim().toLowerCase() == cat.toLowerCase();
+                                return InkWell(
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    setState(() {
+                                      _rankingController.text = cat;
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.25),
+                                        width: isSelected ? 1.5 : 1,
                                       ),
-                                      if (!isBr) ...[
-                                        const SizedBox(width: 10),
-                                        ElevatedButton(
-                                          onPressed: _isVerifying ? null : _verifyLicence,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: AppColors.gold,
-                                            foregroundColor: Colors.black,
-                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                          ),
-                                          child: _isVerifying 
-                                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-                                              : Text(AppLocalizations.of(context).profileEditVerifyBtn, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 18),
-
-                          // Ville
-                          Text(isBr ? "Cidade (busca inteligente)" : "Ville (recherche intelligente)", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                          const SizedBox(height: 8),
-                          SmartCityAutocompleteField(
-                            controller: _locationController,
-                            validator: (val) => val == null || val.trim().isEmpty ? (isBr ? "Cidade obrigatória" : "Ville requise") : null,
-                          ),
-                          const SizedBox(height: 18),
-
-                          // Club FFT (si détecté ou rattaché)
-                          if (_clubName != null && _clubName!.isNotEmpty) ...[
-                            Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: AppColors.gold.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.shield_rounded, color: AppColors.gold, size: 24),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          (context.read<AppState>().currentUser?.isBrazilian == true) ? "Arena Oficial CBT" : "Club Officiel FFT",
-                                          style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w900),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          _clubName!,
-                                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                                        ),
-                                      ],
+                                    ),
+                                    child: Text(
+                                      cat,
+                                      style: TextStyle(
+                                        color: isSelected ? Colors.black : Colors.white,
+                                        fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                                        fontSize: 12.5,
+                                      ),
                                     ),
                                   ),
-                                  const Icon(Icons.verified_rounded, color: Colors.greenAccent, size: 18),
-                                ],
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 10),
+                            TextFormField(
+                              controller: _rankingController,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: Colors.white.withValues(alpha: 0.15),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
+                                hintText: 'Ex: Categoria B, Sub-18, +40, etc.',
+                                hintStyle: const TextStyle(color: Colors.white54),
                               ),
                             ),
                             const SizedBox(height: 18),
-                          ],
-                          const SizedBox(height: 18),
 
-                          // Classement FFT Ten'Up / CBT
-                          Text(
-                            (context.read<AppState>().currentUser?.isBrazilian == true) ? "Categoria / Ranking CBT" : AppLocalizations.of(context).profileEditFft,
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                          const SizedBox(height: 8),
-                          TextFormField(
-                            controller: _rankingController,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: Colors.white.withValues(alpha: 0.15),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
-                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
-                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
-                              hintText: (context.read<AppState>().currentUser?.isBrazilian == true) ? 'Ex: PRO, Categoria A, B, C, D' : 'Optionnel (ex: 250, NC)',
-                              hintStyle: const TextStyle(color: Colors.white54),
+                            // ID Filiação CBT
+                            const Text("ID / Filiação CBT (Opcional)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                            const SizedBox(height: 4),
+                            Text("Seu número de registro oficial na Confederação Brasileira de Tênis", style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6))),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _licenceController,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                              decoration: InputDecoration(
+                                hintText: "Ex: 207929",
+                                hintStyle: const TextStyle(color: Colors.white54),
+                                filled: true,
+                                fillColor: Colors.white.withValues(alpha: 0.15),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 28),
+                            const SizedBox(height: 18),
+
+                            // Arena / Clube
+                            const Text("Arena / Clube de Beach Tennis", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                            const SizedBox(height: 4),
+                            Text("Sua arena principal ou centro de treinamento habitual", style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6))),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _clubController,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                              decoration: InputDecoration(
+                                hintText: "Ex: Arena Ipanema, Calçadão, etc.",
+                                hintStyle: const TextStyle(color: Colors.white54),
+                                filled: true,
+                                fillColor: Colors.white.withValues(alpha: 0.15),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // Ville
+                            const Text("Cidade (busca inteligente)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                            const SizedBox(height: 8),
+                            SmartCityAutocompleteField(
+                              controller: _locationController,
+                              validator: (val) => val == null || val.trim().isEmpty ? "Cidade obrigatória" : null,
+                            ),
+                            const SizedBox(height: 28),
+                          ] else ...[
+                            // N° Licence FFT
+                            Text(AppLocalizations.of(context).profileEditLicence, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _licenceController,
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                    decoration: InputDecoration(
+                                      hintText: "Ex: 1234567A",
+                                      hintStyle: const TextStyle(color: Colors.white54),
+                                      filled: true,
+                                      fillColor: Colors.white.withValues(alpha: 0.15),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                ElevatedButton(
+                                  onPressed: _isVerifying ? null : _verifyLicence,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.gold,
+                                    foregroundColor: Colors.black,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  ),
+                                  child: _isVerifying 
+                                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                                      : Text(AppLocalizations.of(context).profileEditVerifyBtn, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+
+                            // Ville
+                            const Text("Ville (recherche intelligente)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                            const SizedBox(height: 8),
+                            SmartCityAutocompleteField(
+                              controller: _locationController,
+                              validator: (val) => val == null || val.trim().isEmpty ? "Ville requise" : null,
+                            ),
+                            const SizedBox(height: 18),
+
+                            // Club FFT (si détecté ou rattaché)
+                            if (_clubName != null && _clubName!.isNotEmpty) ...[
+                              Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: AppColors.gold.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.shield_rounded, color: AppColors.gold, size: 24),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            "Club Officiel FFT",
+                                            style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w900),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            _clubName!,
+                                            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(Icons.verified_rounded, color: Colors.greenAccent, size: 18),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                            ],
+
+                            // Classement FFT Ten'Up
+                            Text(AppLocalizations.of(context).profileEditFft, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _rankingController,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: Colors.white.withValues(alpha: 0.15),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
+                                hintText: 'Optionnel (ex: 250, NC)',
+                                hintStyle: const TextStyle(color: Colors.white54),
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                          ],
 
                           // Niveau auto-évalué
                           Text(AppLocalizations.of(context).profileEditLevel, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),

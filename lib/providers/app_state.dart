@@ -713,6 +713,8 @@ class AppState extends ChangeNotifier {
     String? availability,
     String? clubId,
     String? clubName,
+    String? cbtId,
+    String? cbtCategory,
   }) async {
     if (_currentUser == null) return;
     final locNorm = location.toLowerCase();
@@ -741,8 +743,17 @@ class AppState extends ChangeNotifier {
     }
 
     final isBr = updatedCountry.toUpperCase() == 'BR' || _currentUser!.isBrazilian;
-    final finalCbtId = isBr && licenceNumber != null && licenceNumber.isNotEmpty ? licenceNumber : _currentUser!.cbtId;
-    final finalCbtCat = isBr && ranking != null && ranking.isNotEmpty ? ranking : _currentUser!.cbtCategory;
+    final finalCbtId = (cbtId != null && cbtId.trim().isNotEmpty)
+        ? cbtId.trim()
+        : (isBr && licenceNumber != null && licenceNumber.trim().isNotEmpty
+            ? licenceNumber.trim()
+            : _currentUser!.cbtId);
+    final finalCbtCat = (cbtCategory != null && cbtCategory.trim().isNotEmpty)
+        ? cbtCategory.trim()
+        : (isBr && ranking != null && ranking.trim().isNotEmpty
+            ? ranking.trim()
+            : _currentUser!.cbtCategory);
+    final finalLicence = isBr ? null : (licenceNumber?.trim().isNotEmpty == true ? licenceNumber!.trim() : null);
 
     _currentUser = _currentUser!.copyWith(
       displayName: displayName,
@@ -750,8 +761,8 @@ class AppState extends ChangeNotifier {
       country: updatedCountry,
       level: level,
       photoUrl: photoUrl,
-      licenceNumber: licenceNumber,
-      ranking: ranking,
+      licenceNumber: finalLicence,
+      ranking: isBr ? (finalCbtCat ?? ranking) : ranking,
       eloScore: eloScore ?? _currentUser!.eloScore,
       preferredPosition: preferredPosition ?? _currentUser!.preferredPosition,
       availability: availability ?? _currentUser!.availability,
@@ -761,7 +772,7 @@ class AppState extends ChangeNotifier {
       cbtCategory: finalCbtCat,
     );
     
-    final searchTokens = _generateSearchTokens(displayName, licenceNumber);
+    final searchTokens = _generateSearchTokens(displayName, isBr ? finalCbtId : finalLicence);
 
     await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set({
       'displayName': displayName,
@@ -771,15 +782,16 @@ class AppState extends ChangeNotifier {
       'level': level,
       'searchTokens': searchTokens,
       if (photoUrl != null) 'photoUrl': photoUrl,
-      if (licenceNumber != null) 'licenceNumber': licenceNumber,
-      if (ranking != null) 'ranking': ranking,
+      if (!isBr && finalLicence != null) 'licenceNumber': finalLicence,
+      if (isBr) 'licenceNumber': FieldValue.delete(),
+      if (ranking != null || finalCbtCat != null) 'ranking': isBr ? finalCbtCat : ranking,
       if (eloScore != null) 'eloScore': eloScore,
       if (preferredPosition != null) 'preferredPosition': preferredPosition,
       if (availability != null) 'availability': availability,
       if (clubId != null) 'clubId': clubId,
-      if (clubName != null) 'clubName': clubName,
-      if (finalCbtId != null) 'cbtId': finalCbtId,
-      if (finalCbtCat != null) 'cbtCategory': finalCbtCat,
+      if (clubName != null && clubName.isNotEmpty) 'clubName': clubName,
+      if (finalCbtId != null && finalCbtId.isNotEmpty) 'cbtId': finalCbtId,
+      if (finalCbtCat != null && finalCbtCat.isNotEmpty) 'cbtCategory': finalCbtCat,
     }, SetOptions(merge: true));
     
     if (clubId != null) {

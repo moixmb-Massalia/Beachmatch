@@ -448,9 +448,15 @@ class _PlayersScreenState extends State<PlayersScreen> {
                             ),
                           ),
                           child: Text(
-                            (player.ranking != null && player.ranking!.isNotEmpty && player.ranking != 'NC')
-                                ? (isBr ? "🏅 Ranking : Nº ${player.ranking}" : "🏅 Clt Ten'Up : N° ${player.ranking}")
-                                : (isBr ? "🏅 Sem ranking (NC)" : "🏅 Clt : Non classé (NC)"),
+                            isBr
+                                ? (player.cbtCategory != null && player.cbtCategory!.isNotEmpty
+                                    ? "🇧🇷 ${player.cbtCategory}"
+                                    : (player.ranking != null && player.ranking!.isNotEmpty && player.ranking != 'NC'
+                                        ? "🇧🇷 ${player.ranking}"
+                                        : "🇧🇷 Atleta Amador"))
+                                : ((player.ranking != null && player.ranking!.isNotEmpty && player.ranking != 'NC')
+                                    ? "🏅 Clt Ten'Up : N° ${player.ranking}"
+                                    : "🏅 Clt : Non classé (NC)"),
                             style: TextStyle(
                               color: (player.ranking != null && player.ranking!.isNotEmpty && player.ranking != 'NC')
                                   ? AppColors.gold

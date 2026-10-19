@@ -323,14 +323,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(color: AppColors.gold.withValues(alpha: 0.7)),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.gavel_rounded, color: AppColors.gold, size: 15),
-                                SizedBox(width: 6),
+                                const Icon(Icons.gavel_rounded, color: AppColors.gold, size: 15),
+                                const SizedBox(width: 6),
                                 Text(
-                                  "Arbitre Officiel JAT FFT ⚖️",
-                                  style: TextStyle(color: AppColors.gold, fontSize: 11.5, fontWeight: FontWeight.w900),
+                                  player.isBrazilian ? "Árbitro Oficial CBT ⚖️" : "Arbitre Officiel JAT FFT ⚖️",
+                                  style: const TextStyle(color: AppColors.gold, fontSize: 11.5, fontWeight: FontWeight.w900),
                                 ),
                               ],
                             ),
@@ -468,11 +468,17 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                         // Stats Grid (Niveau · Classement FFT / CBT)
                         Row(
                           children: [
-                            Expanded(child: _buildStatCard("Niveau", "Niv. ${player.level}", Icons.star, AppColors.gold)),
+                            Expanded(child: _buildStatCard(player.isBrazilian ? "Nível" : "Niveau", "Niv. ${player.level}", Icons.star, AppColors.gold)),
                             const SizedBox(width: 12),
                             Expanded(child: _buildStatCard(
-                              player.isBrazilian ? "Cat. CBT" : "Rang FFT",
-                              player.isBrazilian && player.cbtCategory != null ? player.cbtCategory! : _formatRanking(player.ranking),
+                              player.isBrazilian ? "Cat. CBT 🇧🇷" : "Rang FFT",
+                              player.isBrazilian
+                                  ? ((player.cbtCategory != null && player.cbtCategory!.isNotEmpty)
+                                      ? player.cbtCategory!
+                                      : ((player.ranking != null && player.ranking!.isNotEmpty && player.ranking != 'NC')
+                                          ? player.ranking!
+                                          : "Amador"))
+                                  : _formatRanking(player.ranking),
                               Icons.workspace_premium,
                               AppColors.coral,
                               progression: player.rankingProgression,
@@ -508,22 +514,55 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text("INFORMATIONS JOUEUR", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.gold, letterSpacing: 1.1)),
-                              _buildInfoRow(
-                                Icons.card_membership,
-                                "Numéro de Licence FFT",
-                                (player.licenceNumber != null && player.licenceNumber!.trim().isNotEmpty)
-                                    ? "n°${player.licenceNumber} · Certifié ✓"
-                                    : "Non renseignée (Non certifié)",
+                              Text(
+                                player.isBrazilian ? "INFORMAÇÕES DO ATLETA 🇧🇷" : "INFORMATIONS JOUEUR",
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.gold, letterSpacing: 1.1),
                               ),
-                              if (player.clubName != null && player.clubName!.isNotEmpty) ...[
+                              if (player.isBrazilian) ...[
+                                _buildInfoRow(
+                                  Icons.badge_rounded,
+                                  "ID / Filiação CBT",
+                                  (player.cbtId != null && player.cbtId!.trim().isNotEmpty)
+                                      ? "ID CBT: ${player.cbtId} · Cadastrado ✓"
+                                      : "Atleta Amador (Não filiado)",
+                                ),
                                 const Divider(color: Colors.white24, height: 24),
-                                _buildInfoRow(Icons.shield_rounded, "Club Officiel FFT", player.clubName!),
+                                _buildInfoRow(
+                                  Icons.military_tech,
+                                  "Categoria CBT",
+                                  (player.cbtCategory != null && player.cbtCategory!.trim().isNotEmpty)
+                                      ? player.cbtCategory!
+                                      : ((player.ranking != null && player.ranking!.trim().isNotEmpty && player.ranking != 'NC')
+                                          ? player.ranking!
+                                          : "Iniciante / Amador"),
+                                ),
+                                if (player.clubName != null && player.clubName!.isNotEmpty) ...[
+                                  const Divider(color: Colors.white24, height: 24),
+                                  _buildInfoRow(Icons.sports_tennis, "Arena / Clube", player.clubName!),
+                                ],
+                                const Divider(color: Colors.white24, height: 24),
+                                _buildInfoRow(
+                                  Icons.calendar_today,
+                                  "Membro desde",
+                                  "${player.createdAt.day.toString().padLeft(2, '0')}/${player.createdAt.month.toString().padLeft(2, '0')}/${player.createdAt.year}",
+                                ),
+                              ] else ...[
+                                _buildInfoRow(
+                                  Icons.card_membership,
+                                  "Numéro de Licence FFT",
+                                  (player.licenceNumber != null && player.licenceNumber!.trim().isNotEmpty)
+                                      ? "n°${player.licenceNumber} · Certifié ✓"
+                                      : "Non renseignée (Non certifié)",
+                                ),
+                                if (player.clubName != null && player.clubName!.isNotEmpty) ...[
+                                  const Divider(color: Colors.white24, height: 24),
+                                  _buildInfoRow(Icons.shield_rounded, "Club Officiel FFT", player.clubName!),
+                                ],
+                                const Divider(color: Colors.white24, height: 24),
+                                _buildInfoRow(Icons.military_tech, "Classement Officiel FFT", _formatRanking(player.ranking)),
+                                const Divider(color: Colors.white24, height: 24),
+                                _buildInfoRow(Icons.calendar_today, "Membre depuis", "${player.createdAt.day}/${player.createdAt.month}/${player.createdAt.year}"),
                               ],
-                              const Divider(color: Colors.white24, height: 24),
-                              _buildInfoRow(Icons.military_tech, "Classement Officiel FFT", _formatRanking(player.ranking)),
-                              const Divider(color: Colors.white24, height: 24),
-                              _buildInfoRow(Icons.calendar_today, "Membre depuis", "${player.createdAt.day}/${player.createdAt.month}/${player.createdAt.year}"),
                               if (currentUser?.isAdmin == true && player.email != null && player.email!.isNotEmpty) ...[
                                 const Divider(color: Colors.white24, height: 24),
                                 _buildInfoRow(Icons.alternate_email_rounded, "Email (Visible Admin)", player.email!),
@@ -802,7 +841,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                     // Switch Arbitre JAT FFT
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text("Arbitre Officiel JAT FFT ⚖️", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      title: Text(player.isBrazilian ? "Árbitro Oficial CBT ⚖️" : "Arbitre Officiel JAT FFT ⚖️", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       subtitle: const Text("Donne accès à l'arbitrage officiel des tournois", style: TextStyle(color: Colors.white54, fontSize: 12)),
                       value: isRef,
                       activeThumbColor: AppColors.gold,

@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../theme/colors.dart';
 import '../providers/app_state.dart';
@@ -299,30 +300,38 @@ class ProfileScreen extends StatelessWidget {
           ],
           if (user.isBrazilian) ...[
             const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF009B3A).withValues(alpha: 0.25), // Verde Brasil
-                    const Color(0xFFFEDF00).withValues(alpha: 0.25), // Amarelo Brasil
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileEditScreen()));
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF009B3A).withValues(alpha: 0.25), // Verde Brasil
+                      const Color(0xFFFEDF00).withValues(alpha: 0.25), // Amarelo Brasil
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFFEDF00).withValues(alpha: 0.6)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text("🇧🇷", style: TextStyle(fontSize: 15)),
+                    const SizedBox(width: 8),
+                    Text(
+                      user.cbtCategory != null && user.cbtCategory!.isNotEmpty
+                          ? "${user.cbtCategory}${user.cbtId != null && user.cbtId!.isNotEmpty ? ' · ID CBT ${user.cbtId}' : ''} · Atleta Oficial"
+                          : "Atleta CBT Brasil 🇧🇷 · Toque para definir categoria",
+                      style: const TextStyle(color: Color(0xFFFEDF00), fontSize: 11.5, fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFFEDF00), size: 11),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFFEDF00).withValues(alpha: 0.6)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text("🇧🇷", style: TextStyle(fontSize: 15)),
-                  const SizedBox(width: 8),
-                  Text(
-                    user.cbtCategory != null && user.cbtCategory!.isNotEmpty
-                        ? "${user.cbtCategory}${user.cbtId != null && user.cbtId!.isNotEmpty ? ' · ID CBT ${user.cbtId}' : ''} · Atleta Oficial"
-                        : "Atleta CBT Brasil 🇧🇷",
-                    style: const TextStyle(color: Color(0xFFFEDF00), fontSize: 11.5, fontWeight: FontWeight.w900),
-                  ),
-                ],
               ),
             ),
           ] else ...[
@@ -498,10 +507,17 @@ class ProfileScreen extends StatelessWidget {
         Expanded(
           child: GestureDetector(
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const FftRankingsScreen()),
-              );
+              if (user.isBrazilian) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ProfileEditScreen()),
+                );
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const FftRankingsScreen()),
+                );
+              }
             },
             child: _buildStatCard(
               rankingLabel, 
