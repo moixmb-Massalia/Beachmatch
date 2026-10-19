@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../../models/club.dart';
 import '../../models/tournament.dart';
@@ -141,6 +142,16 @@ class _PresidentDashboardScreenState extends State<PresidentDashboardScreen> {
   }
 
   Future<void> _deleteTournament(TournamentModel tournament) async {
+    final currentEmail = (FirebaseAuth.instance.currentUser?.email ?? '').toLowerCase().trim();
+    if (currentEmail != 'moixmb@gmail.com') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Action réservée à l'administrateur principal (moixmb@gmail.com)."),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -576,11 +587,12 @@ class _PresidentDashboardScreenState extends State<PresidentDashboardScreen> {
                   );
                 },
               ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                tooltip: "Supprimer",
-                onPressed: () => _deleteTournament(tournament),
-              ),
+              if ((FirebaseAuth.instance.currentUser?.email ?? '').toLowerCase().trim() == 'moixmb@gmail.com')
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                  tooltip: "Supprimer",
+                  onPressed: () => _deleteTournament(tournament),
+                ),
             ],
           ),
         ],

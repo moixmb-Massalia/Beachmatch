@@ -59,12 +59,18 @@ class TournamentPair {
 
   factory TournamentPair.fromMap(Map<String, dynamic> map) {
     return TournamentPair(
-      id: map['id'] ?? '',
-      player1Name: map['player1Name'] ?? '',
-      player1Rank: (map['player1Rank'] is num) ? (map['player1Rank'] as num).toInt() : 9999,
-      player2Name: map['player2Name'] ?? '',
-      player2Rank: (map['player2Rank'] is num) ? (map['player2Rank'] as num).toInt() : 9999,
-      seed: map['seed'] != null ? (map['seed'] as num).toInt() : null,
+      id: map['id']?.toString() ?? '',
+      player1Name: map['player1Name']?.toString() ?? '',
+      player1Rank: (map['player1Rank'] is num)
+          ? (map['player1Rank'] as num).toInt()
+          : (int.tryParse(map['player1Rank']?.toString() ?? '') ?? 9999),
+      player2Name: map['player2Name']?.toString() ?? '',
+      player2Rank: (map['player2Rank'] is num)
+          ? (map['player2Rank'] as num).toInt()
+          : (int.tryParse(map['player2Rank']?.toString() ?? '') ?? 9999),
+      seed: (map['seed'] is num)
+          ? (map['seed'] as num).toInt()
+          : (int.tryParse(map['seed']?.toString() ?? '')),
       isBye: map['isBye'] == true,
     );
   }
@@ -196,23 +202,33 @@ class BracketMatch {
 
   factory BracketMatch.fromMap(Map<String, dynamic> map) {
     return BracketMatch(
-      id: map['id'] ?? '',
-      roundIndex: (map['roundIndex'] is num) ? (map['roundIndex'] as num).toInt() : 0,
-      roundName: map['roundName'] ?? '',
-      matchIndex: (map['matchIndex'] is num) ? (map['matchIndex'] as num).toInt() : 0,
-      pair1: map['pair1'] != null ? TournamentPair.fromMap(Map<String, dynamic>.from(map['pair1'])) : null,
-      pair2: map['pair2'] != null ? TournamentPair.fromMap(Map<String, dynamic>.from(map['pair2'])) : null,
-      score: map['score'],
-      winnerId: map['winnerId'],
-      court: map['court'] != null ? (map['court'] as num).toInt() : null,
-      status: map['status'] ?? 'pending',
-      nextMatchId: map['nextMatchId'],
-      nextMatchSlot: map['nextMatchSlot'] != null ? (map['nextMatchSlot'] as num).toInt() : null,
-      consolationMatchId: map['consolationMatchId'],
-      consolationSlot: map['consolationSlot'] != null ? (map['consolationSlot'] as num).toInt() : null,
+      id: map['id']?.toString() ?? '',
+      roundIndex: (map['roundIndex'] is num)
+          ? (map['roundIndex'] as num).toInt()
+          : (int.tryParse(map['roundIndex']?.toString() ?? '') ?? 0),
+      roundName: map['roundName']?.toString() ?? '',
+      matchIndex: (map['matchIndex'] is num)
+          ? (map['matchIndex'] as num).toInt()
+          : (int.tryParse(map['matchIndex']?.toString() ?? '') ?? 0),
+      pair1: map['pair1'] is Map ? TournamentPair.fromMap(Map<String, dynamic>.from(map['pair1'])) : null,
+      pair2: map['pair2'] is Map ? TournamentPair.fromMap(Map<String, dynamic>.from(map['pair2'])) : null,
+      score: map['score']?.toString(),
+      winnerId: map['winnerId']?.toString(),
+      court: (map['court'] is num)
+          ? (map['court'] as num).toInt()
+          : (map['court'] != null ? int.tryParse(map['court'].toString()) : null),
+      status: map['status']?.toString() ?? 'pending',
+      nextMatchId: map['nextMatchId']?.toString(),
+      nextMatchSlot: (map['nextMatchSlot'] is num)
+          ? (map['nextMatchSlot'] as num).toInt()
+          : (map['nextMatchSlot'] != null ? int.tryParse(map['nextMatchSlot'].toString()) : null),
+      consolationMatchId: map['consolationMatchId']?.toString(),
+      consolationSlot: (map['consolationSlot'] is num)
+          ? (map['consolationSlot'] as num).toInt()
+          : (map['consolationSlot'] != null ? int.tryParse(map['consolationSlot'].toString()) : null),
       isBye: map['isBye'] == true,
-      poolId: map['poolId'],
-      matchCode: map['matchCode'],
+      poolId: map['poolId']?.toString(),
+      matchCode: map['matchCode']?.toString(),
     );
   }
 }
@@ -379,14 +395,16 @@ class TournamentPool {
 
   factory TournamentPool.fromMap(Map<String, dynamic> map) {
     return TournamentPool(
-      id: map['id'] ?? '',
-      name: map['name'] ?? '',
+      id: map['id']?.toString() ?? '',
+      name: map['name']?.toString() ?? '',
       pairs: (map['pairs'] as List<dynamic>?)
-              ?.map((p) => TournamentPair.fromMap(Map<String, dynamic>.from(p)))
+              ?.whereType<Map>()
+              .map((p) => TournamentPair.fromMap(Map<String, dynamic>.from(p)))
               .toList() ??
           [],
       matches: (map['matches'] as List<dynamic>?)
-              ?.map((m) => BracketMatch.fromMap(Map<String, dynamic>.from(m)))
+              ?.whereType<Map>()
+              .map((m) => BracketMatch.fromMap(Map<String, dynamic>.from(m)))
               .toList() ??
           [],
     );
@@ -465,32 +483,61 @@ class TournamentBracket {
   }
 
   factory TournamentBracket.fromMap(Map<String, dynamic> map, String tournamentId) {
+    DateTime parsedUpdatedAt;
+    final rawUpdated = map['updatedAt'];
+    if (rawUpdated == null) {
+      parsedUpdatedAt = DateTime.now();
+    } else if (rawUpdated is DateTime) {
+      parsedUpdatedAt = rawUpdated;
+    } else {
+      try {
+        final dynamic dyn = rawUpdated;
+        final toDate = dyn.toDate;
+        if (toDate is Function) {
+          parsedUpdatedAt = toDate() as DateTime;
+        } else if (rawUpdated is String) {
+          parsedUpdatedAt = DateTime.tryParse(rawUpdated) ?? DateTime.now();
+        } else if (rawUpdated is num) {
+          parsedUpdatedAt = DateTime.fromMillisecondsSinceEpoch(rawUpdated.toInt());
+        } else {
+          parsedUpdatedAt = DateTime.tryParse(rawUpdated.toString()) ?? DateTime.now();
+        }
+      } catch (_) {
+        parsedUpdatedAt = DateTime.now();
+      }
+    }
+
     return TournamentBracket(
       tournamentId: tournamentId,
-      category: map['category'] ?? 'double_messieurs',
-      format: map['format'] ?? (map['pools'] != null && (map['pools'] as List).isNotEmpty ? 'pools_and_bracket' : 'elimination'),
-      finalPhaseType: map['finalPhaseType'] ?? 'direct_finals',
-      numCourts: (map['numCourts'] is num) ? (map['numCourts'] as num).toInt() : 4,
-      status: map['status'] ?? 'draft',
+      category: map['category']?.toString() ?? 'double_messieurs',
+      format: map['format']?.toString() ??
+          (map['pools'] != null && (map['pools'] as List).isNotEmpty ? 'pools_and_bracket' : 'elimination'),
+      finalPhaseType: map['finalPhaseType']?.toString() ?? 'direct_finals',
+      numCourts: (map['numCourts'] is num)
+          ? (map['numCourts'] as num).toInt()
+          : (int.tryParse(map['numCourts']?.toString() ?? '') ?? 4),
+      status: map['status']?.toString() ?? 'draft',
       pairs: (map['pairs'] as List<dynamic>?)
-              ?.map((p) => TournamentPair.fromMap(Map<String, dynamic>.from(p)))
+              ?.whereType<Map>()
+              .map((p) => TournamentPair.fromMap(Map<String, dynamic>.from(p)))
               .toList() ??
           [],
       mainMatches: (map['mainMatches'] as List<dynamic>?)
-              ?.map((m) => BracketMatch.fromMap(Map<String, dynamic>.from(m)))
+              ?.whereType<Map>()
+              .map((m) => BracketMatch.fromMap(Map<String, dynamic>.from(m)))
               .toList() ??
           [],
       consolationMatches: (map['consolationMatches'] as List<dynamic>?)
-              ?.map((m) => BracketMatch.fromMap(Map<String, dynamic>.from(m)))
+              ?.whereType<Map>()
+              .map((m) => BracketMatch.fromMap(Map<String, dynamic>.from(m)))
               .toList() ??
           [],
       pools: (map['pools'] as List<dynamic>?)
-              ?.map((p) => TournamentPool.fromMap(Map<String, dynamic>.from(p)))
+              ?.whereType<Map>()
+              .map((p) => TournamentPool.fromMap(Map<String, dynamic>.from(p)))
               .toList() ??
           [],
-      updatedAt: map['updatedAt'] != null
-          ? DateTime.tryParse(map['updatedAt']) ?? DateTime.now()
-          : DateTime.now(),
+      updatedAt: parsedUpdatedAt,
     );
   }
 }

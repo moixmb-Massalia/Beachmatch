@@ -16,4 +16,7 @@ class SoundService {
       }
     }
   }
+
+  static Future<void> playScore() => playRacketPop();
+  static Future<void> playVictory() => playRacketPop();
 }

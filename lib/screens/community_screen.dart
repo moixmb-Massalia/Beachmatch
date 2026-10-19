@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../providers/app_state.dart';
 import '../theme/colors.dart';
 import 'players_screen.dart';
 import 'clubs/club_list_screen.dart';
@@ -9,6 +12,9 @@ class CommunityScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AppState>().currentUser;
+    final isBr = user?.isBrazilian == true;
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -28,47 +34,47 @@ class CommunityScreen extends StatelessWidget {
                 color: Colors.black.withValues(alpha: 0.55),
               ),
             ),
-            const SafeArea(
+            SafeArea(
               bottom: false,
               child: Column(
                 children: [
                   // Top Header
                   Padding(
-                    padding: EdgeInsets.fromLTRB(20, 16, 20, 10),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
                     child: Row(
                       children: [
-                        _CommunityHeaderIcon(),
-                        SizedBox(width: 14),
+                        const _CommunityHeaderIcon(),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                "Communauté",
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 24),
+                                isBr ? "Comunidade" : "Communauté",
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 24),
                               ),
                               Text(
-                                "Joueurs & Clubs de Beach Tennis",
-                                style: TextStyle(color: Colors.white70, fontSize: 13),
+                                isBr ? "Atletas & Arenas de Beach Tennis" : "Joueurs & Clubs de Beach Tennis",
+                                style: const TextStyle(color: Colors.white70, fontSize: 13),
                               ),
                             ],
                           ),
                         ),
-                        _QuickProfileButton(),
+                        _QuickProfileButton(isBr: isBr),
                       ],
                     ),
                   ),
 
                   // Segmented Glass TabBar
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                    child: _CommunityTabBar(),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    child: _CommunityTabBar(isBr: isBr),
                   ),
 
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
 
                   // Embedded Tab views
-                  Expanded(
+                  const Expanded(
                     child: TabBarView(
                       children: [
                         PlayersScreen(isEmbedded: true),
@@ -114,7 +120,8 @@ class _CommunityHeaderIcon extends StatelessWidget {
 }
 
 class _CommunityTabBar extends StatelessWidget {
-  const _CommunityTabBar();
+  final bool isBr;
+  const _CommunityTabBar({this.isBr = false});
 
   @override
   Widget build(BuildContext context) {
@@ -126,6 +133,7 @@ class _CommunityTabBar extends StatelessWidget {
         border: Border.all(color: Colors.white.withValues(alpha: 0.30), width: 1.2),
       ),
       child: TabBar(
+        onTap: (_) => HapticFeedback.lightImpact(),
         indicator: BoxDecoration(
           borderRadius: BorderRadius.circular(23),
           gradient: const LinearGradient(
@@ -146,14 +154,14 @@ class _CommunityTabBar extends StatelessWidget {
         labelColor: Colors.white,
         unselectedLabelColor: Colors.white.withValues(alpha: 0.75),
         labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
-        tabs: const [
+        tabs: [
           Tab(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.sports_tennis, size: 16),
-                SizedBox(width: 8),
-                Text("Joueurs"),
+                const Icon(Icons.sports_tennis, size: 16),
+                const SizedBox(width: 8),
+                Text(isBr ? "Atletas" : "Joueurs"),
               ],
             ),
           ),
@@ -161,9 +169,9 @@ class _CommunityTabBar extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.shield_outlined, size: 16),
-                SizedBox(width: 8),
-                Text("Clubs"),
+                const Icon(Icons.shield_outlined, size: 16),
+                const SizedBox(width: 8),
+                Text(isBr ? "Arenas & Clubes" : "Clubs"),
               ],
             ),
           ),
@@ -174,12 +182,14 @@ class _CommunityTabBar extends StatelessWidget {
 }
 
 class _QuickProfileButton extends StatelessWidget {
-  const _QuickProfileButton();
+  final bool isBr;
+  const _QuickProfileButton({this.isBr = false});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
+        HapticFeedback.lightImpact();
         Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
       },
       child: Container(
@@ -196,14 +206,14 @@ class _QuickProfileButton extends StatelessWidget {
             ),
           ],
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.person_rounded, color: AppColors.gold, size: 15),
-            SizedBox(width: 4),
+            const Icon(Icons.person_rounded, color: AppColors.gold, size: 15),
+            const SizedBox(width: 4),
             Text(
-              "Mon Profil",
-              style: TextStyle(
+              isBr ? "Meu Perfil" : "Mon Profil",
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 11.5,

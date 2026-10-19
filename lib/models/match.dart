@@ -8,6 +8,8 @@ class MatchModel {
   final List<String> participantsIds;
   final bool isPrivate;
   final String description;
+  final String? pixKey;
+  final double? courtCost;
 
   MatchModel({
     required this.id,
@@ -19,6 +21,8 @@ class MatchModel {
     required this.participantsIds,
     this.isPrivate = false,
     this.description = '',
+    this.pixKey,
+    this.courtCost,
   });
 
   List<String> get playerIds => participantsIds;
@@ -47,11 +51,13 @@ class MatchModel {
       participantsIds: List<String>.from(data['participantsIds'] ?? []),
       isPrivate: data['isPrivate'] ?? false,
       description: data['description'] ?? '',
+      pixKey: data['pixKey'],
+      courtCost: (data['courtCost'] is num) ? (data['courtCost'] as num).toDouble() : null,
     );
   }
 
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'hostId': hostId,
       'courtId': courtId,
       'scheduledTime': scheduledTime,
@@ -61,6 +67,9 @@ class MatchModel {
       'isPrivate': isPrivate,
       'description': description,
     };
+    if (pixKey != null && pixKey!.isNotEmpty) map['pixKey'] = pixKey;
+    if (courtCost != null && courtCost! > 0) map['courtCost'] = courtCost;
+    return map;
   }
 }
 

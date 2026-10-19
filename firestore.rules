@@ -7,6 +7,15 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email == 'moixmb@gmail.com';
     }
 
+    // Helper: vérifie si l'utilisateur est un JAT accrédité ou l'admin
+    function isJatOrAdmin() {
+      return request.auth != null && (
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isReferee == true)
+      );
+    }
+
     // TERRAINS : lecture libre pour tout le monde
     // Création possible par tout utilisateur connecté (suggestion de terrain)
     // Modification et suppression : admin seulement
@@ -80,31 +89,34 @@ service cloud.firestore {
 
     // TOURNOIS
     // Lecture libre pour tous
-    // Création / modification : utilisateurs connectés (Présidents de clubs, Arbitres, Admin)
-    // Suppression : créateur ou admin
+    // Création, modification et suppression : réservées aux JATs accrédités et à l'Admin
     match /tournaments/{tournamentId} {
       allow read: if true;
-      allow create, update: if true;
-      allow delete: if request.auth != null;
+      allow create, update, delete: if isJatOrAdmin();
 
       match /bracket/{bracketId} {
-        allow read, write: if true;
+        allow read: if true;
+        allow write: if isJatOrAdmin();
       }
 
       match /brackets/{bracketId} {
-        allow read, write: if true;
+        allow read: if true;
+        allow write: if isJatOrAdmin();
       }
 
       match /court_schedules/{scheduleId} {
-        allow read, write: if true;
+        allow read: if true;
+        allow write: if isJatOrAdmin();
       }
 
       match /live_matches/{matchId} {
-        allow read, write: if true;
+        allow read: if true;
+        allow write: if isJatOrAdmin();
       }
 
       match /court_calls/{callId} {
-        allow read, write: if true;
+        allow read: if true;
+        allow write: if isJatOrAdmin();
       }
 
       match /bets/{betId} {
@@ -150,17 +162,17 @@ service cloud.firestore {
     }
 
     // CLUBS
-    // Lecture par tout utilisateur connecté
+    // Lecture libre pour tous (y compris les utilisateurs invités sans compte)
     match /clubs/{clubId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if request.auth != null; // On permet aux users de s'ajouter aux membres (memberIds)
     }
 
     // PUBLICATIONS DE CLUBS
-    // Lecture par tout utilisateur connecté
-    // Création par n'importe qui (mais le code restreint le bouton à l'admin pour l'instant)
+    // Lecture libre pour tous
+    // Écriture : réservée aux membres connectés
     match /club_posts/{postId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if request.auth != null;
     }
 
@@ -179,7 +191,7 @@ service cloud.firestore {
 
     match /live_matches/{matchId} {
       allow read: if true;
-      allow write: if request.auth != null; // Permet aux arbitres de mettre à jour les scores
+      allow write: if isJatOrAdmin(); // Réservé aux arbitres et administrateurs
     }
 
     // SUGGESTIONS DE TERRAINS

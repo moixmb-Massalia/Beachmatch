@@ -22,7 +22,7 @@ class ChatService {
     return tournamentId.startsWith('tournament_') ? tournamentId : 'tournament_$tournamentId';
   }
 
-  // Send a message (1-on-1)
+  // Send a message (1-on-1) avec système de Demande de Message (Option A)
   Future<void> sendMessage(String senderId, String receiverId, String text, {String? imageUrl, Map<String, dynamic>? replyTo}) async {
     final String chatRoomId = _getChatRoomId(senderId, receiverId);
     
@@ -37,10 +37,49 @@ class ChatService {
 
     final String lastMsg = (imageUrl != null && text.isEmpty) ? "📷 Photo" : text;
 
+    // Déterminer si c'est une nouvelle demande de message (Option A)
+    bool isRequest = false;
+    String status = 'accepted';
+    String? requestSenderId;
+    String? requestReceiverId;
+
+    try {
+      final chatDoc = await _firestore.collection('chats').doc(chatRoomId).get();
+      if (!chatDoc.exists) {
+        // Premier message entre ces deux joueurs : devient une demande en attente
+        isRequest = true;
+        status = 'pending';
+        requestSenderId = senderId;
+        requestReceiverId = receiverId;
+      } else {
+        final data = chatDoc.data() ?? {};
+        final existingStatus = data['status'] as String?;
+        if (existingStatus == 'pending') {
+          if (data['requestReceiverId'] == senderId) {
+            // Le destinataire répond -> validation automatique de la discussion
+            isRequest = false;
+            status = 'accepted';
+          } else {
+            isRequest = true;
+            status = 'pending';
+            requestSenderId = data['requestSenderId'] ?? senderId;
+            requestReceiverId = data['requestReceiverId'] ?? receiverId;
+          }
+        } else {
+          isRequest = false;
+          status = 'accepted';
+        }
+      }
+    } catch (_) {}
+
     // Update the recent chat doc for the inbox view FIRST
     await _firestore.collection('chats').doc(chatRoomId).set({
       'users': [senderId, receiverId],
       'isGroup': false,
+      'isRequest': isRequest,
+      'status': status,
+      if (requestSenderId != null) 'requestSenderId': requestSenderId,
+      if (requestReceiverId != null) 'requestReceiverId': requestReceiverId,
       'lastMessage': lastMsg,
       'lastTimestamp': FieldValue.serverTimestamp(),
       'unreadBy': FieldValue.arrayUnion([receiverId]),
@@ -51,6 +90,23 @@ class ChatService {
         .doc(chatRoomId)
         .collection('messages')
         .add(message);
+  }
+
+  // Accepter une demande de message (Option A)
+  Future<void> acceptMessageRequest(String currentUserId, String otherUserId) async {
+    final String chatRoomId = _getChatRoomId(currentUserId, otherUserId);
+    await _firestore.collection('chats').doc(chatRoomId).set({
+      'status': 'accepted',
+      'isRequest': false,
+    }, SetOptions(merge: true));
+  }
+
+  // Refuser une demande de message (Option A)
+  Future<void> rejectMessageRequest(String currentUserId, String otherUserId) async {
+    final String chatRoomId = _getChatRoomId(currentUserId, otherUserId);
+    try {
+      await _firestore.collection('chats').doc(chatRoomId).delete();
+    } catch (_) {}
   }
 
   // Send a message to a Club Group Chat

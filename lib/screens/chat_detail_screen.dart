@@ -13,6 +13,7 @@ import '../models/user.dart';
 import '../providers/app_state.dart';
 import '../services/chat_service.dart';
 import 'public_profile_screen.dart';
+import 'login_screen.dart';
 import '../widgets/chat_enhancements.dart';
 
 class ChatDetailScreen extends StatefulWidget {
@@ -204,7 +205,41 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final currentUser = context.watch<AppState>().currentUser;
-    if (currentUser == null) return const Scaffold(body: Center(child: Text("Non connecté")));
+    if (currentUser == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0F141E),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF16253B),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(widget.otherUser.displayName, style: const TextStyle(color: Colors.white, fontSize: 16)),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(CupertinoIcons.lock_shield, size: 48, color: AppColors.coral),
+                const SizedBox(height: 16),
+                const Text("Connexion requise", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                const Text("Veuillez vous connecter pour envoyer des messages.", style: TextStyle(color: Colors.white70, fontSize: 14), textAlign: TextAlign.center),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.coral, foregroundColor: Colors.white),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                  child: const Text("Se connecter"),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     final initial = widget.otherUser.displayName.isNotEmpty ? widget.otherUser.displayName[0].toUpperCase() : "?";
 
@@ -500,12 +535,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           final isMe = msg['senderId'] == currentUser.id;
                           final text = msg['text'] as String? ?? "";
                           final imageUrl = msg['imageUrl'] as String?;
-                          final timestamp = msg['timestamp'] as Timestamp?;
-                          final timeStr = timestamp != null ? DateFormat('HH:mm').format(timestamp.toDate()) : "";
+                          final dynamic rawTs = msg['timestamp'];
+                          final DateTime? tsDate = rawTs is Timestamp
+                              ? rawTs.toDate()
+                              : (rawTs is String ? DateTime.tryParse(rawTs) : null);
+                          final timeStr = tsDate != null ? DateFormat('HH:mm').format(tsDate) : "";
 
                           final chatRoomId = _chatService.getChatRoomId(currentUser.id, widget.otherUser.id);
-                          final msgReactions = msg['reactions'] as Map<String, dynamic>?;
-                          final msgReplyTo = msg['replyTo'] as Map<String, dynamic>?;
+                          final msgReactions = msg['reactions'] is Map ? (msg['reactions'] as Map).cast<String, dynamic>() : null;
+                          final msgReplyTo = msg['replyTo'] is Map ? (msg['replyTo'] as Map).cast<String, dynamic>() : null;
 
                           return Align(
                             alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -695,84 +733,290 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       ],
                     ),
                   )
-                else ...[
-                  if (_replyingTo != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                        child: ActiveReplyBanner(
-                          replyTo: _replyingTo!,
-                          onCancel: () => setState(() => _replyingTo = null),
-                        ),
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(28),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.45),
-                          borderRadius: BorderRadius.circular(28),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.2),
-                        ),
-                        child: Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(CupertinoIcons.camera_fill, color: Colors.white70, size: 22),
-                              onPressed: _isSending ? null : () => _showImagePickerOptions(context, currentUser.id),
-                              tooltip: "Envoyer une photo",
-                            ),
-                            Expanded(
-                              child: TextField(
-                                controller: _controller,
-                                style: const TextStyle(color: Colors.white, fontSize: 15),
-                                decoration: const InputDecoration(
-                                  hintText: "Écrire un message...",
-                                  hintStyle: TextStyle(color: Colors.white60),
-                                  border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                else
+                  StreamBuilder<DocumentSnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('chats')
+                        .doc(_chatService.getChatRoomId(currentUser.id, widget.otherUser.id))
+                        .snapshots(),
+                    builder: (context, chatSnap) {
+                      final chatData = (chatSnap.hasData && chatSnap.data!.exists)
+                          ? chatSnap.data!.data() as Map<String, dynamic>?
+                          : null;
+                      final isPending = chatData != null && chatData['status'] == 'pending';
+                      final isIncomingRequest = isPending && chatData['requestReceiverId'] == currentUser.id;
+                      final isOutgoingRequest = isPending && chatData['requestSenderId'] == currentUser.id;
+
+                      if (isIncomingRequest) {
+                        return _buildIncomingRequestBottomBar(context, currentUser);
+                      }
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isOutgoingRequest)
+                            _buildOutgoingRequestNotice(context),
+                          if (_replyingTo != null)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: ClipRRect(
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                                child: ActiveReplyBanner(
+                                  replyTo: _replyingTo!,
+                                  onCancel: () => setState(() => _replyingTo = null),
                                 ),
-                                onSubmitted: (_) => _sendMessage(currentUser.id),
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            GestureDetector(
-                              onTap: _isSending ? null : () => _sendMessage(currentUser.id),
-                              child: Container(
-                                width: 44,
-                                height: 44,
-                                decoration: const BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [AppColors.coral, AppColors.gold],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(28),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.45),
+                                    borderRadius: BorderRadius.circular(28),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.2),
                                   ),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: _isSending
-                                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                      : const Icon(CupertinoIcons.arrow_up, color: Colors.white, size: 22),
+                                  child: Row(
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(CupertinoIcons.camera_fill, color: Colors.white70, size: 22),
+                                        onPressed: _isSending ? null : () => _showImagePickerOptions(context, currentUser.id),
+                                        tooltip: "Envoyer une photo",
+                                      ),
+                                      Expanded(
+                                        child: TextField(
+                                          controller: _controller,
+                                          style: const TextStyle(color: Colors.white, fontSize: 15),
+                                          decoration: const InputDecoration(
+                                            hintText: "Écrire un message...",
+                                            hintStyle: TextStyle(color: Colors.white60),
+                                            border: InputBorder.none,
+                                            contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                                          ),
+                                          onSubmitted: (_) => _sendMessage(currentUser.id),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      GestureDetector(
+                                        onTap: _isSending ? null : () => _sendMessage(currentUser.id),
+                                        child: Container(
+                                          width: 44,
+                                          height: 44,
+                                          decoration: const BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [AppColors.coral, AppColors.gold],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            ),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Center(
+                                            child: _isSending
+                                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                                : const Icon(CupertinoIcons.arrow_up, color: Colors.white, size: 22),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
-                ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOutgoingRequestNotice(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(CupertinoIcons.hourglass, color: Colors.amber, size: 14),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              "Demande envoyée — En attente que ${widget.otherUser.displayName} accepte votre message.",
+              style: const TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIncomingRequestBottomBar(BuildContext context, UserModel currentUser) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF16253B).withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.gold, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.gold.withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(CupertinoIcons.envelope_badge_fill, color: AppColors.gold, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "DEMANDE DE MESSAGE",
+                      style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.8),
+                    ),
+                    Text(
+                      "${widget.otherUser.displayName} souhaite échanger avec vous",
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
-        ),
-      ],
-    ),
-  );
-}
+          const SizedBox(height: 10),
+          const Text(
+            "Consultez son profil avant d'accepter. Si vous refusez, cette discussion sera supprimée.",
+            style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.3),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              // Bouton Profil
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => PublicProfileScreen(player: widget.otherUser)),
+                  );
+                },
+                icon: const Icon(CupertinoIcons.person_crop_circle, size: 14, color: Colors.white70),
+                label: const Text("Profil", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Bouton Refuser
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: const Color(0xFF16253B),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        title: const Text("Refuser la demande ?", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        content: Text(
+                          "Voulez-vous refuser la demande de ${widget.otherUser.displayName} ? Cette discussion sera supprimée.",
+                          style: const TextStyle(color: Colors.white70, fontSize: 14),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text("Annuler", style: TextStyle(color: Colors.white60)),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.redAccent,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text("Refuser", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      await _chatService.rejectMessageRequest(currentUser.id, widget.otherUser.id);
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text("Demande de ${widget.otherUser.displayName} refusée."),
+                            backgroundColor: const Color(0xFF16253B),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(CupertinoIcons.xmark_circle, size: 14, color: Colors.redAccent),
+                  label: const Text("Refuser", style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.6)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Bouton Accepter
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    await _chatService.acceptMessageRequest(currentUser.id, widget.otherUser.id);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Demande de ${widget.otherUser.displayName} acceptée !"),
+                          backgroundColor: const Color(0xFF16253B),
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(CupertinoIcons.checkmark_alt_circle_fill, size: 14, color: Colors.black),
+                  label: const Text("Accepter", style: TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.w900)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.gold,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

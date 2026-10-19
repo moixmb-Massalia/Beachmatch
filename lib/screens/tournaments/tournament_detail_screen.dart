@@ -18,6 +18,7 @@ import '../../models/partner_request.dart';
 import '../../services/whatsapp_share_service.dart';
 import 'tournament_chat_screen.dart';
 import 'tournament_bracket_screen.dart';
+import '../../services/jat_authorization_service.dart';
 import '../../widgets/court_schedule_presets_dialog.dart';
 import '../../models/court_schedule_preset.dart';
 import '../public_profile_screen.dart';
@@ -44,79 +45,16 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
 
   Future<void> _checkAuthorization() async {
     final appUser = context.read<AppState>().currentUser;
-    if (appUser?.isAdmin == true) {
-      if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
-      return;
+    final isAuth = await JatAuthorizationService.isAuthorizedForTournament(
+      user: appUser,
+      tournament: widget.tournament,
+    );
+    if (mounted) {
+      setState(() {
+        _isAuthorized = isAuth;
+        _isCheckingAuth = false;
+      });
     }
-
-    final authEmail = FirebaseAuth.instance.currentUser?.email?.toLowerCase().trim();
-    if (authEmail != null && authEmail.isNotEmpty) {
-      // SuperAdmin absolu : accès partout sur tous les tournois
-      if (authEmail == 'moixmb@gmail.com') {
-        if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
-        return;
-      }
-
-      // btvarois@gmail.com : accès UNIQUEMENT aux tournois de son propre club (Beach Tennis Varois) ou à Toulon
-      if (authEmail == 'btvarois@gmail.com') {
-        final clubLower = widget.tournament.club.toLowerCase().trim();
-        final locLower = widget.tournament.location.toLowerCase().trim();
-        final nameLower = widget.tournament.name.toLowerCase().trim();
-        if (clubLower.contains('varois') || locLower.contains('toulon') || nameLower.contains('toulon')) {
-          if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
-          return;
-        }
-      }
-
-      // massalbrice@gmail.com : JAT Marana Beach Tennis & Furiani
-      if (authEmail == 'massalbrice@gmail.com') {
-        final clubLower = widget.tournament.club.toLowerCase().trim();
-        final locLower = widget.tournament.location.toLowerCase().trim();
-        final nameLower = widget.tournament.name.toLowerCase().trim();
-        if (clubLower.contains('marana') || locLower.contains('furiani') || nameLower.contains('marana') || nameLower.contains('furiani') || nameLower.contains('corse')) {
-          if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
-          return;
-        }
-      }
-
-      // Juge-Arbitre (JAT) officiel assigné au tournoi (par email)
-      final jatEmail = widget.tournament.contactEmail?.toLowerCase().trim();
-      if (jatEmail != null && jatEmail.isNotEmpty && authEmail == jatEmail) {
-        if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
-        return;
-      }
-
-      // Vérifier si le nom du profil connecté correspond au JAT officiel
-      final refereeRaw = (widget.tournament.referee ?? '').toLowerCase().replaceAll('(jat)', '').replaceAll('(jae2)', '').replaceAll('(jae1)', '').trim();
-      final appUserName = (appUser?.displayName ?? '').toLowerCase().trim();
-      final authDisplayName = (FirebaseAuth.instance.currentUser?.displayName ?? '').toLowerCase().trim();
-      if (refereeRaw.length >= 4) {
-        if ((appUserName.length >= 4 && (refereeRaw.contains(appUserName) || appUserName.contains(refereeRaw))) ||
-            (authDisplayName.length >= 4 && (refereeRaw.contains(authDisplayName) || authDisplayName.contains(refereeRaw)))) {
-          if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
-          return;
-        }
-      }
-
-      try {
-        final query = await FirebaseFirestore.instance
-            .collection('clubs')
-            .where('presidentEmails', arrayContains: authEmail)
-            .get();
-
-        for (var doc in query.docs) {
-          final clubName = doc.data()['name']?.toString().toLowerCase().trim();
-          if (clubName == widget.tournament.club.toLowerCase().trim()) {
-            if (mounted) setState(() { _isAuthorized = true; _isCheckingAuth = false; });
-            return;
-          }
-        }
-      } catch (e) {
-        debugPrint("Error checking auth: $e");
-      }
-    }
-
-    if (mounted) setState(() { _isAuthorized = false; _isCheckingAuth = false; });
   }
 
   Future<void> _launchUrl(String urlString) async {
@@ -1057,44 +995,38 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.gold.withValues(alpha: 0.22),
-            const Color(0xFF1E293B).withValues(alpha: 0.95),
-          ],
-        ),
+        color: const Color(0xFF1E293B).withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.6), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.gold.withValues(alpha: 0.15),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.35), width: 1.0),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.gold.withValues(alpha: 0.25),
+              color: AppColors.gold.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.sports_score_rounded, color: AppColors.gold, size: 20),
+            child: const Icon(Icons.gavel_rounded, color: AppColors.gold, size: 20),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "Espace Juge-Arbitre (JAT)",
-                  style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 12),
+                const Row(
+                  children: [
+                    Text(
+                      "Juge-Arbitre Référent (JAT)",
+                      style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 12),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.lock_outline, color: Colors.white54, size: 12),
+                  ],
                 ),
                 Text(
-                  "Arbitre référent : $displayName",
-                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                  displayName,
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1102,27 +1034,42 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          ElevatedButton(
+          OutlinedButton(
             onPressed: () {
-              HapticFeedback.heavyImpact();
-              setState(() => _isAuthorized = true);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text("👑 Bienvenue $displayName ! Vos accès JAT sont activés."),
-                  backgroundColor: AppColors.gold,
-                  duration: const Duration(seconds: 3),
+              final authEmail = FirebaseAuth.instance.currentUser?.email ?? 'Non connecté';
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: const Color(0xFF0F172A),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: const Row(
+                    children: [
+                      Icon(Icons.shield_outlined, color: AppColors.gold, size: 22),
+                      SizedBox(width: 8),
+                      Text("Accès JAT Protégé", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  content: Text(
+                    "Ce tournoi est officiellement sous la responsabilité de $displayName.\n\nPour garantir l'intégrité de la compétition et respecter le règlement fédéral, seuls les Juges-Arbitres répertoriés dans notre base de données ont le droit de modifier, alimenter et arbitrer ce tournoi.\n\nCompte actuel : $authEmail\nSi vous êtes l'arbitre officiel, connectez-vous avec votre adresse email accréditée pour activer vos droits automatiquement.",
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text("Compris", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
                 ),
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.gold,
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: const Text(
-              "C'est moi",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
+              "Infos JAT",
+              style: TextStyle(color: Colors.white70, fontSize: 11),
             ),
           ),
         ],

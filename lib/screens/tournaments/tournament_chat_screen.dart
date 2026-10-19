@@ -21,6 +21,7 @@ import '../../services/chat_service.dart';
 import '../../theme/colors.dart';
 import '../../widgets/chat_enhancements.dart';
 import '../public_profile_screen.dart';
+import '../login_screen.dart';
 
 class TournamentChatScreen extends StatefulWidget {
   final TournamentModel tournament;
@@ -461,7 +462,41 @@ class _TournamentChatScreenState extends State<TournamentChatScreen> {
   @override
   Widget build(BuildContext context) {
     final currentUser = context.watch<AppState>().currentUser;
-    if (currentUser == null) return const Scaffold();
+    if (currentUser == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0F141E),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF16253B),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(widget.tournament.name, style: const TextStyle(color: Colors.white, fontSize: 16)),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(CupertinoIcons.tropicalstorm, size: 48, color: AppColors.gold),
+                const SizedBox(height: 16),
+                const Text("Connexion requise", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                const Text("Connectez-vous pour échanger dans le fil de discussion de ce tournoi.", style: TextStyle(color: Colors.white70, fontSize: 14), textAlign: TextAlign.center),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.coral, foregroundColor: Colors.white),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                  child: const Text("Se connecter"),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     final chatRoomId = _chatService.getTournamentChatRoomId(widget.tournament.id);
 

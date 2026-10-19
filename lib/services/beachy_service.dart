@@ -53,7 +53,7 @@ class BeachyService {
       return const BeachyResponse(
         text: "🧭 **Pas de panique, je te guide partout dans BeachMatch !** 🏖️\n\n"
             "Voici les univers de l'application :\n\n"
-            "• 🏠 **Accueil :** Tes parties du jour, ton rang ELO, météo des plages et bouton profil.\n"
+            "• 🏠 **Accueil :** Tes parties du jour, ton niveau et rang FFT, météo des plages et bouton profil.\n"
             "• 🗺️ **Carte :** Localise les terrains autour de toi (spots libres ou clubs avec réservation).\n"
             "• 🏆 **Tournois :** Le calendrier des tournois FFT/ITF et le classement officiel Ten'Up.\n"
             "• 👥 **Communauté :** Découvre les joueurs et clubs de France, salons et partenaires.\n"
@@ -61,6 +61,19 @@ class BeachyService {
             "• 👤 **Profil :** Modifie ta photo, ton classement FFT, ta ville et tes disponibilités.\n\n"
             "Où souhaites-tu te rendre maintenant ?",
         action: BeachyAction(label: "Voir mon Profil 👤", type: BeachyActionType.openProfile),
+      );
+    }
+
+    // 0.05 GUIDE JAT : GESTION DES TABLEAUX & TIRAGE AU SORT (Tournois Ten'Up automatiques)
+    if (q.contains('jat') || q.contains('arbitre') || q.contains('tirage') || (q.contains('tableau') && q.contains('tournoi'))) {
+      return const BeachyResponse(
+        text: "⚖️ **Guide JAT & Arbitrage Officiel :** 🏖️\n\n"
+            "Tout est synchronisé depuis Ten'Up, aucun double travail pour toi !\n\n"
+            "• 👑 **Accès JAT Sécurisé :** Les droits d'arbitrage sont activés automatiquement pour les Juges-Arbitres officiels répertoriés dans la base BeachMatch.\n"
+            "• 🎲 **Cérémonie du Tirage au Sort :** Réalise le tirage en direct avec le suspense officiel FFT (TS1 en bas, TS2 en haut pour la France) et génère le PV officiel horodaté.\n"
+            "• 📊 **Gestion des Tableaux :** Pilote les poules, l'arbre final (DH, DD, DX) et la consolante avec filtres par tour (1/8, Quarts, Demis, Finale).\n"
+            "• 📄 **Feuille & Règlement FFT :** Génère les PDF officiels FFT et le procès-verbal certifié prêts à imprimer ou partager.",
+        action: BeachyAction(label: "Voir les Tableaux 🏆", type: BeachyActionType.openTournaments),
       );
     }
 

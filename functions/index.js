@@ -895,10 +895,11 @@ exports.onTournamentCreated = onDocumentCreated({
     const usersSnapshot = await db.collection("users").where("tournamentAlertsEnabled", "==", true).get();
     
     const messages = [];
+    const seenTokens = new Set();
     usersSnapshot.forEach(doc => {
       const userData = doc.data();
       const fcmToken = userData.fcmToken;
-      if (!fcmToken) return;
+      if (!fcmToken || seenTokens.has(fcmToken)) return;
 
       const userRegion = userData.alertRegion;
       let shouldSend = false;
@@ -910,6 +911,7 @@ exports.onTournamentCreated = onDocumentCreated({
       }
 
       if (shouldSend) {
+        seenTokens.add(fcmToken);
         messages.push({
           token: fcmToken,
           notification: {
@@ -1062,3 +1064,62 @@ exports.syncAndNotifyRankings = onCall({ region: "europe-west1" }, async (reques
     throw new Error("Erreur de synchronisation.");
   }
 });
+
+// ============================================================================
+// NOTIFICATION PUSH VIP BRÉSIL LORS DE L'ENREGISTREMENT DU JETON FCM
+// ============================================================================
+exports.onBrazilianUserTokenRegistered = onDocumentUpdated({
+  document: "users/{userId}",
+  region: "europe-west1"
+}, async (event) => {
+  const before = event.data.before ? event.data.before.data() : {};
+  const after = event.data.after ? event.data.after.data() : {};
+
+  const isBrazilian = after.country === 'BR' || after.cbtId || after.cbtCategory;
+  const tokenChangedOrAdded = after.fcmToken && (!before.fcmToken || before.fcmToken !== after.fcmToken);
+
+  if (!isBrazilian || !tokenChangedOrAdded) return;
+
+  const displayName = after.displayName || after.name || "Atleta";
+  const cbtBadge = after.cbtCategory ? `(${after.cbtCategory})` : "";
+
+  try {
+    const payload = {
+      token: after.fcmToken,
+      notification: {
+        title: "BeachMatch Brasil Oficial 🇧🇷",
+        body: `Olá ${displayName} ${cbtBadge} ! Seu perfil foi ativado. Descubra as novas quadras e torneios CBT na sua região !`
+      },
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "beachmatch_high_importance_channel",
+          sound: "default",
+          priority: "high",
+          defaultVibrateTimings: true,
+          visibility: "public"
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: "default",
+            badge: 1
+          }
+        }
+      },
+      data: {
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        screen: "tournaments",
+        country: "BR",
+        type: "welcome_vip_cbt"
+      }
+    };
+
+    await admin.messaging().send(payload);
+    logger.info(`Push VIP Brésil envoyé avec succès à ${event.params.userId} (${displayName})`);
+  } catch (error) {
+    logger.error("Erreur lors de l'envoi du Push VIP Brésil:", error);
+  }
+});
+

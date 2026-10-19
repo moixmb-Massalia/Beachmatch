@@ -14,6 +14,7 @@ import '../../models/court_call_model.dart';
 import '../../services/bracket_generator_service.dart';
 import '../../services/tournament_pdf_service.dart';
 import '../../services/whatsapp_share_service.dart';
+import '../../services/jat_authorization_service.dart';
 import '../../theme/colors.dart';
 import '../../widgets/add_pair_autocomplete_dialog.dart';
 import '../../widgets/court_schedule_presets_dialog.dart';
@@ -101,7 +102,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
   int? _selectedRoundFilter; // null = Tous les tours (filtre interactif 1/8, Quarts, Demis, Finale)
 
   late bool _isAuthorizedUser;
-  bool _spectatorPreview = false;
+  final bool _spectatorPreview = false;
 
   bool get _isJat => _isAuthorizedUser && !_spectatorPreview;
 
@@ -164,77 +165,12 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
 
   Future<void> _verifyUserPrivileges() async {
     final appUser = context.read<AppState>().currentUser;
-    if (appUser?.isAdmin == true) {
-      if (mounted) setState(() => _isAuthorizedUser = true);
-      return;
-    }
-
-    final authEmail = FirebaseAuth.instance.currentUser?.email?.toLowerCase().trim();
-    if (authEmail != null && authEmail.isNotEmpty) {
-      // SuperAdmin absolu : accès partout sur tous les tournois
-      if (authEmail == 'moixmb@gmail.com') {
-        if (mounted) setState(() => _isAuthorizedUser = true);
-        return;
-      }
-
-      // btvarois@gmail.com : accès UNIQUEMENT aux tournois de son propre club (Beach Tennis Varois) ou à Toulon
-      if (authEmail == 'btvarois@gmail.com') {
-        final clubLower = widget.tournament.club.toLowerCase().trim();
-        final locLower = widget.tournament.location.toLowerCase().trim();
-        final nameLower = widget.tournament.name.toLowerCase().trim();
-        if (clubLower.contains('varois') || locLower.contains('toulon') || nameLower.contains('toulon')) {
-          if (mounted) setState(() => _isAuthorizedUser = true);
-          return;
-        }
-      }
-
-      // massalbrice@gmail.com : JAT Marana Beach Tennis & Furiani
-      if (authEmail == 'massalbrice@gmail.com') {
-        final clubLower = widget.tournament.club.toLowerCase().trim();
-        final locLower = widget.tournament.location.toLowerCase().trim();
-        final nameLower = widget.tournament.name.toLowerCase().trim();
-        if (clubLower.contains('marana') || locLower.contains('furiani') || nameLower.contains('marana') || nameLower.contains('furiani') || nameLower.contains('corse')) {
-          if (mounted) setState(() => _isAuthorizedUser = true);
-          return;
-        }
-      }
-
-      // Vérifier si l'utilisateur connecté est le JAT officiel du tournoi (par email)
-      final jatEmail = widget.tournament.contactEmail?.toLowerCase().trim();
-      if (jatEmail != null && jatEmail.isNotEmpty && authEmail == jatEmail) {
-        if (mounted) setState(() => _isAuthorizedUser = true);
-        return;
-      }
-
-      // Vérifier si le nom du profil connecté correspond au JAT officiel
-      final refereeRaw = (widget.tournament.referee ?? '').toLowerCase().replaceAll('(jat)', '').replaceAll('(jae2)', '').replaceAll('(jae1)', '').trim();
-      final appUserName = (appUser?.displayName ?? '').toLowerCase().trim();
-      final authDisplayName = (FirebaseAuth.instance.currentUser?.displayName ?? '').toLowerCase().trim();
-      if (refereeRaw.length >= 4) {
-        if ((appUserName.length >= 4 && (refereeRaw.contains(appUserName) || appUserName.contains(refereeRaw))) ||
-            (authDisplayName.length >= 4 && (refereeRaw.contains(authDisplayName) || authDisplayName.contains(refereeRaw)))) {
-          if (mounted) setState(() => _isAuthorizedUser = true);
-          return;
-        }
-      }
-
-      // Vérifier si l'utilisateur est président du club organisateur
-      try {
-        final query = await FirebaseFirestore.instance
-            .collection('clubs')
-            .where('presidentEmails', arrayContains: authEmail)
-            .get();
-
-        for (var doc in query.docs) {
-          final clubName = doc.data()['name']?.toString().toLowerCase().trim();
-          if (clubName == widget.tournament.club.toLowerCase().trim()) {
-            if (mounted) setState(() => _isAuthorizedUser = true);
-            return;
-          }
-        }
-      } catch (e) {
-        debugPrint("Error verifying privileges in bracket: $e");
-      }
+    final isAuth = await JatAuthorizationService.isAuthorizedForTournament(
+      user: appUser,
+      tournament: widget.tournament,
+    );
+    if (mounted && isAuth) {
+      setState(() => _isAuthorizedUser = true);
     }
   }
 
@@ -642,33 +578,16 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                       ],
                     ),
                     content: Text(
-                      "Ce tournoi est arbitré par $name.\n\nConfirmez-vous être le juge-arbitre de ce tournoi pour activer la saisie des scores et la gestion officielle du tableau ?",
+                      "Ce tournoi et son tableau officiel sont sous la responsabilité de $name.\n\n"
+                      "Conformément au règlement fédéral, seuls les Juges-Arbitres officiellement répertoriés dans notre base de données ont les droits pour saisir les scores, générer les poules et modifier les matchs.\n\n"
+                      "Compte actuel : ${FirebaseAuth.instance.currentUser?.email ?? 'Non connecté'}\n"
+                      "Si vous êtes l'arbitre officiel, connectez-vous avec votre adresse email accréditée pour activer vos accès JAT automatiquement.",
                       style: const TextStyle(color: Colors.white70, fontSize: 13),
                     ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx),
-                        child: const Text("Annuler", style: TextStyle(color: Colors.white60)),
-                      ),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.gold,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          setState(() {
-                            _isAuthorizedUser = true;
-                            _spectatorPreview = false;
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text("👑 Bienvenue $name ! Mode Arbitre (JAT) activé."),
-                              backgroundColor: AppColors.gold,
-                            ),
-                          );
-                        },
-                        child: const Text("Confirmer (C'est moi)", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                        child: const Text("Compris", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../services/whatsapp_share_service.dart';
 import '../theme/colors.dart';
 
 void showClubInviteDialog(BuildContext context, {required String clubId, required String clubName, String? bannerUrl}) {
@@ -95,23 +94,11 @@ void showClubInviteDialog(BuildContext context, {required String clubId, require
                   "Inviter mon groupe WhatsApp",
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 ),
-                onPressed: () async {
-                  final whatsappUrl = Uri.parse("https://wa.me/?text=${Uri.encodeComponent(shareMessage)}");
-                  try {
-                    if (await canLaunchUrl(whatsappUrl)) {
-                      await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
-                    } else {
-                      SharePlus.instance.share(ShareParams(
-                        text: shareMessage,
-                        subject: "Rejoins $clubName sur BeachMatch",
-                      ));
-                    }
-                  } catch (_) {
-                    SharePlus.instance.share(ShareParams(
-                      text: shareMessage,
-                      subject: "Rejoins $clubName sur BeachMatch",
-                    ));
-                  }
+                onPressed: () {
+                  WhatsAppShareService.shareToWhatsAppOrNative(
+                    text: shareMessage,
+                    subject: "Rejoins $clubName sur BeachMatch",
+                  );
                 },
               ),
               const SizedBox(height: 12),
@@ -130,10 +117,10 @@ void showClubInviteDialog(BuildContext context, {required String clubId, require
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 onPressed: () {
-                  SharePlus.instance.share(ShareParams(
+                  WhatsAppShareService.shareToWhatsAppOrNative(
                     text: shareMessage,
                     subject: "Rejoins $clubName sur BeachMatch",
-                  ));
+                  );
                 },
               ),
               const SizedBox(height: 20),

@@ -2,7 +2,7 @@
   "@@locale": "pt",
   "appTitle": "BeachMatch",
   "navHome": "Início",
-  "navCourts": "Campos",
+  "navCourts": "Quadras",
   "navPlayers": "Jogadores",
   "navTournaments": "Torneios",
   "navChat": "Chat",
@@ -17,7 +17,7 @@
   },
   "homeHeaderSeason": "TEMPORADA 2026",
   "homeHeaderTitle": "Beach Tennis Club",
-  "homeHeaderSubtitle": "Encontre um campo e parceiros em 1 clique",
+  "homeHeaderSubtitle": "Encontre uma quadra e parceiros em 1 clique",
   "homeWeatherSunny": "{temp}°C · Ensolarado",
   "@homeWeatherSunny": {
     "placeholders": {

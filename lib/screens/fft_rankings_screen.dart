@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:provider/provider.dart';
+import '../services/whatsapp_share_service.dart';
+import '../providers/app_state.dart';
 import '../theme/colors.dart';
 import '../widgets/feature_discovery_bubble.dart';
 import 'public_profile_screen.dart';
@@ -14,9 +17,34 @@ class FftRankingsScreen extends StatefulWidget {
   State<FftRankingsScreen> createState() => _FftRankingsScreenState();
 }
 
-class _FftRankingsScreenState extends State<FftRankingsScreen> {
+class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKeepAliveClientMixin {
+  int _selectedCircuit = 0; // 0: FFT (France), 1: ITF (Mondial)
   int _selectedTabIndex = 0; // 0: Hommes ('M'), 1: Dames ('F')
   String _searchQuery = '';
+  Timer? _debounceTimer;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final user = context.read<AppState>().currentUser;
+      if (user != null && user.isBrazilian) {
+        setState(() {
+          _selectedCircuit = 1;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
 
   int _parseRank(dynamic value, {int defaultRank = 0}) {
     if (value == null) return defaultRank;
@@ -85,15 +113,19 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
       resultMap[key] = data;
     }
 
-    // 1. Recherche directe par numéro de licence
-    if (digits.length >= 3) {
-      final doc = await FirebaseFirestore.instance.collection('fft_rankings').doc(digits).get();
-      if (doc.exists && doc.data() != null) {
-        addCandidate(Map<String, dynamic>.from(doc.data()!), digits);
+    final colName = _selectedCircuit == 1 ? 'itf_rankings' : 'fft_rankings';
+
+    // 1. Recherche directe par numéro de licence / rang
+    if (digits.isNotEmpty) {
+      if (_selectedCircuit == 0 && digits.length >= 3) {
+        final doc = await FirebaseFirestore.instance.collection(colName).doc(digits).get();
+        if (doc.exists && doc.data() != null) {
+          addCandidate(Map<String, dynamic>.from(doc.data()!), digits);
+        }
       }
 
       final licSnap = await FirebaseFirestore.instance
-          .collection('fft_rankings')
+          .collection(colName)
           .where('searchTokens', arrayContains: digits)
           .where('gender', isEqualTo: gender)
           .limit(40)
@@ -106,7 +138,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
     // 2. Recherche rapide par searchTokens (insensible aux accents et à la casse)
     for (var tok in tokens) {
       final snap = await FirebaseFirestore.instance
-          .collection('fft_rankings')
+          .collection(colName)
           .where('searchTokens', arrayContains: tok)
           .where('gender', isEqualTo: gender)
           .limit(80)
@@ -123,21 +155,21 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
 
       final snaps = await Future.wait([
         FirebaseFirestore.instance
-            .collection('fft_rankings')
+            .collection(colName)
             .where('lastName', isGreaterThanOrEqualTo: upperQ)
             .where('lastName', isLessThanOrEqualTo: '$upperQ\uf8ff')
             .where('gender', isEqualTo: gender)
             .limit(30)
             .get(),
         FirebaseFirestore.instance
-            .collection('fft_rankings')
+            .collection(colName)
             .where('firstName', isGreaterThanOrEqualTo: upperQ)
             .where('firstName', isLessThanOrEqualTo: '$upperQ\uf8ff')
             .where('gender', isEqualTo: gender)
             .limit(30)
             .get(),
         FirebaseFirestore.instance
-            .collection('fft_rankings')
+            .collection(colName)
             .where('firstName', isGreaterThanOrEqualTo: titleQ)
             .where('firstName', isLessThanOrEqualTo: '$titleQ\uf8ff')
             .where('gender', isEqualTo: gender)
@@ -185,7 +217,10 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final String currentGender = _selectedTabIndex == 0 ? 'M' : 'F';
+    final user = context.watch<AppState>().currentUser;
+    final isBr = user?.isBrazilian == true;
 
     return Scaffold(
       body: Stack(
@@ -211,42 +246,50 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                 // Header
                 if (!widget.isEmbedded)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                     child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: AppColors.gold,
+                            color: _selectedCircuit == 1 ? const Color(0xFF00B4D8) : AppColors.gold,
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.gold.withValues(alpha: 0.4),
+                                color: (_selectedCircuit == 1 ? const Color(0xFF00B4D8) : AppColors.gold).withValues(alpha: 0.4),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.emoji_events, color: Colors.white, size: 24),
+                          child: Icon(
+                            _selectedCircuit == 1 ? Icons.public : Icons.emoji_events,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                         ),
                         const SizedBox(width: 14),
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                "Classement FFT Beach Tennis",
-                                style: TextStyle(
+                                _selectedCircuit == 1 
+                                    ? (isBr ? "Ranking Mundial ITF" : "Classement Mondial ITF")
+                                    : (isBr ? "Ranking FFT Beach Tennis" : "Classement FFT Beach Tennis"),
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w900,
                                   fontSize: 18,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              SizedBox(height: 2),
+                              const SizedBox(height: 2),
                               Text(
-                                "Source : FFT Ten'Up · Classement officiel",
-                                style: TextStyle(
+                                _selectedCircuit == 1
+                                    ? (isBr ? "Circuito Mundial de Beach Tennis · Temporada 2026" : "Source : ITF World Tour · Tournée Mondiale 2026")
+                                    : (isBr ? "Fonte : FFT Ten'Up · Ranking oficial" : "Source : FFT Ten'Up · Classement officiel"),
+                                style: const TextStyle(
                                   color: Colors.white70,
                                   fontSize: 13,
                                 ),
@@ -259,6 +302,90 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                   )
                 else
                   const SizedBox(height: 12),
+
+                // Circuit Selector [ 🇫🇷 FFT (France) ]  [ 🌍 ITF (Mondial) ]
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                    ),
+                    padding: const EdgeInsets.all(4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() {
+                              _selectedCircuit = 0;
+                            }),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: _selectedCircuit == 0 ? AppColors.gold : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: _selectedCircuit == 0
+                                    ? [
+                                        BoxShadow(
+                                          color: AppColors.gold.withValues(alpha: 0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        )
+                                      ]
+                                    : null,
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                isBr ? "🇫🇷 FFT (França)" : "🇫🇷 FFT (France)",
+                                style: TextStyle(
+                                  color: _selectedCircuit == 0 ? Colors.white : Colors.white70,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() {
+                              _selectedCircuit = 1;
+                            }),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: _selectedCircuit == 1 ? const Color(0xFF00B4D8) : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: _selectedCircuit == 1
+                                    ? [
+                                        BoxShadow(
+                                          color: const Color(0xFF00B4D8).withValues(alpha: 0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        )
+                                      ]
+                                    : null,
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                isBr ? "🌍 ITF (Mundial)" : "🌍 ITF (Mondial)",
+                                style: TextStyle(
+                                  color: _selectedCircuit == 1 ? Colors.white : Colors.white70,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
 
                 // Search Bar Glass
                 Padding(
@@ -275,11 +402,24 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                         ),
                         child: TextField(
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                          onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+                          onChanged: (val) {
+                            _debounceTimer?.cancel();
+                            _debounceTimer = Timer(const Duration(milliseconds: 250), () {
+                              if (mounted) {
+                                setState(() => _searchQuery = val.trim().toLowerCase());
+                              }
+                            });
+                          },
                           decoration: InputDecoration(
-                            hintText: "Rechercher par nom, prénom ou club...",
+                            hintText: _selectedCircuit == 1
+                                ? (isBr ? "Buscar atleta mundial, país..." : "Rechercher joueur mondial, nationalité...")
+                                : (isBr ? "Buscar por nome ou clube..." : "Rechercher par nom, prénom ou club..."),
                             hintStyle: const TextStyle(fontSize: 13, color: Colors.white60),
-                            prefixIcon: const Icon(Icons.search, color: AppColors.gold, size: 20),
+                            prefixIcon: Icon(
+                              Icons.search,
+                              color: _selectedCircuit == 1 ? const Color(0xFF00B4D8) : AppColors.gold,
+                              size: 20,
+                            ),
                             suffixIcon: _searchQuery.isNotEmpty
                                 ? IconButton(
                                     icon: const Icon(Icons.clear, color: Colors.white70, size: 18),
@@ -297,12 +437,20 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                   ),
                 ),
 
-                const FeatureDiscoveryBubble(
-                  featureKey: 'fft_rankings_tip',
-                  title: "Classement National Officiel Ten'Up",
-                  message: "Retrouvez les 3 300+ joueurs et joueuses classés en France. Utilisez la recherche pour trouver un joueur par nom ou numéro de licence !",
-                  icon: Icons.search_rounded,
-                  margin: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                FeatureDiscoveryBubble(
+                  featureKey: _selectedCircuit == 1 ? 'itf_rankings_tip' : 'fft_rankings_tip',
+                  title: _selectedCircuit == 1
+                      ? (isBr ? "Ranking Mundial ITF Beach Tennis" : "Classement Mondial ITF Beach Tennis")
+                      : (isBr ? "Ranking Nacional Oficial Ten'Up" : "Classement National Officiel Ten'Up"),
+                  message: _selectedCircuit == 1
+                      ? (isBr
+                          ? "Confira os melhores atletas do mundo : Nicolas Gianotti, André Baran, Sophia Chow, Vitória Marchezini, Mattia Spoto..."
+                          : "Retrouvez les meilleurs joueurs et joueuses mondiaux : Nicolas Gianotti, André Baran, Sophia Chow, Vitoria Marchezini, Mattia Spoto...")
+                      : (isBr
+                          ? "Veja os 3.300+ atletas ranqueados na França. Use a busca por nome ou número de licença !"
+                          : "Retrouvez les 3 300+ joueurs et joueuses classés en France. Utilisez la recherche pour trouver un joueur par nom ou numéro de licence !"),
+                  icon: _selectedCircuit == 1 ? Icons.public_rounded : Icons.search_rounded,
+                  margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                 ),
 
                 // Glass Tabs
@@ -329,7 +477,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                               ),
                               alignment: Alignment.center,
                               child: Text(
-                                "🏆 Hommes",
+                                isBr ? "🏆 Masculino" : "🏆 Hommes",
                                 style: TextStyle(
                                   color: _selectedTabIndex == 0 ? Colors.white : Colors.white70,
                                   fontWeight: FontWeight.bold,
@@ -352,7 +500,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                               ),
                               alignment: Alignment.center,
                               child: Text(
-                                "🎽 Dames",
+                                isBr ? "🎽 Feminino" : "🎽 Dames",
                                 style: TextStyle(
                                   color: _selectedTabIndex == 1 ? Colors.white : Colors.white70,
                                   fontWeight: FontWeight.bold,
@@ -374,8 +522,10 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                           future: _searchRankings(_searchQuery, currentGender),
                           builder: (context, snapshot) {
                             if (snapshot.connectionState == ConnectionState.waiting) {
-                              return const Center(
-                                child: CircularProgressIndicator(color: AppColors.gold),
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  color: _selectedCircuit == 1 ? const Color(0xFF00B4D8) : AppColors.gold,
+                                ),
                               );
                             }
                             final items = snapshot.data ?? [];
@@ -383,46 +533,79 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                           },
                         )
                       : StreamBuilder<QuerySnapshot>(
-                          stream: FirebaseFirestore.instance
-                              .collection('fft_rankings')
-                              .where('gender', isEqualTo: currentGender)
-                              .orderBy('rank', descending: false)
-                              .limit(300)
-                              .snapshots(),
+                          stream: _selectedCircuit == 1
+                              ? FirebaseFirestore.instance
+                                  .collection('itf_rankings')
+                                  .where('gender', isEqualTo: currentGender)
+                                  .orderBy('rank', descending: false)
+                                  .limit(200)
+                                  .snapshots()
+                              : FirebaseFirestore.instance
+                                  .collection('fft_rankings')
+                                  .where('gender', isEqualTo: currentGender)
+                                  .orderBy('rank', descending: false)
+                                  .limit(200)
+                                  .snapshots(),
                           builder: (context, snapshot) {
                             if (snapshot.hasError) {
-                              // Fallback query in case of composite index error
+                              // Fallback query by gender sorted in memory
                               return StreamBuilder<QuerySnapshot>(
                                 stream: FirebaseFirestore.instance
-                                    .collection('fft_rankings')
-                                    .orderBy('rank', descending: false)
-                                    .limit(500)
+                                    .collection(_selectedCircuit == 1 ? 'itf_rankings' : 'fft_rankings')
+                                    .where('gender', isEqualTo: currentGender)
+                                    .limit(200)
                                     .snapshots(),
                                 builder: (context, fallbackSnap) {
-                                  if (fallbackSnap.connectionState == ConnectionState.waiting) {
-                                    return const Center(
-                                      child: CircularProgressIndicator(color: AppColors.gold),
+                                  if (fallbackSnap.connectionState == ConnectionState.waiting && !fallbackSnap.hasData) {
+                                    return Center(
+                                      child: CircularProgressIndicator(
+                                        color: _selectedCircuit == 1 ? const Color(0xFF00B4D8) : AppColors.gold,
+                                      ),
+                                    );
+                                  }
+                                  if (fallbackSnap.hasError) {
+                                    return Center(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(Icons.cloud_off_rounded, size: 48, color: Colors.white54),
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            isBr ? "Erro ao carregar o ranking" : "Erreur de chargement du classement",
+                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          ElevatedButton(
+                                            onPressed: () => setState(() {}),
+                                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: Colors.black),
+                                            child: Text(isBr ? "Tentar novamente" : "Réessayer"),
+                                          ),
+                                        ],
+                                      ),
                                     );
                                   }
                                   if (!fallbackSnap.hasData || fallbackSnap.data!.docs.isEmpty) {
                                     return _buildEmptyState();
                                   }
-                                  final docs = fallbackSnap.data!.docs.where((d) {
-                                    final data = d.data() as Map<String, dynamic>;
-                                    return (data['gender'] ?? '').toString().toUpperCase() == currentGender;
-                                  }).toList();
-                                  return _buildListFromDocs(docs);
+                                  return _buildListFromDocs(fallbackSnap.data!.docs);
                                 },
                               );
                             }
 
-                            if (snapshot.connectionState == ConnectionState.waiting) {
-                              return const Center(
-                                child: CircularProgressIndicator(color: AppColors.gold),
+                            if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  color: _selectedCircuit == 1 ? const Color(0xFF00B4D8) : AppColors.gold,
+                                ),
                               );
                             }
 
-                            final docs = snapshot.data?.docs ?? [];
+                            final rawDocs = snapshot.data?.docs ?? [];
+                            final docs = rawDocs.where((d) {
+                              final data = d.data() as Map<String, dynamic>;
+                              return (data['gender'] ?? '').toString().toUpperCase() == currentGender;
+                            }).toList();
+
                             if (docs.isEmpty) {
                               return _buildEmptyState();
                             }
@@ -451,6 +634,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
         uniqueItems.add(data);
       }
     }
+    uniqueItems.sort((a, b) => _parseRank(a['rank'] ?? a['level']).compareTo(_parseRank(b['rank'] ?? b['level'])));
     return _buildListFromMaps(uniqueItems);
   }
 
@@ -467,19 +651,20 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
     }
 
     if (uniqueItems.isEmpty) {
+      final isBr = Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian ?? false;
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.search_off_rounded, size: 56, color: Colors.white60),
             const SizedBox(height: 12),
-            const Text(
-              "Aucun joueur trouvé",
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            Text(
+              isBr ? "Nenhum atleta encontrado" : "Aucun joueur trouvé",
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
-              "Essayez un autre mot-clé ou vérifiez l'orthographe",
+              isBr ? "Tente outro termo ou verifique a ortografia" : "Essayez un autre mot-clé ou vérifiez l'orthographe",
               style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13),
             ),
           ],
@@ -502,7 +687,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
     final dynamic rawRank = data['rank'] ?? data['level'];
     final int rank = _parseRank(rawRank, defaultRank: index + 1);
 
-    final dynamic rawEvolution = data['evolution'] ?? data['rankChange'] ?? data['progression'];
+    final dynamic rawEvolution = data['evolution'] ?? data['rankChange'] ?? data['progression'] ?? data['movement'];
     final int evolution = _parseEvolution(rawEvolution);
 
     String name = (data['name'] ?? '').toString().trim();
@@ -511,8 +696,9 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
       final last = (data['lastName'] ?? '').toString().trim();
       name = "$first $last".trim();
     }
+    final isBr = Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian ?? false;
     if (name.isEmpty) {
-      name = "Joueur Inconnu";
+      name = isBr ? "Atleta Desconhecido" : "Joueur Inconnu";
     }
 
     final dynamic rawPoints = data['points'] ?? data['elo'] ?? 0;
@@ -522,26 +708,36 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
     final String tournaments = rawTournaments.toString();
 
     final String league = (data['league'] ?? data['ligue'] ?? data['club'] ?? '').toString().trim();
+    final String flag = (data['flag'] ?? '').toString().trim();
+    final String nationality = (data['nationality'] ?? data['nat'] ?? '').toString().trim();
+
+    final String displaySubtitle = _selectedCircuit == 1
+        ? (nationality.isNotEmpty ? "$nationality · ITF World Tour" : "ITF World Tour")
+        : league;
+    final String pointsSuffix = _selectedCircuit == 1 ? "pts ITF" : "pts";
 
     return GestureDetector(
-      onTap: () => _showPlayerRankingModal(context, data, rank, evolution, points, tournaments, league, name),
+      onTap: () => _showPlayerRankingModal(context, data, rank, evolution, points, tournaments, displaySubtitle, name, flag, nationality),
       behavior: HitTestBehavior.opaque,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.20),
-                width: 1.2,
-              ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B).withValues(alpha: 0.88),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.18),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
-            child: Row(
+          ],
+        ),
+        child: Row(
               children: [
                 // Rank & Evolution column
                 SizedBox(
@@ -557,30 +753,40 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                 ),
                 const SizedBox(width: 12),
 
-                // Player Name + League
+                // Player Name + League / Flag
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          if (_selectedCircuit == 1 && flag.isNotEmpty) ...[
+                            Text(flag, style: const TextStyle(fontSize: 16)),
+                            const SizedBox(width: 6),
+                          ],
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
-                      if (league.isNotEmpty) ...[
+                      if (displaySubtitle.isNotEmpty) ...[
                         const SizedBox(height: 3),
                         Text(
-                          league,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.50),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
+                          displaySubtitle,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -597,16 +803,16 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      "$points pts",
-                      style: const TextStyle(
-                        color: AppColors.gold,
+                      "$points $pointsSuffix",
+                      style: TextStyle(
+                        color: _selectedCircuit == 1 ? const Color(0xFF00B4D8) : AppColors.gold,
                         fontWeight: FontWeight.bold,
-                        fontSize: 15,
+                        fontSize: 14,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      "$tournaments tournois",
+                      isBr ? "$tournaments torneios" : "$tournaments tournois",
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 11,
@@ -617,10 +823,8 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
+        );
+      }
 
   void _showPlayerRankingModal(
     BuildContext context,
@@ -629,9 +833,12 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
     int evolution,
     String points,
     String tournaments,
-    String league,
+    String displaySubtitle,
     String name,
+    String flag,
+    String nationality,
   ) {
+    final isBr = Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian ?? false;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -644,7 +851,10 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFF0F1B29).withValues(alpha: 0.95),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 1.5),
+              border: Border.all(
+                color: (_selectedCircuit == 1 ? const Color(0xFF00B4D8) : AppColors.gold).withValues(alpha: 0.4),
+                width: 1.5,
+              ),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -663,9 +873,12 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                       width: 54,
                       height: 54,
                       decoration: BoxDecoration(
-                        color: AppColors.gold.withValues(alpha: 0.2),
+                        color: (_selectedCircuit == 1 ? const Color(0xFF00B4D8) : AppColors.gold).withValues(alpha: 0.2),
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.gold, width: 2),
+                        border: Border.all(
+                          color: _selectedCircuit == 1 ? const Color(0xFF00B4D8) : AppColors.gold,
+                          width: 2,
+                        ),
                       ),
                       child: Center(
                         child: Text(
@@ -679,10 +892,28 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(name, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                          Row(
+                            children: [
+                              if (flag.isNotEmpty) ...[
+                                Text(flag, style: const TextStyle(fontSize: 18)),
+                                const SizedBox(width: 6),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  name,
+                                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                           const SizedBox(height: 2),
                           Text(
-                            league.isNotEmpty ? league : "Fédération Française de Tennis",
+                            displaySubtitle.isNotEmpty
+                                ? displaySubtitle
+                                : (_selectedCircuit == 1
+                                    ? "ITF Beach Tennis World Tour"
+                                    : (isBr ? "Federação Francesa de Tênis" : "Fédération Française de Tennis")),
                             style: const TextStyle(color: Colors.white70, fontSize: 13),
                           ),
                         ],
@@ -701,9 +932,19 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildModalStat("Classement FFT", "#$rank", AppColors.gold),
-                      _buildModalStat("Points Ten'Up", points, Colors.white),
-                      _buildModalStat("Tournois joués", tournaments, Colors.white70),
+                      _buildModalStat(
+                        _selectedCircuit == 1
+                            ? (isBr ? "Posição Mundial" : "Rang Mondial")
+                            : (isBr ? "Ranking FFT" : "Classement FFT"),
+                        "#$rank",
+                        _selectedCircuit == 1 ? const Color(0xFF00B4D8) : AppColors.gold,
+                      ),
+                      _buildModalStat(
+                        _selectedCircuit == 1 ? "Points ITF" : (isBr ? "Pontos Ten'Up" : "Points Ten'Up"),
+                        points,
+                        Colors.white,
+                      ),
+                      _buildModalStat(isBr ? "Torneios" : "Tournois", tournaments, Colors.white70),
                     ],
                   ),
                 ),
@@ -712,22 +953,22 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.gold,
-                      foregroundColor: Colors.black,
+                      backgroundColor: _selectedCircuit == 1 ? const Color(0xFF00B4D8) : AppColors.gold,
+                      foregroundColor: _selectedCircuit == 1 ? Colors.white : Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 4,
                     ),
                     icon: const Icon(Icons.person_search_rounded, size: 20),
-                    label: const Text("Consulter la fiche profil", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    label: Text(isBr ? "Ver perfil do atleta" : "Consulter la fiche profil", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                     onPressed: () {
                       Navigator.pop(ctx);
                       PublicProfileScreen.open(
                         context,
                         userId: (data['licenceNumber'] ?? data['userId'] ?? data['name'])?.toString(),
                         displayName: name,
-                        ranking: rank.toString(),
-                        location: league,
+                        ranking: _selectedCircuit == 1 ? "#$rank ITF" : rank.toString(),
+                        location: _selectedCircuit == 1 ? nationality : displaySubtitle,
                       );
                     },
                   ),
@@ -747,10 +988,18 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
                       elevation: 0,
                     ),
                     icon: const Icon(Icons.share, size: 18),
-                    label: const Text("Partager cette fiche joueur", style: TextStyle(fontWeight: FontWeight.bold)),
+                    label: Text(isBr ? "Compartilhar atleta" : "Partager cette fiche joueur", style: const TextStyle(fontWeight: FontWeight.bold)),
                     onPressed: () {
                       Navigator.pop(ctx);
-                      SharePlus.instance.share(ShareParams(text: "🎾 $name est classé(e) #$rank au Beach Tennis français avec $points pts sur BeachMatch !"));
+                      final circuitText = _selectedCircuit == 1
+                          ? (isBr ? "mundial ITF" : "mondial ITF")
+                          : (isBr ? "no Beach Tennis francês" : "au Beach Tennis français");
+                      final shareMsg = isBr
+                          ? "🎾 $name é #$rank $circuitText com $points pts no BeachMatch !"
+                          : "🎾 $name est classé(e) #$rank $circuitText avec $points pts sur BeachMatch !";
+                      WhatsAppShareService.shareToWhatsAppOrNative(
+                        text: shareMsg,
+                      );
                     },
                   ),
                 ),
@@ -852,6 +1101,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
   }
 
   Widget _buildEmptyState() {
+    final isBr = Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian ?? false;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
@@ -859,14 +1109,14 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.emoji_events_outlined,
+              _selectedCircuit == 1 ? Icons.public : Icons.emoji_events_outlined,
               size: 64,
               color: Colors.white.withValues(alpha: 0.4),
             ),
             const SizedBox(height: 16),
-            const Text(
-              "Aucun classement disponible",
-              style: TextStyle(
+            Text(
+              isBr ? "Nenhum ranking disponível" : "Aucun classement disponible",
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -874,7 +1124,13 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              "Les données FFT Ten'Up apparaîtront ici dès synchronisation.",
+              _selectedCircuit == 1
+                  ? (isBr
+                      ? "Os dados oficiais do ITF Beach Tennis World Tour aparecerão aqui após sincronização."
+                      : "Les données officielles ITF Beach Tennis World Tour apparaîtront ici dès synchronisation.")
+                  : (isBr
+                      ? "Os dados FFT Ten'Up aparecerão aqui após sincronização."
+                      : "Les données FFT Ten'Up apparaîtront ici dès synchronisation."),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.7),

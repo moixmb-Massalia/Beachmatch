@@ -91,28 +91,28 @@ class BeachWeatherWidget extends StatelessWidget {
         }
 
         return ClipRRect(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
             child: Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
                   // Icône & Température
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: AppColors.gold.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.wb_sunny_rounded, color: AppColors.gold, size: 24),
+                    child: const Icon(Icons.wb_sunny_rounded, color: AppColors.gold, size: 21),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -124,13 +124,13 @@ class BeachWeatherWidget extends StatelessWidget {
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w900,
-                                fontSize: 18,
+                                fontSize: 16,
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             Text(
                               weather.sandComfortText,
-                              style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+                              style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
@@ -140,7 +140,7 @@ class BeachWeatherWidget extends StatelessWidget {
                           style: TextStyle(
                             color: windColor,
                             fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                            fontSize: 11,
                           ),
                         ),
                       ],
@@ -148,31 +148,31 @@ class BeachWeatherWidget extends StatelessWidget {
                   ),
                   // Pastille Vent
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                     decoration: BoxDecoration(
                       color: windColor.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: windColor.withValues(alpha: 0.6)),
                     ),
                     child: Column(
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.air_rounded, size: 14, color: windColor),
-                            const SizedBox(width: 4),
+                            Icon(Icons.air_rounded, size: 13, color: windColor),
+                            const SizedBox(width: 3),
                             Text(
                               "${weather.windSpeed.round()} km/h",
                               style: TextStyle(
                                 color: windColor,
                                 fontWeight: FontWeight.w900,
-                                fontSize: 12,
+                                fontSize: 11,
                               ),
                             ),
                           ],
                         ),
                         Text(
                           weather.windDirectionLabel,
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 10),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 9.5),
                         ),
                       ],
                     ),

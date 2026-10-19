@@ -11,11 +11,14 @@ import 'login_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/club.dart';
+import 'clubs/club_detail_screen.dart';
 import 'clubs/president_dashboard_screen.dart';
 import 'tournaments/tournament_radar_screen.dart';
 import 'public_profile_screen.dart';
 import 'chat_detail_screen.dart';
+import '../widgets/link_fft_licence_modal.dart';
 import '../l10n/app_localizations.dart';
+import 'fft_rankings_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -23,7 +26,26 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AppState>().currentUser;
-    if (user == null) return const Center(child: CircularProgressIndicator());
+    if (user == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0F141E),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: Navigator.canPop(context)
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                  onPressed: () => Navigator.pop(context),
+                  tooltip: "Retour",
+                )
+              : null,
+          title: const Text("Profil", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(color: AppColors.coral),
+        ),
+      );
+    }
 
     return Scaffold(
       body: Stack(
@@ -85,14 +107,14 @@ class ProfileScreen extends StatelessWidget {
                               ),
                             ],
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.edit_rounded, color: AppColors.gold, size: 16),
-                              SizedBox(width: 5),
+                              const Icon(Icons.edit_rounded, color: AppColors.gold, size: 16),
+                              const SizedBox(width: 5),
                               Text(
-                                "Modifier",
-                                style: TextStyle(
+                                user.isBrazilian ? "Editar" : "Modifier",
+                                style: const TextStyle(
                                   color: AppColors.gold,
                                   fontWeight: FontWeight.w900,
                                   fontSize: 13,
@@ -129,9 +151,11 @@ class ProfileScreen extends StatelessWidget {
                         const SizedBox(height: 24),
                         _buildPreferences(context),
                         const SizedBox(height: 24),
-                        _buildLegalSection(context),
+                        _buildLanguageSelector(context),
                         const SizedBox(height: 24),
-                        _buildDangerousZone(context),
+                        _buildLegalSection(context, user),
+                        const SizedBox(height: 24),
+                        _buildDangerousZone(context, user),
                         const SizedBox(height: 90), // Bottom padding
                       ],
                     ),
@@ -240,25 +264,157 @@ class ProfileScreen extends StatelessWidget {
               child: Text(AppLocalizations.of(context).profileRanking(_formatRanking(context, user.ranking)), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
             ),
           ],
-          if (user.licenceNumber != null && user.licenceNumber!.trim().isNotEmpty) ...[
+          if (user.isAmbassador) ...[
             const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
-                color: Colors.greenAccent.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFFFFD700), // Gold
+                    Color(0xFFFF8C00), // Dark Orange
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFFD700).withValues(alpha: 0.4),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.verified_rounded, color: Colors.greenAccent, size: 14),
+                  const Icon(Icons.star_rounded, color: Colors.black, size: 16),
                   const SizedBox(width: 6),
                   Text(
-                    "Licence FFT n°${user.licenceNumber} · Certifié ✓",
-                    style: const TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                    user.ambassadorTitle ?? "Embaixador Oficial · BeachMatch 🇧🇷",
+                    style: const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.w900),
                   ),
                 ],
+              ),
+            ),
+          ],
+          if (user.isBrazilian) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF009B3A).withValues(alpha: 0.25), // Verde Brasil
+                    const Color(0xFFFEDF00).withValues(alpha: 0.25), // Amarelo Brasil
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFFEDF00).withValues(alpha: 0.6)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text("🇧🇷", style: TextStyle(fontSize: 15)),
+                  const SizedBox(width: 8),
+                  Text(
+                    user.cbtCategory != null && user.cbtCategory!.isNotEmpty
+                        ? "${user.cbtCategory}${user.cbtId != null && user.cbtId!.isNotEmpty ? ' · ID CBT ${user.cbtId}' : ''} · Atleta Oficial"
+                        : "Atleta CBT Brasil 🇧🇷",
+                    style: const TextStyle(color: Color(0xFFFEDF00), fontSize: 11.5, fontWeight: FontWeight.w900),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            if (user.licenceNumber != null && user.licenceNumber!.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.greenAccent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.verified_rounded, color: Colors.greenAccent, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      "Licence FFT n°${user.licenceNumber} · Certifié ✓",
+                      style: const TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: () => LinkFftLicenceModal.show(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.amberAccent, size: 16),
+                      SizedBox(width: 6),
+                      Text(
+                        "Profil non certifié · Débloquer mon badge FFT",
+                        style: TextStyle(color: Colors.amberAccent, fontSize: 11.5, fontWeight: FontWeight.w900),
+                      ),
+                      SizedBox(width: 4),
+                      Icon(Icons.arrow_forward_ios_rounded, color: Colors.amberAccent, size: 10),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+          if (user.clubName != null && user.clubName!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: user.clubId != null
+                  ? () => ClubDetailScreen.open(context, user.clubId!)
+                  : null,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.gold.withValues(alpha: 0.22),
+                      AppColors.coral.withValues(alpha: 0.22),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.45)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.shield_rounded, color: AppColors.gold, size: 16),
+                    const SizedBox(width: 7),
+                    Flexible(
+                      child: Text(
+                        user.isBrazilian ? "Arena : ${user.clubName}" : "Club : ${user.clubName}",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (user.clubId != null) ...[
+                      const SizedBox(width: 5),
+                      const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 11),
+                    ],
+                  ],
+                ),
               ),
             ),
           ],
@@ -286,14 +442,14 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.edit_rounded, color: Colors.white, size: 18),
-                  SizedBox(width: 8),
+                  const Icon(Icons.edit_rounded, color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
                   Text(
-                    "Modifier mon profil & mes infos",
-                    style: TextStyle(
+                    user.isBrazilian ? "Editar meu perfil & informações" : "Modifier mon profil & mes infos",
+                    style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w900,
                       fontSize: 14.5,
@@ -310,55 +466,119 @@ class ProfileScreen extends StatelessWidget {
   }
 
   String _formatRanking(BuildContext context, String? ranking) {
-    if (ranking == null || ranking.isEmpty || ranking == "NC") return "NC";
-    final num = int.tryParse(ranking);
+    if (ranking == null || ranking.trim().isEmpty || ranking.trim() == "NC") return "NC";
+    final num = int.tryParse(ranking.trim());
     if (num != null) {
-      if (num == 1) return AppLocalizations.of(context).rankingFirst;
-      return AppLocalizations.of(context).rankingNth(num);
+      try {
+        if (num == 1) return AppLocalizations.of(context).rankingFirst;
+        return AppLocalizations.of(context).rankingNth(num);
+      } catch (_) {
+        return "${num}e";
+      }
     }
-    return ranking;
+    return ranking.trim();
   }
 
-  Widget _buildStatsGrid(BuildContext context, user) {
+  Widget _buildStatsGrid(BuildContext context, UserModel user) {
     final matches = context.watch<AppState>().matches;
     final userMatchesCount = matches.where((m) => m.participantsIds.contains(user.id) || m.hostId == user.id).length;
     final totalMatches = user.totalMatches > userMatchesCount ? user.totalMatches : userMatchesCount;
 
+    final rankingLabel = user.isBrazilian
+        ? "Cat. CBT 🇧🇷"
+        : AppLocalizations.of(context).profileFftRanking;
+    final rankingVal = user.isBrazilian && user.cbtCategory != null && user.cbtCategory!.isNotEmpty
+        ? user.cbtCategory!
+        : _formatRanking(context, user.ranking);
+
     return Row(
       children: [
-        Expanded(child: _buildStatCard("Matchs joués 🎾", totalMatches.toString())), 
-        const SizedBox(width: 16),
-        Expanded(child: _buildStatCard(
-          AppLocalizations.of(context).profileFftRanking, 
-          _formatRanking(context, user.ranking), 
-          isHighlight: true, 
-          progression: user.rankingProgression
-        )),
+        Expanded(child: _buildStatCard(user.isBrazilian ? "Partidas 🎾" : "Matchs joués 🎾", totalMatches.toString())), 
+        const SizedBox(width: 14),
+        Expanded(
+          child: GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const FftRankingsScreen()),
+              );
+            },
+            child: _buildStatCard(
+              rankingLabel, 
+              rankingVal, 
+              isHighlight: true, 
+              progression: user.rankingProgression,
+              isClickable: true,
+            ),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildStatCard(String label, String value, {bool isHighlight = false, int? progression}) {
+  Widget _buildStatCard(String label, String value, {bool isHighlight = false, int? progression, bool isClickable = false}) {
     return _buildGlassCard(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Text(
+                  label,
+                  style: const TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (isClickable)
+                const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.gold, size: 11),
+            ],
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
-              Text(value, style: TextStyle(color: isHighlight ? AppColors.gold : Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      color: isHighlight ? AppColors.gold : Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
               if (progression != null && progression != 0) ...[
                 const SizedBox(width: 4),
-                Icon(progression > 0 ? Icons.arrow_upward : Icons.arrow_downward, color: progression > 0 ? Colors.greenAccent : Colors.redAccent, size: 16),
+                Icon(
+                  progression > 0 ? Icons.arrow_upward : Icons.arrow_downward,
+                  color: progression > 0 ? Colors.greenAccent : Colors.redAccent,
+                  size: 15,
+                ),
                 Text(
                   progression > 0 ? "+$progression" : "$progression",
-                  style: TextStyle(color: progression > 0 ? Colors.greenAccent : Colors.redAccent, fontSize: 14, fontWeight: FontWeight.bold)
+                  style: TextStyle(
+                    color: progression > 0 ? Colors.greenAccent : Colors.redAccent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ],
           ),
+          if (isClickable) ...[
+            const SizedBox(height: 4),
+            const Text(
+              "Voir le classement ›",
+              style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.w600),
+            ),
+          ],
         ],
       ),
     );
@@ -376,7 +596,10 @@ class ProfileScreen extends StatelessWidget {
                 children: [
                   const Icon(Icons.people_alt_rounded, color: AppColors.gold, size: 22),
                   const SizedBox(width: 8),
-                  const Text("Mes Amis", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
+                  Text(
+                    user.isBrazilian ? "Meus Amigos" : "Mes Amis",
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
+                  ),
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -394,15 +617,20 @@ class ProfileScreen extends StatelessWidget {
               if (user.friendsIds.isNotEmpty)
                 GestureDetector(
                   onTap: () => _showFriendsBottomSheet(context, user),
-                  child: const Text("Voir tout →", style: TextStyle(color: AppColors.coral, fontWeight: FontWeight.bold, fontSize: 12)),
+                  child: Text(
+                    user.isBrazilian ? "Ver todos →" : "Voir tout →",
+                    style: const TextStyle(color: AppColors.coral, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
                 ),
             ],
           ),
           const SizedBox(height: 12),
           if (user.friendsIds.isEmpty)
-            const Text(
-              "Vous n'avez pas encore ajouté d'amis. Retrouvez des joueurs dans l'onglet Communauté !",
-              style: TextStyle(color: Colors.white60, fontSize: 13),
+            Text(
+              user.isBrazilian
+                  ? "Você ainda não adicionou amigos. Encontre atletas na aba Comunidade !"
+                  : "Vous n'avez pas encore ajouté d'amis. Retrouvez des joueurs dans l'onglet Communauté !",
+              style: const TextStyle(color: Colors.white60, fontSize: 13),
             )
           else
             _buildFriendsPreviewRow(context, user),
@@ -494,7 +722,7 @@ class ProfileScreen extends StatelessWidget {
                         const Icon(Icons.people_alt_rounded, color: AppColors.gold, size: 22),
                         const SizedBox(width: 10),
                         Text(
-                          "Mes Amis (${user.friendsIds.length})",
+                          "${user.isBrazilian ? 'Meus Amigos' : 'Mes Amis'} (${user.friendsIds.length})",
                           style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         const Spacer(),
@@ -508,10 +736,13 @@ class ProfileScreen extends StatelessWidget {
                   const Divider(color: Colors.white12, height: 1),
                   Expanded(
                     child: friends.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Padding(
-                              padding: EdgeInsets.all(24.0),
-                              child: Text("Aucun ami trouvé dans la liste.", style: TextStyle(color: Colors.white60)),
+                              padding: const EdgeInsets.all(24.0),
+                              child: Text(
+                                user.isBrazilian ? "Nenhum amigo encontrado na lista." : "Aucun ami trouvé dans la liste.",
+                                style: const TextStyle(color: Colors.white60),
+                              ),
                             ),
                           )
                         : ListView.separated(
@@ -538,7 +769,7 @@ class ProfileScreen extends StatelessWidget {
                                         : null,
                                   ),
                                   title: Text(friend.displayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                  subtitle: Text("Niveau ${friend.level} · ${friend.location}", style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                                  subtitle: Text("${user.isBrazilian ? 'Nível' : 'Niveau'} ${friend.level} · ${friend.location}", style: const TextStyle(color: Colors.white60, fontSize: 12)),
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
@@ -571,7 +802,9 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _buildAdminSection(BuildContext context, user) {
-    if (!user.isAdmin) return const SizedBox.shrink();
+    final authEmail = (FirebaseAuth.instance.currentUser?.email ?? '').toLowerCase().trim();
+    final isSuperAdmin = authEmail == 'moixmb@gmail.com';
+    if (!isSuperAdmin) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: _buildGlassCard(
@@ -648,18 +881,18 @@ class ProfileScreen extends StatelessWidget {
                       child: const Icon(Icons.shield_outlined, color: AppColors.coral, size: 22),
                     ),
                     const SizedBox(width: 10),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            "Espace Président de Club",
-                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.white),
+                            user.isBrazilian ? "Espaço Presidente de Arena" : "Espace Président de Club",
+                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.white),
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           Text(
-                            "Gérez votre club et vos tournois",
-                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                            user.isBrazilian ? "Gerencie sua arena e seus torneios" : "Gérez votre club et vos tournois",
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
                           ),
                         ],
                       ),
@@ -700,7 +933,10 @@ class ProfileScreen extends StatelessWidget {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     icon: const Icon(Icons.dashboard_customize, size: 18),
-                    label: const Text("Ouvrir le Tableau de Bord Club", style: TextStyle(fontWeight: FontWeight.bold)),
+                    label: Text(
+                      user.isBrazilian ? "Abrir Painel da Arena" : "Ouvrir le Tableau de Bord Club",
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     onPressed: () {
                       Navigator.push(
                         context,
@@ -793,7 +1029,10 @@ class ProfileScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               icon: const Icon(Icons.radar_rounded, size: 18, color: AppColors.coral),
-              label: const Text("Ouvrir le Radar 360°", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              label: Text(
+                user.isBrazilian ? "Abrir o Radar 360°" : "Ouvrir le Radar 360°",
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
               onPressed: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const TournamentRadarScreen()));
               },
@@ -869,14 +1108,14 @@ class ProfileScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.coral.withValues(alpha: 0.5)),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.edit, color: Colors.white, size: 13),
-                      SizedBox(width: 4),
+                      const Icon(Icons.edit, color: Colors.white, size: 13),
+                      const SizedBox(width: 4),
                       Text(
-                        "Modifier",
-                        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                        user.isBrazilian ? "Editar" : "Modifier",
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -899,8 +1138,10 @@ class ProfileScreen extends StatelessWidget {
           Divider(color: Colors.white.withValues(alpha: 0.2)),
           _buildListTile(
             Icons.handshake_rounded,
-            "Recherche partenaire",
-            user.isLookingForPartner ? "Actif 🤝" : "Non",
+            user.isBrazilian ? "Procurando parceiro(a)" : "Recherche partenaire",
+            user.isLookingForPartner
+                ? (user.isBrazilian ? "Ativo 🤝" : "Actif 🤝")
+                : (user.isBrazilian ? "Não" : "Non"),
           ),
         ],
       ),
@@ -912,14 +1153,24 @@ class ProfileScreen extends StatelessWidget {
     String? selectedAvail = user.availability;
     int selectedLevel = user.level;
     bool isLooking = user.isLookingForPartner;
+    final isBr = user.isBrazilian;
 
-    final positions = ["Gauche", "Droite", "Polyvalent"];
-    final availabilities = [
-      "Soirs & Week-ends",
-      "En semaine",
-      "Tout le temps",
-      "Variable",
-    ];
+    final positions = isBr
+        ? ["Esquerda", "Direita", "Polivalente"]
+        : ["Gauche", "Droite", "Polyvalent"];
+    final availabilities = isBr
+        ? [
+            "Noites & Fins de semana",
+            "Dias de semana",
+            "Sempre disponível",
+            "Horários flexíveis",
+          ]
+        : [
+            "Soirs & Week-ends",
+            "En semaine",
+            "Tout le temps",
+            "Variable",
+          ];
 
     showModalBottomSheet(
       context: context,
@@ -955,25 +1206,30 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.tune_rounded, color: AppColors.gold, size: 24),
-                      SizedBox(width: 10),
+                      const Icon(Icons.tune_rounded, color: AppColors.gold, size: 24),
+                      const SizedBox(width: 10),
                       Text(
-                        "Préférences de Jeu",
-                        style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                        isBr ? "Preferências de Jogo" : "Préférences de Jeu",
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    "Personnalisez votre style et vos disponibilités pour trouver les meilleurs partenaires.",
-                    style: TextStyle(color: Colors.white60, fontSize: 13),
+                  Text(
+                    isBr
+                        ? "Personalize seu estilo e horários para encontrar os melhores parceiros."
+                        : "Personnalisez votre style et vos disponibilités pour trouver les meilleurs partenaires.",
+                    style: const TextStyle(color: Colors.white60, fontSize: 13),
                   ),
                   const SizedBox(height: 20),
 
                   // Côté de jeu
-                  const Text("Côté de jeu préféré", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(
+                    isBr ? "Posição preferida em quadra" : "Côté de jeu préféré",
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -996,7 +1252,10 @@ class ProfileScreen extends StatelessWidget {
                   const SizedBox(height: 18),
 
                   // Disponibilités
-                  const Text("Disponibilités", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(
+                    isBr ? "Disponibilidade" : "Disponibilités",
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -1019,7 +1278,10 @@ class ProfileScreen extends StatelessWidget {
                   const SizedBox(height: 18),
 
                   // Niveau de jeu auto-évalué
-                  const Text("Niveau auto-évalué", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(
+                    isBr ? "Nível autoavaliado" : "Niveau auto-évalué",
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -1027,7 +1289,9 @@ class ProfileScreen extends StatelessWidget {
                     children: List.generate(5, (index) {
                       final lvl = index + 1;
                       final isSelected = selectedLevel == lvl;
-                      final labels = ["1 (Débutant)", "2 (Intermédiaire)", "3 (Confirmé)", "4 (Compétiteur)", "5 (Expert)"];
+                      final labels = isBr
+                          ? ["1 (Iniciante)", "2 (Intermediário)", "3 (Avançado)", "4 (Competidor)", "5 (Profissional)"]
+                          : ["1 (Débutant)", "2 (Intermédiaire)", "3 (Confirmé)", "4 (Compétiteur)", "5 (Expert)"];
                       return ChoiceChip(
                         label: Text(labels[index], style: TextStyle(color: isSelected ? Colors.white : Colors.white70, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, fontSize: 12)),
                         selected: isSelected,
@@ -1057,17 +1321,17 @@ class ProfileScreen extends StatelessWidget {
                       children: [
                         const Icon(Icons.handshake_rounded, color: AppColors.coral, size: 22),
                         const SizedBox(width: 12),
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                "Recherche de partenaire",
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                isBr ? "Procurando parceiro(a)" : "Recherche de partenaire",
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                               ),
                               Text(
-                                "Être visible par les joueurs de la région",
-                                style: TextStyle(color: Colors.white60, fontSize: 11),
+                                isBr ? "Ficar visível para atletas da região" : "Être visible par les joueurs de la région",
+                                style: const TextStyle(color: Colors.white60, fontSize: 11),
                               ),
                             ],
                           ),
@@ -1106,8 +1370,10 @@ class ProfileScreen extends StatelessWidget {
                           );
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Préférences de jeu mises à jour ! 🎾"),
+                              SnackBar(
+                                content: Text(
+                                  isBr ? "Preferências de jogo atualizadas ! 🎾" : "Préférences de jeu mises à jour ! 🎾",
+                                ),
                                 backgroundColor: Colors.green,
                               ),
                             );
@@ -1123,9 +1389,9 @@ class ProfileScreen extends StatelessWidget {
                           }
                         }
                       },
-                      child: const Text(
-                        "Enregistrer mes préférences",
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                      child: Text(
+                        isBr ? "Salvar preferências" : "Enregistrer mes préférences",
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                     ),
                   ),
@@ -1138,7 +1404,93 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildLegalSection(BuildContext context) {
+  Widget _buildLanguageSelector(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final activeLocale = appState.currentLocale ?? Localizations.localeOf(context);
+
+    final languages = [
+      {'code': 'fr', 'country': '', 'flag': '🇫🇷', 'label': 'Français'},
+      {'code': 'pt', 'country': 'BR', 'flag': '🇧🇷', 'label': 'Português (Brasil)'},
+      {'code': 'en', 'country': '', 'flag': '🇬🇧', 'label': 'English'},
+      {'code': 'es', 'country': '', 'flag': '🇪🇸', 'label': 'Español'},
+      {'code': 'it', 'country': '', 'flag': '🇮🇹', 'label': 'Italiano'},
+    ];
+
+    return _buildGlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.language_rounded, color: AppColors.gold, size: 22),
+              SizedBox(width: 8),
+              Text(
+                "Langue / Idioma",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            "Sélectionnez votre langue d'affichage / Escolha seu idioma.",
+            style: TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: languages.map((lang) {
+              final isSelected = activeLocale.languageCode == lang['code'] &&
+                  (lang['country']!.isEmpty || activeLocale.countryCode == lang['country']);
+
+              return GestureDetector(
+                onTap: () {
+                  final newLocale = lang['country']!.isNotEmpty
+                      ? Locale(lang['code']!, lang['country']!)
+                      : Locale(lang['code']!);
+                  context.read<AppState>().setLocale(newLocale);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.gold.withValues(alpha: 0.25)
+                        : Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.2),
+                      width: isSelected ? 1.8 : 1.0,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(lang['flag']!, style: const TextStyle(fontSize: 18)),
+                      const SizedBox(width: 8),
+                      Text(
+                        lang['label']!,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : Colors.white70,
+                          fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                      if (isSelected) ...[
+                        const SizedBox(width: 6),
+                        const Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 16),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegalSection(BuildContext context, UserModel user) {
     return _buildGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1148,8 +1500,14 @@ class ProfileScreen extends StatelessWidget {
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.policy_rounded, color: AppColors.gold),
-            title: const Text("Conditions Générales & Confidentialité", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            subtitle: const Text("Règles d'utilisation et protection de vos données", style: TextStyle(color: Colors.white60, fontSize: 12)),
+            title: Text(
+              user.isBrazilian ? "Termos Gerais & Privacidade" : "Conditions Générales & Confidentialité",
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(
+              user.isBrazilian ? "Regras de uso e proteção dos seus dados" : "Règles d'utilisation et protection de vos données",
+              style: const TextStyle(color: Colors.white60, fontSize: 12),
+            ),
             trailing: const Icon(Icons.chevron_right, color: Colors.white54),
             onTap: () {
               Navigator.push(context, MaterialPageRoute(builder: (context) => const PrivacyScreen()));
@@ -1167,7 +1525,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDangerousZone(BuildContext context) {
+  Widget _buildDangerousZone(BuildContext context, UserModel user) {
     return _buildGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1190,14 +1548,31 @@ class ProfileScreen extends StatelessWidget {
                   builder: (ctx) => AlertDialog(
                     backgroundColor: const Color(0xFF1E293B),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    title: const Text("Se déconnecter ?", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    content: const Text("Voulez-vous vraiment vous déconnecter de votre compte BeachMatch ?", style: TextStyle(color: Colors.white70)),
+                    title: Text(
+                      user.isBrazilian ? "Sair da conta ?" : "Se déconnecter ?",
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                    content: Text(
+                      user.isBrazilian
+                          ? "Deseja realmente sair da sua conta BeachMatch ?"
+                          : "Voulez-vous vraiment vous déconnecter de votre compte BeachMatch ?",
+                      style: const TextStyle(color: Colors.white70),
+                    ),
                     actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Annuler", style: TextStyle(color: Colors.white60))),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: Text(
+                          user.isBrazilian ? "Cancelar" : "Annuler",
+                          style: const TextStyle(color: Colors.white60),
+                        ),
+                      ),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(backgroundColor: AppColors.coral, foregroundColor: Colors.white),
                         onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text("Déconnexion", style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: Text(
+                          user.isBrazilian ? "Sair" : "Déconnexion",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ],
                   ),

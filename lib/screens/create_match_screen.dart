@@ -2,8 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/whatsapp_share_service.dart';
 import '../theme/colors.dart';
 import '../providers/app_state.dart';
 import '../models/user.dart';
@@ -28,7 +28,10 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   int _targetLevel = 3;
   int _maxPlayers = 4;
   bool _isPrivate = false;
+  bool _isReiDaPraia = false;
   final TextEditingController _descController = TextEditingController();
+  final TextEditingController _pixKeyController = TextEditingController();
+  final TextEditingController _courtCostController = TextEditingController();
   bool _isSaving = false;
 
   @override
@@ -42,6 +45,8 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   @override
   void dispose() {
     _descController.dispose();
+    _pixKeyController.dispose();
+    _courtCostController.dispose();
     super.dispose();
   }
 
@@ -64,9 +69,10 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   }
 
   Future<void> _saveMatch() async {
+    final isBrazilian = context.read<AppState>().currentUser?.isBrazilian == true;
     if (_selectedCourtId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Veuillez sélectionner un terrain de Beach Tennis.")),
+        SnackBar(content: Text(isBrazilian ? "Por favor, selecione uma quadra de Beach Tennis." : "Veuillez sélectionner un terrain de Beach Tennis.")),
       );
       return;
     }
@@ -81,27 +87,34 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
         _selectedTime.minute,
       );
 
+      final userEnteredDesc = _descController.text.trim();
+      final finalDescription = _isReiDaPraia
+          ? (userEnteredDesc.isNotEmpty ? "👑 Rei da Praia • $userEnteredDesc" : "👑 Formato Rei da Praia (4 jogadores em rodízio)")
+          : userEnteredDesc;
+
       final matchId = await context.read<AppState>().createMatch(
         courtId: _selectedCourtId!,
         scheduledTime: scheduledTime,
         targetLevel: _targetLevel,
         maxPlayers: _maxPlayers,
         isPrivate: _isPrivate,
-        description: _descController.text.trim(),
+        description: finalDescription,
         invitedPlayerIds: widget.invitedPlayer != null ? [widget.invitedPlayer!.id] : null,
+        pixKey: _pixKeyController.text.trim().isNotEmpty ? _pixKeyController.text.trim() : null,
+        courtCost: double.tryParse(_courtCostController.text.trim().replaceAll(',', '.')),
       );
 
       if (mounted) {
         final courts = context.read<AppState>().courts;
         final selectedCourt = courts.firstWhere(
           (c) => c.id == _selectedCourtId,
-          orElse: () => CourtModel(id: '', name: 'Terrain de Beach', latitude: 0, longitude: 0, isFree: true, hasLights: false, hasShowers: false),
+          orElse: () => CourtModel(id: '', name: isBrazilian ? 'Quadra de Beach' : 'Terrain de Beach', latitude: 0, longitude: 0, isFree: true, hasLights: false, hasShowers: false),
         );
         _showSuccessDialog(matchId ?? '', selectedCourt.name, scheduledTime);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erreur lors de la création : $e")));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isBrazilian ? "Erro ao criar partida : $e" : "Erreur lors de la création : $e")));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -109,12 +122,23 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   }
 
   void _showSuccessDialog(String matchId, String courtName, DateTime matchDate) {
-    final formattedDate = DateFormat('EEEE d MMMM à HH:mm', 'fr_FR').format(matchDate);
-    final shareText = "🎾 Partie de Beach Tennis !\n\n"
-        "📅 $formattedDate\n"
-        "📍 $courtName\n"
-        "🎯 Niveau $_targetLevel • $_maxPlayers joueurs max\n\n"
-        "Rejoins la partie sur BeachMatch pour compléter le terrain : https://beachmatch.app/match?id=$matchId";
+    final isBrazilian = context.read<AppState>().currentUser?.isBrazilian == true;
+    final formattedDate = isBrazilian
+        ? DateFormat("EEEE, d 'de' MMMM 'às' HH:mm", 'pt_BR').format(matchDate)
+        : DateFormat('EEEE d MMMM à HH:mm', 'fr_FR').format(matchDate);
+
+    final shareText = isBrazilian
+        ? "🎾 Partida de Beach Tennis !\n\n"
+          "📅 $formattedDate\n"
+          "📍 $courtName\n"
+          "🎯 ${_isReiDaPraia ? '👑 Formato Rei da Praia (4 jogadores)' : 'Nível $_targetLevel • $_maxPlayers jogadores'}\n\n"
+          "Partiu praia ? Entra pelo BeachMatch pra fechar a quadra: https://beachmatch.app/match?id=$matchId\n\n"
+          "#BeachTennisBrasil #BeachMatch #PartiuPraia"
+        : "🎾 Partie de Beach Tennis !\n\n"
+          "📅 $formattedDate\n"
+          "📍 $courtName\n"
+          "🎯 ${_isReiDaPraia ? '👑 Roi de la plage (4 joueurs)' : 'Niveau $_targetLevel • $_maxPlayers joueurs max'}\n\n"
+          "Rejoins la partie sur BeachMatch pour compléter le terrain : https://beachmatch.app/match?id=$matchId";
 
     showDialog(
       context: context,
@@ -122,14 +146,14 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Column(
+        title: Column(
           children: [
-            Text("🎉", style: TextStyle(fontSize: 40)),
-            SizedBox(height: 8),
+            const Text("🎉", style: TextStyle(fontSize: 40)),
+            const SizedBox(height: 8),
             Text(
-              "Partie créée avec succès !",
+              isBrazilian ? "Partida criada com sucesso !" : "Partie créée avec succès !",
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
             ),
           ],
         ),
@@ -138,8 +162,12 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
           children: [
             Text(
               _isPrivate
-                  ? "Votre partie privée est prête. Partagez-la avec vos amis pour qu'ils puissent vous rejoindre !"
-                  : "Votre partie est désormais visible par tous les joueurs de la région.",
+                  ? (isBrazilian
+                      ? "Sua partida privada está pronta. Compartilhe no WhatsApp com seus amigos para eles entrarem na quadra !"
+                      : "Votre partie privée est prête. Partagez-la avec vos amis pour qu'ils puissent vous rejoindre !")
+                  : (isBrazilian
+                      ? "Sua partida está visível para todos os atletas da região na comunidade BeachMatch."
+                      : "Votre partie est désormais visible par tous les joueurs de la région."),
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
             ),
@@ -153,12 +181,12 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                 minimumSize: const Size(double.infinity, 48),
               ),
               icon: const Icon(Icons.share_rounded, size: 20),
-              label: const Text(
-                "Partager sur WhatsApp",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              label: Text(
+                isBrazilian ? "Convidar no WhatsApp" : "Partager sur WhatsApp",
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               onPressed: () {
-                SharePlus.instance.share(ShareParams(text: shareText));
+                WhatsAppShareService.shareToWhatsAppOrNative(text: shareText);
               },
             ),
           ],
@@ -170,7 +198,10 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                 Navigator.pop(ctx);
                 Navigator.pop(context);
               },
-              child: const Text("Voir mes matchs", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold)),
+              child: Text(
+                isBrazilian ? "Ver minhas partidas" : "Voir mes matchs",
+                style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ],
@@ -180,14 +211,16 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final courts = context.read<AppState>().courts;
+    final appState = context.watch<AppState>();
+    final courts = appState.courts;
+    final isBrazilian = appState.currentUser?.isBrazilian == true;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          "Créer une partie",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+        title: Text(
+          isBrazilian ? "Criar uma Partida" : "Créer une partie",
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -215,12 +248,14 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const FeatureDiscoveryBubble(
+                  FeatureDiscoveryBubble(
                     featureKey: 'create_match_tip',
-                    title: "Organisation de partie simplifiée",
-                    message: "Tapez une ville ou un club pour auto-compléter le terrain. Choisissez l'heure, le format (2v2 ou 1v1) et partagez l'invitation avec vos amis !",
+                    title: isBrazilian ? "Organização rápida de partidas" : "Organisation de partie simplifiée",
+                    message: isBrazilian
+                        ? "Digite uma cidade ou arena para encontrar a quadra. Escolha o horário, formato (Dupla ou Rei da Praia) e convide seus parceiros no WhatsApp !"
+                        : "Tapez une ville ou un club pour auto-compléter le terrain. Choisissez l'heure, le format (2v2 ou 1v1) et partagez l'invitation avec vos amis !",
                     icon: Icons.sports_tennis_rounded,
-                    margin: EdgeInsets.only(bottom: 16),
+                    margin: const EdgeInsets.only(bottom: 16),
                   ),
 
                   // Invitation spéciale
@@ -274,13 +309,13 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Row(
+                        Row(
                           children: [
-                            Icon(Icons.visibility_rounded, color: AppColors.gold, size: 20),
-                            SizedBox(width: 8),
+                            const Icon(Icons.visibility_rounded, color: AppColors.gold, size: 20),
+                            const SizedBox(width: 8),
                             Text(
-                              "Visibilité de la partie",
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                              isBrazilian ? "Visibilidade da partida" : "Visibilité de la partie",
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                             ),
                           ],
                         ),
@@ -289,8 +324,8 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                           children: [
                             Expanded(
                               child: _buildVisibilityOption(
-                                title: "Publique 🌐",
-                                subtitle: "Ouverte à tous les beacheurs",
+                                title: isBrazilian ? "Pública 🌐" : "Publique 🌐",
+                                subtitle: isBrazilian ? "Aberta a todos os atletas" : "Ouverte à tous les beacheurs",
                                 isSelected: !_isPrivate,
                                 onTap: () => setState(() => _isPrivate = false),
                               ),
@@ -298,8 +333,8 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: _buildVisibilityOption(
-                                title: "Privée 🔒",
-                                subtitle: "Amis / Sur invitation",
+                                title: isBrazilian ? "Privada 🔒" : "Privée 🔒",
+                                subtitle: isBrazilian ? "Amigos / Apenas convidados" : "Amis / Sur invitation",
                                 isSelected: _isPrivate,
                                 onTap: () => setState(() => _isPrivate = true),
                               ),
@@ -316,13 +351,13 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Row(
+                        Row(
                           children: [
-                            Icon(Icons.location_on_rounded, color: AppColors.coral, size: 20),
-                            SizedBox(width: 8),
+                            const Icon(Icons.location_on_rounded, color: AppColors.coral, size: 20),
+                            const SizedBox(width: 8),
                             Text(
-                              "Terrain de Beach Tennis",
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                              isBrazilian ? "Quadra de Beach Tennis" : "Terrain de Beach Tennis",
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                             ),
                           ],
                         ),
@@ -332,9 +367,16 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                               ? TextEditingValue(text: "${widget.preselectedCourt!.name} (${widget.preselectedCourt!.city})")
                               : null,
                           displayStringForOption: (CourtModel court) =>
-                              court.id == "NEW_COURT" ? "+ Saisir un terrain manuellement" : "${court.name} (${court.city})",
+                              court.id == "NEW_COURT" ? (isBrazilian ? "+ Inserir quadra manualmente" : "+ Saisir un terrain manuellement") : "${court.name} (${court.city})",
                           optionsBuilder: (TextEditingValue textEditingValue) {
                             if (textEditingValue.text.isEmpty) {
+                              if (isBrazilian) {
+                                final brCourts = courts.where((c) {
+                                  final ctry = c.country.toLowerCase();
+                                  return ctry == 'br' || ctry.contains('br') || ctry.contains('brasil') || ctry.contains('bresil');
+                                }).toList();
+                                if (brCourts.isNotEmpty) return brCourts.take(8);
+                              }
                               return courts.take(8);
                             }
                             final tokens = _normalize(textEditingValue.text).split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
@@ -393,7 +435,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                                               size: 20,
                                             ),
                                             title: Text(
-                                              isNew ? "+ Saisir un terrain manuellement" : court.name,
+                                              isNew ? (isBrazilian ? "+ Inserir quadra manualmente" : "+ Saisir un terrain manuellement") : court.name,
                                               style: TextStyle(
                                                 color: isNew ? AppColors.gold : Colors.white,
                                                 fontWeight: isNew ? FontWeight.bold : FontWeight.w600,
@@ -425,22 +467,22 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                                   return AlertDialog(
                                     backgroundColor: const Color(0xFF1E293B),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                    title: const Text("Ajouter un terrain", style: TextStyle(color: Colors.white)),
+                                    title: Text(isBrazilian ? "Adicionar uma quadra" : "Ajouter un terrain", style: const TextStyle(color: Colors.white)),
                                     content: TextFormField(
                                       initialValue: name,
                                       style: const TextStyle(color: Colors.white),
-                                      decoration: const InputDecoration(
-                                        hintText: "Nom ou adresse du terrain",
-                                        hintStyle: TextStyle(color: Colors.white38),
+                                      decoration: InputDecoration(
+                                        hintText: isBrazilian ? "Nome ou endereço da quadra" : "Nom ou adresse du terrain",
+                                        hintStyle: const TextStyle(color: Colors.white38),
                                       ),
                                       onChanged: (v) => name = v,
                                     ),
                                     actions: [
-                                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuler")),
+                                      TextButton(onPressed: () => Navigator.pop(ctx), child: Text(isBrazilian ? "Cancelar" : "Annuler")),
                                       ElevatedButton(
                                         style: ElevatedButton.styleFrom(backgroundColor: AppColors.coral),
                                         onPressed: () => Navigator.pop(ctx, name),
-                                        child: const Text("Ajouter", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                                        child: Text(isBrazilian ? "Adicionar" : "Ajouter", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                                       ),
                                     ],
                                   );
@@ -448,11 +490,14 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                               );
 
                               if (newCourtName != null && newCourtName.isNotEmpty) {
+                                final fallbackLat = isBrazilian ? -15.7801 : 43.6961;
+                                final fallbackLng = isBrazilian ? -47.9292 : 7.2717;
                                 final docRef = await FirebaseFirestore.instance.collection('courts').add({
                                   "name": newCourtName,
-                                  "city": "Inconnue",
-                                  "latitude": currentPos?.latitude ?? 43.6961,
-                                  "longitude": currentPos?.longitude ?? 7.2717,
+                                  "city": isBrazilian ? "Brasil" : "Inconnue",
+                                  "country": isBrazilian ? "BR" : "FR",
+                                  "latitude": currentPos?.latitude ?? fallbackLat,
+                                  "longitude": currentPos?.longitude ?? fallbackLng,
                                   "isFree": true,
                                   "hasLighting": false,
                                   "hasParking": false,
@@ -473,7 +518,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                               onEditingComplete: onEditingComplete,
                               style: const TextStyle(color: Colors.white),
                               decoration: InputDecoration(
-                                hintText: "Rechercher un terrain de plage...",
+                                hintText: isBrazilian ? "Buscar uma quadra ou arena..." : "Rechercher un terrain de plage...",
                                 hintStyle: const TextStyle(color: Colors.white38),
                                 filled: true,
                                 fillColor: Colors.white.withValues(alpha: 0.08),
@@ -489,7 +534,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                             builder: (context) {
                               final selectedCourt = courts.firstWhere(
                                 (c) => c.id == _selectedCourtId,
-                                orElse: () => CourtModel(id: '', name: 'Terrain sélectionné', latitude: 0, longitude: 0, isFree: true, hasLights: false, hasShowers: false),
+                                orElse: () => CourtModel(id: '', name: isBrazilian ? 'Quadra selecionada' : 'Terrain sélectionné', latitude: 0, longitude: 0, isFree: true, hasLights: false, hasShowers: false),
                               );
                               return Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -504,7 +549,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        "Terrain sélectionné : ${selectedCourt.name}",
+                                        "${isBrazilian ? 'Quadra selecionada' : 'Terrain sélectionné'} : ${selectedCourt.name}",
                                         style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold),
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -525,13 +570,13 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Row(
+                        Row(
                           children: [
-                            Icon(Icons.calendar_month_rounded, color: AppColors.gold, size: 20),
-                            SizedBox(width: 8),
+                            const Icon(Icons.calendar_month_rounded, color: AppColors.gold, size: 20),
+                            const SizedBox(width: 8),
                             Text(
-                              "Date & Heure du match",
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                              isBrazilian ? "Data & Horário da partida" : "Date & Heure du match",
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                             ),
                           ],
                         ),
@@ -599,35 +644,45 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Row(
+                        Row(
                           children: [
-                            Icon(Icons.sports_tennis_rounded, color: AppColors.coral, size: 20),
-                            SizedBox(width: 8),
+                            const Icon(Icons.sports_tennis_rounded, color: AppColors.coral, size: 20),
+                            const SizedBox(width: 8),
                             Text(
-                              "Niveau cible & Format",
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                              isBrazilian ? "Nível & Formato" : "Niveau cible & Format",
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                             ),
                           ],
                         ),
                         const SizedBox(height: 12),
-                        const Text("Niveau des participants", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                        Text(
+                          isBrazilian ? "Nível dos atletas" : "Niveau des participants",
+                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: List.generate(5, (index) => _buildLevelChip(index + 1)),
                         ),
-                        const SizedBox(height: 16),
-                        const Text("Nombre de joueurs", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                        Text(
+                          isBrazilian ? "Número de jogadores & Formato" : "Nombre de joueurs",
+                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            _buildPlayerCountChip(label: "Double (4 joueurs)", count: 4),
-                            _buildPlayerCountChip(label: "8 joueurs", count: 8),
-                            _buildPlayerCountChip(label: "Simple (2)", count: 2),
-                            _buildPlayerCountChip(label: "Personnaliser", count: _maxPlayers, isCustom: true),
+                            _buildPlayerCountChip(label: isBrazilian ? "Dupla (4)" : "Double (4)", count: 4),
+                            _buildPlayerCountChip(
+                              label: "👑 Rei da Praia (4)",
+                              count: 4,
+                              isReiDaPraia: true,
+                            ),
+                            _buildPlayerCountChip(label: isBrazilian ? "Simples (2)" : "Simple (2)", count: 2),
+                            _buildPlayerCountChip(label: isBrazilian ? "8 jogadores" : "8 joueurs", count: 8),
+                            _buildPlayerCountChip(label: isBrazilian ? "Personalizar" : "Personnaliser", count: _maxPlayers, isCustom: true),
                           ],
                         ),
                       ],
@@ -640,13 +695,13 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Row(
+                        Row(
                           children: [
-                            Icon(Icons.notes_rounded, color: AppColors.gold, size: 20),
-                            SizedBox(width: 8),
+                            const Icon(Icons.notes_rounded, color: AppColors.gold, size: 20),
+                            const SizedBox(width: 8),
                             Text(
-                              "Message / Consignes (Optionnel)",
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                              isBrazilian ? "Mensagem / Observações (Opcional)" : "Message / Consignes (Optionnel)",
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                             ),
                           ],
                         ),
@@ -656,7 +711,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                           maxLines: 2,
                           style: const TextStyle(color: Colors.white),
                           decoration: InputDecoration(
-                            hintText: "Ex : Balles fournies, match amical détendu...",
+                            hintText: isBrazilian ? "Ex: Bolinhas inclusas, jogo descontraído..." : "Ex : Balles fournies, match amical détendu...",
                             hintStyle: const TextStyle(color: Colors.white38),
                             filled: true,
                             fillColor: Colors.white.withValues(alpha: 0.08),
@@ -667,6 +722,64 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                       ],
                     ),
                   ),
+
+                  // 6. Chave Pix (Réservé exclusivement au Brésil 🇧🇷)
+                  if (context.watch<AppState>().currentUser?.isBrazilian == true) ...[
+                    const SizedBox(height: 16),
+                    _buildGlassCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF32BCAD).withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.qr_code_2_rounded, color: Color(0xFF32BCAD), size: 18),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                "Chave Pix para rateio da quadra (Opcional)",
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _pixKeyController,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              hintText: "Ex: Celular, CPF ou e-mail do organizador",
+                              hintStyle: const TextStyle(color: Colors.white38),
+                              filled: true,
+                              fillColor: Colors.white.withValues(alpha: 0.08),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextFormField(
+                            controller: _courtCostController,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              hintText: "Valor total da quadra em R\$ (ex: 120)",
+                              hintStyle: const TextStyle(color: Colors.white38),
+                              prefixText: "R\$ ",
+                              prefixStyle: const TextStyle(color: Color(0xFF32BCAD), fontWeight: FontWeight.bold),
+                              filled: true,
+                              fillColor: Colors.white.withValues(alpha: 0.08),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
 
                   // Bouton Créer
@@ -685,12 +798,15 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                             height: 24,
                             child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                           )
-                        : const Row(
+                        : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.add_task_rounded, size: 20),
-                              SizedBox(width: 8),
-                              Text("Publier la partie", style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                              const Icon(Icons.add_task_rounded, size: 20),
+                              const SizedBox(width: 8),
+                              Text(
+                                isBrazilian ? "Criar e publicar partida" : "Publier la partie",
+                                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                              ),
                             ],
                           ),
                   ),
@@ -749,6 +865,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
 
   Widget _buildLevelChip(int level) {
     final isSelected = _targetLevel == level;
+    final isBr = context.read<AppState>().currentUser?.isBrazilian == true;
     return GestureDetector(
       onTap: () => setState(() => _targetLevel = level),
       child: AnimatedContainer(
@@ -776,7 +893,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               : null,
         ),
         child: Text(
-          "Niveau $level",
+          isBr ? "Nível $level" : "Niveau $level",
           style: TextStyle(
             color: isSelected ? Colors.white : Colors.white70,
             fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
@@ -787,16 +904,34 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
     );
   }
 
-  Widget _buildPlayerCountChip({required String label, required int count, bool isCustom = false}) {
-    final isSelected = isCustom ? (_maxPlayers != 2 && _maxPlayers != 4 && _maxPlayers != 8) : (_maxPlayers == count);
+  Widget _buildPlayerCountChip({
+    required String label,
+    required int count,
+    bool isCustom = false,
+    bool isReiDaPraia = false,
+  }) {
+    final isSelected = isReiDaPraia
+        ? _isReiDaPraia
+        : (isCustom
+            ? (_maxPlayers != 2 && _maxPlayers != 4 && _maxPlayers != 8 && !_isReiDaPraia)
+            : (_maxPlayers == count && !_isReiDaPraia));
     final displayLabel = isCustom && isSelected ? "Perso: $_maxPlayers" : label;
 
     return GestureDetector(
       onTap: () {
         if (isCustom) {
+          setState(() => _isReiDaPraia = false);
           _showCustomPlayerCountDialog();
+        } else if (isReiDaPraia) {
+          setState(() {
+            _isReiDaPraia = true;
+            _maxPlayers = 4;
+          });
         } else {
-          setState(() => _maxPlayers = count);
+          setState(() {
+            _isReiDaPraia = false;
+            _maxPlayers = count;
+          });
         }
       },
       child: AnimatedContainer(
@@ -804,19 +939,19 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.coral
+              ? (isReiDaPraia ? const Color(0xFFFFD700) : AppColors.coral)
               : Colors.black.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isSelected
-                ? AppColors.coral
+                ? (isReiDaPraia ? const Color(0xFFFFD700) : AppColors.coral)
                 : Colors.white.withValues(alpha: 0.25),
             width: isSelected ? 1.8 : 1.0,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.coral.withValues(alpha: 0.4),
+                    color: (isReiDaPraia ? const Color(0xFFFFD700) : AppColors.coral).withValues(alpha: 0.4),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -833,7 +968,9 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
             Text(
               displayLabel,
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white70,
+                color: isSelected
+                    ? (isReiDaPraia ? Colors.black : Colors.white)
+                    : Colors.white70,
                 fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
                 fontSize: 13,
               ),

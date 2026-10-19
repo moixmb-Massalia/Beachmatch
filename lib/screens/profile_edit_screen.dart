@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import '../theme/colors.dart';
 import '../providers/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/smart_city_autocomplete_field.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({super.key});
@@ -32,6 +33,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   bool _isLookingForPartner = false;
   String? _preferredPosition;
   String? _availability;
+  String? _clubId;
+  String? _clubName;
 
   @override
   void initState() {
@@ -48,6 +51,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _availability = user?.availability;
     _isLicenceVerified = (user?.licenceNumber != null && user!.licenceNumber!.trim().isNotEmpty);
     _verifiedEloScore = user?.eloScore ?? 0;
+    _clubId = user?.clubId;
+    _clubName = user?.clubName;
   }
 
   @override
@@ -160,7 +165,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             _nameController.text = "${data['firstName']} ${data['lastName']}";
             _rankingController.text = data['ranking']?.toString() ?? "NC";
             if (data['club'] != null && data['club'].toString().isNotEmpty) {
-              _locationController.text = data['club'];
+              _clubName = data['club'].toString().trim();
             }
             _isLicenceVerified = true;
           });
@@ -221,6 +226,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         eloScore: (_isLicenceVerified && _verifiedEloScore > 0) ? _verifiedEloScore : appState.currentUser?.eloScore,
         preferredPosition: _preferredPosition,
         availability: _availability,
+        clubId: _clubId,
+        clubName: _clubName,
       );
 
       if (_isLookingForPartner != appState.currentUser?.isLookingForPartner) {
@@ -241,6 +248,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AppState>().currentUser;
+    final isBr = user?.isBrazilian == true;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(
@@ -287,9 +297,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                                   child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                                 )
                               : const Icon(Icons.check_rounded, color: Colors.white, size: 16),
-                          label: const Text(
-                            "Enregistrer",
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13),
+                          label: Text(
+                            isBr ? "Salvar" : "Enregistrer",
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13),
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.coral,
@@ -354,9 +364,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                             child: TextButton.icon(
                               onPressed: _showPhotoOptionsBottomSheet,
                               icon: const Icon(Icons.photo_camera_rounded, color: AppColors.gold, size: 16),
-                              label: const Text(
-                                "Changer la photo",
-                                style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 13),
+                              label: Text(
+                                isBr ? "Alterar foto" : "Changer la photo",
+                                style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 13),
                               ),
                             ),
                           ),
@@ -376,66 +386,118 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
                               focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
                             ),
-                            validator: (val) => val == null || val.isEmpty ? "Requis" : null,
+                            validator: (val) {
+                              if (val == null || val.trim().isEmpty) return isBr ? "O nome é obrigatório" : "Le pseudo est obligatoire";
+                              if (val.trim().length < 2) return isBr ? "Pelo menos 2 caracteres necessários" : "Au moins 2 caractères requis";
+                              if (val.trim().toLowerCase() == 'joueur inconnu') return isBr ? "Escolha um nome válido" : "Veuillez choisir un vrai pseudo";
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 18),
 
-                          // N° Licence
-                          Text(AppLocalizations.of(context).profileEditLicence, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _licenceController,
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                  decoration: InputDecoration(
-                                    hintText: "Ex: 1234567A",
-                                    hintStyle: const TextStyle(color: Colors.white54),
-                                    filled: true,
-                                    fillColor: Colors.white.withValues(alpha: 0.15),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
-                                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
-                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
+                          // N° Licence / CBT ID
+                          Builder(
+                            builder: (context) {
+                              final isBr = context.read<AppState>().currentUser?.isBrazilian == true;
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    isBr ? "ID / Filiação CBT (Opcional)" : AppLocalizations.of(context).profileEditLicence,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              ElevatedButton(
-                                onPressed: _isVerifying ? null : _verifyLicence,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.gold,
-                                  foregroundColor: Colors.black,
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                ),
-                                child: _isVerifying 
-                                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-                                    : Text(AppLocalizations.of(context).profileEditVerifyBtn, style: const TextStyle(fontWeight: FontWeight.bold)),
-                              ),
-                            ],
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextFormField(
+                                          controller: _licenceController,
+                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                          decoration: InputDecoration(
+                                            hintText: isBr ? "Ex: 207929" : "Ex: 1234567A",
+                                            hintStyle: const TextStyle(color: Colors.white54),
+                                            filled: true,
+                                            fillColor: Colors.white.withValues(alpha: 0.15),
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
+                                          ),
+                                        ),
+                                      ),
+                                      if (!isBr) ...[
+                                        const SizedBox(width: 10),
+                                        ElevatedButton(
+                                          onPressed: _isVerifying ? null : _verifyLicence,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: AppColors.gold,
+                                            foregroundColor: Colors.black,
+                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                          ),
+                                          child: _isVerifying 
+                                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                                              : Text(AppLocalizations.of(context).profileEditVerifyBtn, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                           const SizedBox(height: 18),
 
-                          // Ville / Club
-                          Text(AppLocalizations.of(context).profileEditCity, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                          // Ville
+                          Text(isBr ? "Cidade (busca inteligente)" : "Ville (recherche intelligente)", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                           const SizedBox(height: 8),
-                          TextFormField(
+                          SmartCityAutocompleteField(
                             controller: _locationController,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: Colors.white.withValues(alpha: 0.15),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
-                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
-                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
-                            ),
-                            validator: (val) => val == null || val.isEmpty ? "Requis" : null,
+                            validator: (val) => val == null || val.trim().isEmpty ? (isBr ? "Cidade obrigatória" : "Ville requise") : null,
                           ),
                           const SizedBox(height: 18),
 
-                          // Classement FFT Ten'Up
-                          Text(AppLocalizations.of(context).profileEditFft, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                          // Club FFT (si détecté ou rattaché)
+                          if (_clubName != null && _clubName!.isNotEmpty) ...[
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppColors.gold.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.shield_rounded, color: AppColors.gold, size: 24),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          (context.read<AppState>().currentUser?.isBrazilian == true) ? "Arena Oficial CBT" : "Club Officiel FFT",
+                                          style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w900),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _clubName!,
+                                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(Icons.verified_rounded, color: Colors.greenAccent, size: 18),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                          ],
+                          const SizedBox(height: 18),
+
+                          // Classement FFT Ten'Up / CBT
+                          Text(
+                            (context.read<AppState>().currentUser?.isBrazilian == true) ? "Categoria / Ranking CBT" : AppLocalizations.of(context).profileEditFft,
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
                           const SizedBox(height: 8),
                           TextFormField(
                             controller: _rankingController,
@@ -446,7 +508,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
                               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
                               focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
-                              hintText: 'Optionnel (ex: 250, NC)',
+                              hintText: (context.read<AppState>().currentUser?.isBrazilian == true) ? 'Ex: PRO, Categoria A, B, C, D' : 'Optionnel (ex: 250, NC)',
                               hintStyle: const TextStyle(color: Colors.white54),
                             ),
                           ),

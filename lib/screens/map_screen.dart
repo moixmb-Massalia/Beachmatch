@@ -16,7 +16,7 @@ import 'chat_detail_screen.dart';
 import '../widgets/beach_weather_widget.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:share_plus/share_plus.dart';
+import '../services/whatsapp_share_service.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/feature_discovery_bubble.dart';
 
@@ -33,11 +33,61 @@ class _MapScreenState extends State<MapScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<dynamic> _searchResults = [];
   bool _isSearching = false;
+  bool _showListView = false;
   MapType _currentMapType = MapType.normal;
   Timer? _searchDebounce;
   
   // Track center for crosshair functionality
   LatLng? _currentCenter;
+  static const LatLng _defaultWideViewCenter = LatLng(46.603354, 1.888334); // Centre France vue large
+  static const LatLng _defaultBrazilWideViewCenter = LatLng(-15.7801, -47.9292); // Centre Brésil vue large
+  static const double _defaultWideZoom = 5.8; // Vue panoramique haute si GPS désactivé
+
+  @override
+  void initState() {
+    super.initState();
+    _initMapPosition();
+  }
+
+  Future<void> _initMapPosition() async {
+    if (widget.initialCourt != null) {
+      _currentCenter = LatLng(widget.initialCourt!.latitude, widget.initialCourt!.longitude);
+      return;
+    }
+    final user = context.read<AppState>().currentUser;
+    final fallbackCenter = (user?.isBrazilian == true) ? _defaultBrazilWideViewCenter : _defaultWideViewCenter;
+
+    try {
+      final appPos = context.read<AppState>().currentPosition;
+      if (appPos != null) {
+        final userLatLng = LatLng(appPos.latitude, appPos.longitude);
+        if (mounted) {
+          setState(() => _currentCenter = userLatLng);
+          _mapController?.animateCamera(CameraUpdate.newLatLngZoom(userLatLng, 14.5));
+        }
+        return;
+      }
+
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+        final pos = await Geolocator.getLastKnownPosition() ??
+            await Geolocator.getCurrentPosition().timeout(const Duration(seconds: 3));
+        final userLatLng = LatLng(pos.latitude, pos.longitude);
+        if (mounted) {
+          setState(() => _currentCenter = userLatLng);
+          _mapController?.animateCamera(CameraUpdate.newLatLngZoom(userLatLng, 14.5));
+        }
+      } else {
+        if (mounted && _currentCenter == null) {
+          setState(() => _currentCenter = fallbackCenter);
+        }
+      }
+    } catch (_) {
+      if (mounted && _currentCenter == null) {
+        setState(() => _currentCenter = fallbackCenter);
+      }
+    }
+  }
 
   String _removeAccents(String str) {
     var withDia = 'ÀÁÂÃÄÅàáâãäåÒÓÔÕÖØòóôõöøÈÉÊËèéêëðÇçÐÌÍÎÏìíîïÙÚÛÜùúûüÑñŠšŸÿýŽž';
@@ -53,11 +103,13 @@ class _MapScreenState extends State<MapScreen> {
     final city = court.city.toLowerCase();
     if (c.contains('espagne') || c.contains('spain')) return '🇪🇸';
     if (c.contains('italie') || c.contains('italy')) return '🇮🇹';
+    if (c.contains('venezuela') || c.contains('vénézuela')) return '🇻🇪';
+    if (c.contains('aruba')) return '🇦🇼';
     if (c.contains('reunion') || c.contains('réunion') || city.contains('saint-pierre') || city.contains('saint-gilles') || city.contains('saint-paul') || city.contains('saint-leu')) return '🇷🇪';
     if (c.contains('guadeloupe') || city.contains('le gosier') || city.contains('sainte-anne') || city.contains('baie-mahault')) return '🇬🇵';
     if (c.contains('martinique') || city.contains('schoelcher') || city.contains('fort-de-france') || city.contains('diamant')) return '🇲🇶';
     if (c.contains('caledonie') || c.contains('calédonie') || city.contains('noumea') || city.contains('nouméa')) return '🇳🇨';
-    if (c.contains('bresil') || c.contains('brésil') || c.contains('brazil')) return '🇧🇷';
+    if (c == 'br' || c.contains('bresil') || c.contains('brésil') || c.contains('brazil') || c.contains('brasil')) return '🇧🇷';
     if (c.contains('portugal')) return '🇵🇹';
     return '🇫🇷';
   }
@@ -125,7 +177,7 @@ class _MapScreenState extends State<MapScreen> {
     });
     
     try {
-      final url = Uri.parse('https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(city)}&format=json&countrycodes=fr,es,it,re,mq,gp,nc&limit=1');
+      final url = Uri.parse('https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(city)}&format=json&countrycodes=fr,es,it,br,ve,re,mq,gp,nc&limit=1');
       final response = await http.get(url, headers: {'User-Agent': 'BeachMatchApp'}).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -170,8 +222,10 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     final courts = context.watch<AppState>().filteredCourts;
     
-    // Set custom markers
-    Set<Marker> markers = courts.map((court) {
+    // Set custom markers (filtering valid GPS coordinates)
+    Set<Marker> markers = courts
+        .where((court) => court.latitude != 0.0 && court.longitude != 0.0)
+        .map((court) {
       return Marker(
         markerId: MarkerId(court.id),
         position: LatLng(court.latitude, court.longitude),
@@ -188,10 +242,22 @@ class _MapScreenState extends State<MapScreen> {
     }).toSet();
 
     return Scaffold(
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
+      floatingActionButton: _showListView
+          ? FloatingActionButton.extended(
+              heroTag: "suggest_court_list_btn",
+              onPressed: () => _showSuggestCourtDialog(context),
+              backgroundColor: AppColors.coral,
+              elevation: 8,
+              icon: const Icon(Icons.add_location_alt_rounded, color: Colors.white, size: 20),
+              label: Text(
+                AppLocalizations.of(context).mapAddCourtBtn,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13),
+              ),
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
           FloatingActionButton.small(
             heroTag: "map_type_btn",
             backgroundColor: const Color(0xFF16253B),
@@ -259,57 +325,77 @@ class _MapScreenState extends State<MapScreen> {
       ),
       body: Stack(
         children: [
-          // Google Map Background
-          GoogleMap(
-            mapType: _currentMapType,
-            onMapCreated: (controller) {
-              _mapController = controller;
-              if (widget.initialCourt != null) {
-                final target = LatLng(widget.initialCourt!.latitude, widget.initialCourt!.longitude);
-                _currentCenter = target;
-                controller.animateCamera(CameraUpdate.newLatLngZoom(target, 15.5));
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (ctx) => _buildCourtDetails(ctx, widget.initialCourt!),
-                    );
+          // 1. Vue Carte OU Vue Liste des 212 Spots
+          if (_showListView)
+            _buildCourtsListView(courts)
+          else ...[
+            GoogleMap(
+              mapType: _currentMapType,
+              onMapCreated: (controller) {
+                _mapController = controller;
+                if (widget.initialCourt != null) {
+                  final target = LatLng(widget.initialCourt!.latitude, widget.initialCourt!.longitude);
+                  _currentCenter = target;
+                  controller.animateCamera(CameraUpdate.newLatLngZoom(target, 15.5));
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (ctx) => _buildCourtDetails(ctx, widget.initialCourt!),
+                      );
+                    }
+                  });
+                } else {
+                  final userPos = context.read<AppState>().currentPosition;
+                  if (userPos != null) {
+                    final target = LatLng(userPos.latitude, userPos.longitude);
+                    _currentCenter = target;
+                    controller.animateCamera(CameraUpdate.newLatLngZoom(target, 14.5));
+                  } else if (_currentCenter != null && _currentCenter != _defaultWideViewCenter) {
+                    controller.animateCamera(CameraUpdate.newLatLngZoom(_currentCenter!, 14.5));
+                  } else {
+                    _currentCenter = _defaultWideViewCenter;
+                    controller.animateCamera(CameraUpdate.newLatLngZoom(_defaultWideViewCenter, _defaultWideZoom));
                   }
-                });
-              } else {
-                _currentCenter = context.read<AppState>().mapCenter;
-              }
-            },
-            initialCameraPosition: CameraPosition(
-              target: widget.initialCourt != null 
-                  ? LatLng(widget.initialCourt!.latitude, widget.initialCourt!.longitude)
-                  : context.read<AppState>().mapCenter,
-              zoom: widget.initialCourt != null ? 15.5 : 13.5,
+                }
+              },
+              initialCameraPosition: CameraPosition(
+                target: widget.initialCourt != null 
+                    ? LatLng(widget.initialCourt!.latitude, widget.initialCourt!.longitude)
+                    : (_currentCenter ?? (context.read<AppState>().currentPosition != null
+                        ? LatLng(context.read<AppState>().currentPosition!.latitude, context.read<AppState>().currentPosition!.longitude)
+                        : _defaultWideViewCenter)),
+                zoom: widget.initialCourt != null 
+                    ? 15.5 
+                    : ((_currentCenter != null && _currentCenter != _defaultWideViewCenter) || context.read<AppState>().currentPosition != null
+                        ? 14.5 
+                        : _defaultWideZoom),
+              ),
+              markers: markers,
+              myLocationEnabled: true,
+              myLocationButtonEnabled: false,
+              mapToolbarEnabled: false,
+              zoomControlsEnabled: false,
+              onCameraMove: (position) {
+                _currentCenter = position.target;
+              },
+              onTap: (latlng) {
+                FocusScope.of(context).unfocus();
+              },
+              onLongPress: (latlng) {
+                _showSuggestCourtDialog(context, specificLocation: latlng);
+              },
             ),
-            markers: markers,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: false,
-            mapToolbarEnabled: false,
-            zoomControlsEnabled: false,
-            onCameraMove: (position) {
-              _currentCenter = position.target;
-            },
-            onTap: (latlng) {
-              FocusScope.of(context).unfocus();
-            },
-            onLongPress: (latlng) {
-              _showSuggestCourtDialog(context, specificLocation: latlng);
-            },
-          ),
-          
-          // Center Crosshair
-          const Center(
-            child: IgnorePointer(
-              child: Icon(Icons.add, color: AppColors.coral, size: 30),
+            
+            // Center Crosshair
+            const Center(
+              child: IgnorePointer(
+                child: Icon(Icons.add, color: AppColors.coral, size: 30),
+              ),
             ),
-          ),
+          ],
 
           // Floating Glass Header & Filter Bar
           SafeArea(
@@ -334,14 +420,41 @@ class _MapScreenState extends State<MapScreen> {
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.map, color: Colors.white, size: 20),
+                                Icon(_showListView ? Icons.view_agenda_rounded : Icons.map_rounded, color: Colors.white, size: 20),
                                 const SizedBox(width: 8),
-                                Text(AppLocalizations.of(context).mapFindCourtTitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
+                                Text(
+                                  _showListView ? "Spots Répertoriés" : AppLocalizations.of(context).mapFindCourtTitle,
+                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
+                                ),
                                 const Spacer(),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(12)),
-                                  child: Text(AppLocalizations.of(context).mapCourtsCount(courts.length), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
+                                InkWell(
+                                  onTap: () => setState(() => _showListView = !_showListView),
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: _showListView ? AppColors.coral : AppColors.gold,
+                                      borderRadius: BorderRadius.circular(14),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: (_showListView ? AppColors.coral : AppColors.gold).withValues(alpha: 0.35),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(_showListView ? Icons.map_rounded : Icons.format_list_bulleted_rounded, color: Colors.black, size: 14),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          _showListView ? "Carte" : "Liste (${courts.length})",
+                                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 11),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -460,6 +573,13 @@ class _MapScreenState extends State<MapScreen> {
                                           isSelected: appState.selectedCourtCountry == 'IT',
                                           onTap: () {
                                             appState.setCourtCountry(appState.selectedCourtCountry == 'IT' ? 'ALL' : 'IT');
+                                          },
+                                        ),
+                                        _buildMapFilterChip(
+                                          label: "🇧🇷 Brasil",
+                                          isSelected: appState.selectedCourtCountry == 'BR',
+                                          onTap: () {
+                                            appState.setCourtCountry(appState.selectedCourtCountry == 'BR' ? 'ALL' : 'BR');
                                           },
                                         ),
                                       ],
@@ -675,6 +795,192 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildCourtsListView(List<CourtModel> courts) {
+    if (courts.isEmpty) {
+      return Container(
+        color: const Color(0xFF0F172A),
+        padding: const EdgeInsets.only(top: 260, left: 24, right: 24),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.beach_access_rounded, color: Colors.white24, size: 48),
+              const SizedBox(height: 12),
+              const Text(
+                "Aucun spot ne correspond à vos filtres",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                "Essayez de réinitialiser les filtres pour voir les 212 terrains.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () => context.read<AppState>().resetCourtFilters(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.gold,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text("Réinitialiser les filtres", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final userPos = context.read<AppState>().currentPosition;
+
+    return Container(
+      color: const Color(0xFF0A0F1D),
+      child: ListView.builder(
+        padding: const EdgeInsets.only(top: 250, bottom: 120, left: 16, right: 16),
+        itemCount: courts.length,
+        itemBuilder: (context, index) {
+          final court = courts[index];
+          final flag = _getCourtFlag(court);
+          String? distStr;
+          if (userPos != null) {
+            final d = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, court.latitude, court.longitude) / 1000.0;
+            distStr = "${d.toStringAsFixed(1)} km";
+          }
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 1.2),
+            ),
+            child: InkWell(
+              onTap: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (ctx) => _buildCourtDetails(ctx, court),
+                );
+              },
+              borderRadius: BorderRadius.circular(18),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(flag, style: const TextStyle(fontSize: 20)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                court.name,
+                                style: const TextStyle(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.w900),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                "${court.city.isNotEmpty ? court.city : court.country} • ${court.courtCount} terrain${court.courtCount > 1 ? 's' : ''}",
+                                style: const TextStyle(color: Colors.white60, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (distStr != null) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.gold.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+                            ),
+                            child: Text(
+                              distStr,
+                              style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 11),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            court.accessType == 'BEACH_FREE' ? '🏖️ Plage libre' : (court.accessType == 'RENTAL' ? '💳 Location' : '🏢 Club'),
+                            style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        if (court.hasNet) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text("🥅 Filet OK", style: TextStyle(color: Color(0xFF10B981), fontSize: 10, fontWeight: FontWeight.bold)),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        if (court.hasLights) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text("💡 Éclairage", style: TextStyle(color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                        const Spacer(),
+                        InkWell(
+                          onTap: () async {
+                            final uri = Uri.parse("https://www.google.com/maps/search/?api=1&query=${court.latitude},${court.longitude}");
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF008069),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.navigation_rounded, size: 12, color: Colors.white),
+                                SizedBox(width: 4),
+                                Text("GPS", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1885,7 +2191,7 @@ class _MapScreenState extends State<MapScreen> {
         "🥅 Filet : ${court.hasNet ? 'Filet permanent en place ✓' : 'Amener son kit portable'}\n"
         "🗺️ Itinéraire GPS : https://www.google.com/maps/search/?api=1&query=${court.latitude},${court.longitude}\n\n"
         "Retrouve ce spot et organise des parties sur BeachMatch ! 🏖️📲";
-    SharePlus.instance.share(ShareParams(text: text));
+    WhatsAppShareService.shareToWhatsAppOrNative(text: text);
   }
 
   Widget _buildChoiceChip({required String label, required bool isSelected, required VoidCallback onTap}) {

@@ -30,8 +30,17 @@ class UserModel {
   final bool isBanned;
   final bool isReferee;
   final List<String> blockedUserIds; // Apple UGC Guideline 1.2: Blocked users
+  final String? clubId;
+  final String? clubName;
+  final String? cbtId;
+  final String? cbtCategory;
+  final String country;
+  final bool isAmbassador;
+  final String? ambassadorTitle;
+  final String? email;
 
   bool get canReferee => isAdmin || isReferee;
+  bool get isBrazilian => country.toUpperCase() == 'BR' || (cbtCategory != null && cbtCategory!.isNotEmpty) || (cbtId != null && cbtId!.isNotEmpty);
 
   UserModel({
     required this.id,
@@ -59,6 +68,14 @@ class UserModel {
     this.availability,
     this.isBanned = false,
     this.blockedUserIds = const [],
+    this.clubId,
+    this.clubName,
+    this.cbtId,
+    this.cbtCategory,
+    this.country = 'FR',
+    this.isAmbassador = false,
+    this.ambassadorTitle,
+    this.email,
   });
 
   UserModel copyWith({
@@ -87,6 +104,14 @@ class UserModel {
     bool? isBanned,
     bool? isReferee,
     List<String>? blockedUserIds,
+    String? clubId,
+    String? clubName,
+    String? cbtId,
+    String? cbtCategory,
+    String? country,
+    bool? isAmbassador,
+    String? ambassadorTitle,
+    String? email,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -114,42 +139,94 @@ class UserModel {
       availability: availability ?? this.availability,
       isBanned: isBanned ?? this.isBanned,
       blockedUserIds: blockedUserIds ?? this.blockedUserIds,
+      clubId: clubId ?? this.clubId,
+      clubName: clubName ?? this.clubName,
+      cbtId: cbtId ?? this.cbtId,
+      cbtCategory: cbtCategory ?? this.cbtCategory,
+      country: country ?? this.country,
+      isAmbassador: isAmbassador ?? this.isAmbassador,
+      ambassadorTitle: ambassadorTitle ?? this.ambassadorTitle,
+      email: email ?? this.email,
     );
   }
 
   factory UserModel.fromMap(Map<String, dynamic> data, String documentId) {
     return UserModel(
       id: documentId,
-      displayName: data['displayName'] ?? 'Joueur Inconnu',
-      level: data['level'] ?? 3,
-      eloScore: data['eloScore'] ?? 1500,
-      location: data['location'] ?? 'Non renseigné',
-      isPremium: data['isPremium'] ?? false,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      photoUrl: data['photoUrl'],
-      licenceNumber: data['licenceNumber'],
-      hasSeenTutorial: data['hasSeenTutorial'] ?? false,
-      fcmToken: data['fcmToken'],
+      displayName: data['displayName'] ?? data['name'] ?? 'Joueur Inconnu',
+      level: () {
+        final l = data['level'];
+        if (l is int) return l;
+        if (l is num) return l.toInt();
+        if (l is String) return int.tryParse(l) ?? 3;
+        return 3;
+      }(),
+      eloScore: () {
+        final e = data['eloScore'];
+        if (e is int) return e;
+        if (e is num) return e.toInt();
+        if (e is String) return int.tryParse(e) ?? 1500;
+        return 1500;
+      }(),
+      location: data['location']?.toString() ?? 'Non renseigné',
+      isPremium: data['isPremium'] == true,
+      createdAt: () {
+        final c = data['createdAt'];
+        if (c is Timestamp) return c.toDate();
+        if (c is String) return DateTime.tryParse(c) ?? DateTime.now();
+        return DateTime.now();
+      }(),
+      photoUrl: data['photoUrl']?.toString(),
+      licenceNumber: data['licenceNumber']?.toString(),
+      hasSeenTutorial: data['hasSeenTutorial'] == true,
+      fcmToken: data['fcmToken']?.toString(),
       friendsIds: List<String>.from(data['friendsIds'] ?? []),
-      totalMatches: data['totalMatches'] ?? 0,
-      ranking: data['ranking'],
-      isAdmin: data['isAdmin'] ?? false,
-      isReferee: data['isReferee'] ?? false,
+      totalMatches: () {
+        final tm = data['totalMatches'];
+        if (tm is int) return tm;
+        if (tm is num) return tm.toInt();
+        if (tm is String) return int.tryParse(tm) ?? 0;
+        return 0;
+      }(),
+      ranking: data['ranking']?.toString(),
+      isAdmin: data['isAdmin'] == true,
+      isReferee: data['isReferee'] == true,
       subscribedCourts: List<String>.from(data['subscribedCourts'] ?? []),
-      isLookingForPartner: data['isLookingForPartner'] ?? false,
-      rankingProgression: data['rankingProgression'],
+      isLookingForPartner: data['isLookingForPartner'] == true,
+      rankingProgression: () {
+        final rp = data['rankingProgression'];
+        if (rp is int) return rp;
+        if (rp is num) return rp.toInt();
+        if (rp is String) return int.tryParse(rp);
+        return null;
+      }(),
       tournamentAlertsEnabled: data['tournamentAlertsEnabled'] ?? false,
       alertRegion: data['alertRegion'],
       preferredPosition: data['preferredPosition'],
       availability: data['availability'],
       isBanned: data['isBanned'] ?? false,
       blockedUserIds: List<String>.from(data['blockedUserIds'] ?? []),
+      clubId: data['clubId'],
+      clubName: data['clubName'],
+      cbtId: data['cbtId'],
+      cbtCategory: data['cbtCategory'],
+      country: ((data['country'] as String?)?.trim().isNotEmpty == true)
+          ? (data['country'] as String).trim().toUpperCase()
+          : (((data['cbtCategory'] != null && (data['cbtCategory'] as String).isNotEmpty) ||
+              (data['cbtId'] != null && (data['cbtId'] as String).isNotEmpty) ||
+              (data['location'] != null && (data['location'] as String).toLowerCase().contains('brasil')))
+              ? 'BR'
+              : 'FR'),
+      isAmbassador: data['isAmbassador'] ?? false,
+      ambassadorTitle: data['ambassadorTitle'],
+      email: data['email'],
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'displayName': displayName,
+      'name': displayName,
       'level': level,
       'eloScore': eloScore,
       'location': location,
@@ -173,6 +250,14 @@ class UserModel {
       'availability': availability,
       'isBanned': isBanned,
       'blockedUserIds': blockedUserIds,
+      if (clubId != null) 'clubId': clubId,
+      if (clubName != null) 'clubName': clubName,
+      if (cbtId != null) 'cbtId': cbtId,
+      if (cbtCategory != null) 'cbtCategory': cbtCategory,
+      'country': country,
+      'isAmbassador': isAmbassador,
+      if (ambassadorTitle != null) 'ambassadorTitle': ambassadorTitle,
+      if (email != null) 'email': email,
     };
   }
 }

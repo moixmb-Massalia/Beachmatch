@@ -1379,6 +1379,16 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
         final String path = '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
         await _audioRecorder.start(const RecordConfig(), path: path);
         setState(() => _isRecording = true);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("🎙️ Accès au micro refusé. Veuillez l'activer dans les réglages pour envoyer un message vocal."),
+              backgroundColor: AppColors.coral,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
       }
     } catch (e) {
       debugPrint("Erreur d'enregistrement: $e");

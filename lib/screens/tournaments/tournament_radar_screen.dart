@@ -40,6 +40,13 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
 
   static const List<Map<String, dynamic>> _presetCenters = [
     {'name': 'Position GPS Actuelle 📡', 'lat': null, 'lng': null},
+    {'name': 'São Paulo (SP) 🇧🇷', 'lat': -23.5505, 'lng': -46.6333},
+    {'name': 'Rio (Copacabana) 🏖️', 'lat': -22.9068, 'lng': -43.1729},
+    {'name': 'Fortaleza / Ceará 🇧🇷', 'lat': -3.7319, 'lng': -38.5267},
+    {'name': 'Cuiabá / MT 🇧🇷', 'lat': -15.6014, 'lng': -56.0979},
+    {'name': 'Brasília (DF) 🇧🇷', 'lat': -15.7975, 'lng': -47.8919},
+    {'name': 'Balneário Camboriú (SC) 🌊', 'lat': -27.5954, 'lng': -48.5480},
+    {'name': 'Santos / Gonzaga (SP) 🌴', 'lat': -23.9618, 'lng': -46.3322},
     {'name': 'Marseille (13) 🏖️', 'lat': 43.2965, 'lng': 5.3698},
     {'name': 'Toulon / Var (83) 🌴', 'lat': 43.1242, 'lng': 5.9280},
     {'name': 'Nice / Côte d\'Azur (06) ☀️', 'lat': 43.7102, 'lng': 7.2620},
@@ -74,6 +81,11 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
+
+    final deviceLocale = WidgetsBinding.instance.platformDispatcher.locale;
+    if (deviceLocale.countryCode?.toUpperCase() == 'BR' || deviceLocale.languageCode.toLowerCase() == 'pt') {
+      _selectedRangeKm = 4500.0;
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final appState = context.read<AppState>();
@@ -133,10 +145,18 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
     final userPos = appState.currentPosition;
 
     // Coordonnées de référence du Radar
-    // Si centre choisi manuellement -> priorité. Sinon GPS. Sinon Marseille (13) par défaut.
-    final double userLat = _customCenterLat ?? userPos?.latitude ?? 43.2965;
-    final double userLng = _customCenterLng ?? userPos?.longitude ?? 5.3698;
-    final String centerLabel = _customCenterName ?? (userPos != null ? "Position GPS" : "Marseille (13)");
+    final deviceLocale = WidgetsBinding.instance.platformDispatcher.locale;
+    final isDeviceBr = (deviceLocale.countryCode?.toUpperCase() == 'BR') || (deviceLocale.languageCode.toLowerCase() == 'pt');
+    final isBr = (appState.currentUser?.isBrazilian == true) || 
+                 (appState.currentLocale?.languageCode == 'pt') || 
+                 isDeviceBr;
+    final double defaultFallbackLat = isBr ? -15.7801 : 43.2965;
+    final double defaultFallbackLng = isBr ? -47.9292 : 5.3698;
+    final String defaultFallbackName = isBr ? "Brasil 🇧🇷" : "Marseille (13)";
+
+    final double userLat = _customCenterLat ?? userPos?.latitude ?? defaultFallbackLat;
+    final double userLng = _customCenterLng ?? userPos?.longitude ?? defaultFallbackLng;
+    final String centerLabel = _customCenterName ?? (userPos != null ? "Position GPS" : defaultFallbackName);
 
     // Filtrage des tournois
     final validTournaments = allTournaments.where((t) {
@@ -389,11 +409,14 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                   color: _soundEnabled ? AppColors.gold : Colors.white38,
                   size: 20,
                 ),
-                tooltip: _soundEnabled ? "Couper le sonar" : "Activer le sonar",
+                tooltip: _soundEnabled 
+                    ? (context.read<AppState>().currentUser?.isBrazilian == true ? "Silenciar sonar" : "Couper le sonar")
+                    : (context.read<AppState>().currentUser?.isBrazilian == true ? "Ativar sonar" : "Activer le sonar"),
               ),
               IconButton(
                 onPressed: () {
                   HapticFeedback.mediumImpact();
+                  final isBr = context.read<AppState>().currentUser?.isBrazilian == true;
                   setState(() {
                     _customCenterName = null;
                     _customCenterLat = null;
@@ -402,11 +425,11 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                   context.read<AppState>().refreshLocation();
                   context.read<AppState>().loadTournaments();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Radar recentré et tournois synchronisés.")),
+                    SnackBar(content: Text(isBr ? "Radar recalculado e torneios sincronizados." : "Radar recentré et tournois synchronisés.")),
                   );
                 },
                 icon: const Icon(Icons.my_location_rounded, color: Colors.cyanAccent, size: 20),
-                tooltip: "Recentrer GPS",
+                tooltip: context.read<AppState>().currentUser?.isBrazilian == true ? "Recentralizar GPS" : "Recentrer GPS",
               ),
             ],
           ),
@@ -416,6 +439,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
   }
 
   void _showCenterPicker(BuildContext context) {
+    final isBr = context.read<AppState>().currentUser?.isBrazilian == true;
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF0B132B),
@@ -433,9 +457,9 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      "Centrer le Radar sur :",
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    Text(
+                      isBr ? "Centralizar o Radar em :" : "Centrer le Radar sur :",
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close, color: Colors.white54, size: 20),
@@ -453,11 +477,14 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                       final item = _presetCenters[i];
                       final isSelected = (_customCenterName == item['name']) ||
                           (_customCenterName == null && item['lat'] == null);
+                      final displayName = item['lat'] == null
+                          ? (isBr ? 'Posição GPS Atual 📡' : 'Position GPS Actuelle 📡')
+                          : (item['name'] as String);
                       return ListTile(
                         dense: true,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                         title: Text(
-                          item['name'] as String,
+                          displayName,
                           style: TextStyle(
                             color: isSelected ? AppColors.gold : Colors.white,
                             fontWeight: isSelected ? FontWeight.w900 : FontWeight.w500,
@@ -474,9 +501,9 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                               _customCenterLng = null;
                               context.read<AppState>().refreshLocation();
                             } else {
-                              _customCenterName = item['name'] as String;
-                              _customCenterLat = item['lat'] as double;
-                              _customCenterLng = item['lng'] as double;
+                              _customCenterName = item['name']?.toString();
+                              _customCenterLat = (item['lat'] as num?)?.toDouble();
+                              _customCenterLng = (item['lng'] as num?)?.toDouble();
                             }
                             _selectedTournament = null;
                           });
@@ -495,6 +522,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
   }
 
   Widget _buildSearchBar() {
+    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 2, 16, 6),
       height: 38,
@@ -510,7 +538,9 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
         controller: _searchController,
         style: const TextStyle(color: Colors.white, fontSize: 12.5),
         decoration: InputDecoration(
-          hintText: "Rechercher (Duglos, Tennis Park, BT 500, Marseille...)",
+          hintText: isBr 
+              ? "Buscar (Copacabana, Arena, CBT, Fortaleza...)" 
+              : "Rechercher (Duglos, Tennis Park, BT 500, Marseille...)",
           hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11.5),
           prefixIcon: const Icon(Icons.search_rounded, color: AppColors.gold, size: 18),
           suffixIcon: _searchQuery.isNotEmpty
@@ -537,12 +567,13 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
   }
 
   Widget _buildRangeSelector() {
+    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
     final ranges = [
       {'label': '10 km', 'val': 10.0},
       {'label': '200 km', 'val': 200.0},
       {'label': '500 km', 'val': 500.0},
-      {'label': 'France 🇫🇷', 'val': 1200.0},
-      {'label': 'Monde 🌍', 'val': 30000.0},
+      {'label': isBr ? 'Brasil 🇧🇷' : 'France 🇫🇷', 'val': isBr ? 4500.0 : 1200.0},
+      {'label': isBr ? 'Mundo 🌍' : 'Monde 🌍', 'val': 30000.0},
     ];
 
     return SizedBox(
@@ -576,7 +607,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
               if (selected) {
                 HapticFeedback.selectionClick();
                 setState(() {
-                  _selectedRangeKm = r['val'] as double;
+                  _selectedRangeKm = (r['val'] as num?)?.toDouble() ?? 50.0;
                   _selectedTournament = null;
                 });
               }
@@ -588,10 +619,11 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
   }
 
   Widget _buildCategorySelector() {
+    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
     final categories = [
-      {'label': 'Tous 🏆', 'id': 'ALL'},
-      {'label': 'Circuits Majeurs 🌟', 'id': 'MAJOR'},
-      {'label': 'Conviviaux 🏖️', 'id': 'CLUB'},
+      {'label': isBr ? 'Todos 🏆' : 'Tous 🏆', 'id': 'ALL'},
+      {'label': isBr ? 'Circuitos Principais 🌟' : 'Circuits Majeurs 🌟', 'id': 'MAJOR'},
+      {'label': isBr ? 'Clubes & Arenas 🏖️' : 'Conviviaux 🏖️', 'id': 'CLUB'},
     ];
 
     return SizedBox(
@@ -733,7 +765,9 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                     const Icon(Icons.adjust_rounded, color: Colors.cyanAccent, size: 12),
                     const SizedBox(width: 4),
                     Text(
-                      "CIBLE VERROUILLÉE · CAP $cardinal ${bearing.round()}°",
+                      context.watch<AppState>().currentUser?.isBrazilian == true
+                          ? "ALVO LOCALIZADO · RUMO $cardinal ${bearing.round()}°"
+                          : "CIBLE VERROUILLÉE · CAP $cardinal ${bearing.round()}°",
                       style: const TextStyle(
                         color: Colors.cyanAccent,
                         fontSize: 10,
@@ -833,7 +867,12 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                  label: const Text("Voir la fiche tournoi", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                  label: Text(
+                    context.watch<AppState>().currentUser?.isBrazilian == true 
+                        ? "Ver detalhes do torneio" 
+                        : "Voir la fiche tournoi",
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                  ),
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -862,6 +901,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
   }
 
   Widget _buildDetectedTournamentsCarousel(List<TournamentModel> tournaments, double centerLat, double centerLng) {
+    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
     if (tournaments.isEmpty) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -877,10 +917,12 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
               ),
             ),
             const SizedBox(width: 8),
-            const Expanded(
+            Expanded(
               child: Text(
-                "0 tournoi détecté à cette portée · Augmentez le rayon (ex: 200 km, 500 km ou France 🇫🇷)",
-                style: TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.bold),
+                isBr
+                    ? "0 torneio detectado neste raio · Aumente o raio (ex: 200 km, 500 km ou Brasil 🇧🇷)"
+                    : "0 tournoi détecté à cette portée · Augmentez le rayon (ex: 200 km, 500 km ou France 🇫🇷)",
+                style: const TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -910,7 +952,9 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    "ÉCHOS DÉTECTÉS (${tournaments.length}) · Touchez pour verrouiller",
+                    isBr
+                        ? "SINAIS DETECTADOS (${tournaments.length}) · Toque para focar"
+                        : "ÉCHOS DÉTECTÉS (${tournaments.length}) · Touchez pour verrouiller",
                     style: TextStyle(
                       color: Colors.cyanAccent.withValues(alpha: 0.9),
                       fontSize: 10.5,
@@ -921,7 +965,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                 ],
               ),
               Text(
-                "Classés par distance",
+                isBr ? "Ordenados por distância" : "Classés par distance",
                 style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 10),
               ),
             ],

@@ -36,13 +36,29 @@ class CourtModel {
   });
 
   factory CourtModel.fromMap(Map<String, dynamic> data, String documentId) {
+    final lat = (data['latitude'] as num?)?.toDouble() ?? double.tryParse('${data['latitude']}') ?? 0.0;
+    final lng = (data['longitude'] as num?)?.toDouble() ?? double.tryParse('${data['longitude']}') ?? 0.0;
+    
+    String country = (data['country'] ?? '').toString().trim();
+    if (country.isEmpty) {
+      if (lng < -30 && lat < 10) {
+        country = 'Brésil';
+      } else if (lat > 35 && lat < 44 && lng > -10 && lng < 5) {
+        country = 'Espagne';
+      } else if (lat > 36 && lat < 47 && lng > 6 && lng < 19) {
+        country = 'Italie';
+      } else {
+        country = 'France';
+      }
+    }
+
     return CourtModel(
       id: documentId,
       name: data['name'] ?? 'Terrain inconnu',
       city: data['city'] ?? '',
-      country: data['country'] ?? 'France',
-      latitude: data['latitude']?.toDouble() ?? 0.0,
-      longitude: data['longitude']?.toDouble() ?? 0.0,
+      country: country,
+      latitude: lat,
+      longitude: lng,
       isFree: data['isFree'] ?? true,
       hasLights: data['hasLights'] ?? data['hasLighting'] ?? false,
       hasShowers: data['hasShowers'] ?? false,

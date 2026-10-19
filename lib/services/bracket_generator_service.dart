@@ -265,6 +265,18 @@ class BracketGeneratorService {
       }
     }
 
+    // Attribution automatique intelligente des terrains
+    final smartMainMatches = _assignSmartCourtsToBracketMatches(
+      matches: updatedMainMatches,
+      roundsCount: roundsCount,
+      numCourts: numCourts,
+    );
+
+    final smartConsoMatches = _assignSmartCourtsToConsoMatches(
+      matches: consolationMatches,
+      numCourts: numCourts,
+    );
+
     return TournamentBracket(
       tournamentId: tournamentId,
       category: category,
@@ -272,8 +284,8 @@ class BracketGeneratorService {
       numCourts: numCourts,
       status: 'in_progress',
       pairs: seededPairs,
-      mainMatches: updatedMainMatches,
-      consolationMatches: consolationMatches,
+      mainMatches: smartMainMatches,
+      consolationMatches: smartConsoMatches,
       updatedAt: DateTime.now(),
     );
   }
@@ -320,7 +332,7 @@ class BracketGeneratorService {
         pair1: pairs[1],
         pair2: pairs[2],
       ));
-    } else if (pairs.length >= 4) {
+    } else if (pairs.length == 4) {
       // 4 paires -> 6 matches (Round Robin FFT)
       // Tour 1 : 0 vs 1 & 2 vs 3
       // Tour 2 : 0 vs 2 & 1 vs 3
@@ -347,6 +359,41 @@ class BracketGeneratorService {
           pair2: pairs[pairBIdx],
         ));
       }
+    } else if (pairs.length >= 5) {
+      // 5 paires -> 10 matches (Table de Berger FFT, 5 rotations de 2 matches, 1 exempt par tour)
+      // Tour 1 : 0 vs 4 & 1 vs 3 (Exempt: 2)
+      // Tour 2 : 0 vs 3 & 2 vs 1 (Exempt: 4)
+      // Tour 3 : 0 vs 2 & 3 vs 4 (Exempt: 1)
+      // Tour 4 : 0 vs 1 & 4 vs 2 (Exempt: 3 - Choc TS1 vs TS2 !)
+      // Tour 5 : 1 vs 4 & 2 vs 3 (Exempt: 0)
+      final schedule = [
+        [0, 4],
+        [1, 3],
+        [0, 3],
+        [2, 1],
+        [0, 2],
+        [3, 4],
+        [0, 1],
+        [4, 2],
+        [1, 4],
+        [2, 3],
+      ];
+      for (int i = 0; i < schedule.length; i++) {
+        final pairAIdx = schedule[i][0];
+        final pairBIdx = schedule[i][1];
+        final tourNumber = (i ~/ 2) + 1;
+        final matchInTour = (i % 2) + 1;
+        matches.add(BracketMatch(
+          id: "${matchPrefix}_$i",
+          roundIndex: i ~/ 2,
+          roundName: "$poolName - Tour $tourNumber (M$matchInTour)",
+          matchIndex: i,
+          poolId: poolId,
+          matchCode: "${poolCode}_${i + 1}",
+          pair1: pairs[pairAIdx],
+          pair2: pairs[pairBIdx],
+        ));
+      }
     } else if (pairs.length == 2) {
       // 2 paires -> 1 match
       matches.add(BracketMatch(
@@ -364,7 +411,7 @@ class BracketGeneratorService {
     return matches;
   }
 
-  /// Génère un tournoi au format Poules + Phase Finale (ex: Double Hommes & Dames Toulon)
+  /// Génère un tournoi au format Poules + Phase Finale (ex: Double Hommes & Dames Toulon ou Poule Unique)
   static TournamentBracket generatePoolsAndBracket({
     required String tournamentId,
     required String category,
@@ -373,15 +420,43 @@ class BracketGeneratorService {
     String finalPhaseType = 'direct_finals',
     int numCourts = 4,
   }) {
-    // 1. Matches de la Poule A (3 paires = 3 matches, 4 paires = 6 matches)
+    // 1. Matches de la Poule A (3 paires = 3 matches, 4 paires = 6 matches, 5 paires = 10 matches)
     final matchesA = _generatePoolMatches(
       poolId: "poule_a",
-      poolName: "Poule A",
+      poolName: pouleBPairs.isEmpty ? "Poule Unique" : "Poule A",
       matchPrefix: "pa",
       pairs: pouleAPairs,
     );
 
-    // 2. Matches de la Poule B (3 paires = 3 matches, 4 paires = 6 matches)
+    // Cas d'une Poule Unique (ex: 5 paires DD BT 25)
+    if (pouleBPairs.isEmpty) {
+      final smartMatches = _assignSmartCourtsToPoolMatches(
+        matches: matchesA,
+        isPoolA: true,
+        numCourts: numCourts,
+      );
+      final singlePool = TournamentPool(
+        id: "poule_a",
+        name: "Poule Unique",
+        pairs: pouleAPairs,
+        matches: smartMatches,
+      );
+      return TournamentBracket(
+        tournamentId: tournamentId,
+        category: category,
+        format: 'pools_and_bracket',
+        finalPhaseType: 'direct_finals',
+        numCourts: numCourts,
+        status: 'draft',
+        pairs: pouleAPairs,
+        pools: [singlePool],
+        mainMatches: const [],
+        consolationMatches: const [],
+        updatedAt: DateTime.now(),
+      );
+    }
+
+    // 2. Matches de la Poule B (si 2 poules)
     final matchesB = _generatePoolMatches(
       poolId: "poule_b",
       poolName: "Poule B",
@@ -389,18 +464,30 @@ class BracketGeneratorService {
       pairs: pouleBPairs,
     );
 
+    // Attribution automatique intelligente des terrains sur les poules
+    final smartMatchesA = _assignSmartCourtsToPoolMatches(
+      matches: matchesA,
+      isPoolA: true,
+      numCourts: numCourts,
+    );
+    final smartMatchesB = _assignSmartCourtsToPoolMatches(
+      matches: matchesB,
+      isPoolA: false,
+      numCourts: numCourts,
+    );
+
     final pools = [
       TournamentPool(
         id: "poule_a",
         name: "Poule A",
         pairs: pouleAPairs,
-        matches: matchesA,
+        matches: smartMatchesA,
       ),
       TournamentPool(
         id: "poule_b",
         name: "Poule B",
         pairs: pouleBPairs,
-        matches: matchesB,
+        matches: smartMatchesB,
       ),
     ];
 
@@ -495,6 +582,11 @@ class BracketGeneratorService {
       }
     }
 
+    final smartFinalMatches = _assignSmartCourtsToFinalMatches(
+      matches: finalMatches,
+      numCourts: numCourts,
+    );
+
     final allPairs = [...pouleAPairs, ...pouleBPairs];
 
     return TournamentBracket(
@@ -505,7 +597,7 @@ class BracketGeneratorService {
       numCourts: numCourts,
       status: 'in_progress',
       pairs: allPairs,
-      mainMatches: finalMatches,
+      mainMatches: smartFinalMatches,
       pools: pools,
       updatedAt: DateTime.now(),
     );
@@ -589,6 +681,28 @@ class BracketGeneratorService {
           updatedFinalMatches[i] = m.copyWith(
             pair1: standingsA[3].pair, // 4ème Poule A
             pair2: standingsB[3].pair, // 4ème Poule B
+          );
+        }
+      }
+
+      // Remplir automatiquement la Poule de Classement (Places 5 à 7) si présente
+      final pool57Idx = updatedPools.indexWhere((p) => p.id == "poule_5_7");
+      if (pool57Idx != -1) {
+        TournamentPair? p3A = standingsA.length >= 3 ? standingsA[2].pair : null;
+        TournamentPair? p4A = standingsA.length >= 4 ? standingsA[3].pair : null;
+        TournamentPair? p3B = standingsB.length >= 3 ? standingsB[2].pair : null;
+        final nonQualPairs = [p3A, p4A, p3B].whereType<TournamentPair>().toList();
+        if (nonQualPairs.length >= 3) {
+          final pool57 = updatedPools[pool57Idx];
+          final p57Matches = List<BracketMatch>.from(pool57.matches);
+          if (p57Matches.length >= 3) {
+            p57Matches[0] = p57Matches[0].copyWith(pair1: p3A, pair2: p3B);
+            p57Matches[1] = p57Matches[1].copyWith(pair1: p4A, pair2: p3B);
+            p57Matches[2] = p57Matches[2].copyWith(pair1: p3A, pair2: p4A);
+          }
+          updatedPools[pool57Idx] = pool57.copyWith(
+            pairs: nonQualPairs,
+            matches: p57Matches,
           );
         }
       }
@@ -698,6 +812,329 @@ class BracketGeneratorService {
       mainMatches: updatedMain,
       consolationMatches: updatedConso,
       updatedAt: DateTime.now(),
+    );
+  }
+
+  /// Suppression d'une paire par le JAT.
+  /// Retire la paire de la liste des paires, des poules et vide les slots correspondants dans les matches non joués
+  static TournamentBracket deletePair({
+    required TournamentBracket bracket,
+    required String pairId,
+  }) {
+    // 1. Retirer de la liste globale des paires
+    final updatedPairs = bracket.pairs.where((p) => p.id != pairId).toList();
+
+    // 2. Retirer des poules (paires de la poule + matches de poule)
+    final updatedPools = bracket.pools.map((pool) {
+      final poolPairs = pool.pairs.where((p) => p.id != pairId).toList();
+      final poolMatches = pool.matches.map((m) {
+        return m.copyWith(
+          pair1: m.pair1?.id == pairId ? null : m.pair1,
+          pair2: m.pair2?.id == pairId ? null : m.pair2,
+        );
+      }).toList();
+      return pool.copyWith(pairs: poolPairs, matches: poolMatches);
+    }).toList();
+
+    // 3. Mettre à jour dans le tableau principal
+    final updatedMain = bracket.mainMatches.map((m) {
+      return m.copyWith(
+        pair1: m.pair1?.id == pairId ? null : m.pair1,
+        pair2: m.pair2?.id == pairId ? null : m.pair2,
+      );
+    }).toList();
+
+    // 4. Mettre à jour dans la consolante
+    final updatedConso = bracket.consolationMatches.map((m) {
+      return m.copyWith(
+        pair1: m.pair1?.id == pairId ? null : m.pair1,
+        pair2: m.pair2?.id == pairId ? null : m.pair2,
+      );
+    }).toList();
+
+    return bracket.copyWith(
+      pairs: updatedPairs,
+      pools: updatedPools,
+      mainMatches: updatedMain,
+      consolationMatches: updatedConso,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  /// Permutation manuelle de 2 paires par le JAT (Drag & Drop ou Clic & Swap).
+  /// Échange la paire du slot A (matchIdA, slotA: 1 ou 2) avec la paire du slot B (matchIdB, slotB: 1 ou 2).
+  /// Gère automatiquement :
+  /// - L'inversion des paires dans le ou les matches ciblés
+  /// - La réévaluation des BYEs (si l'une des paires est un EXEMPT / BYE)
+  /// - La propagation / réinitialisation immédiate du gagnant vers le tour suivant si un BYE est déplacé
+  /// - Le support complet pour le Tableau Principal, la Consolante et les Poules.
+  static TournamentBracket swapPairs({
+    required TournamentBracket bracket,
+    required String matchIdA,
+    required int slotA, // 1 or 2
+    required String matchIdB,
+    required int slotB, // 1 or 2
+    String? poolIdA,
+    String? poolIdB,
+  }) {
+    // 1. Cas des Poules
+    if (poolIdA != null && poolIdB != null) {
+      final poolAIdx = bracket.pools.indexWhere((p) => p.id == poolIdA);
+      final poolBIdx = bracket.pools.indexWhere((p) => p.id == poolIdB);
+      if (poolAIdx == -1 || poolBIdx == -1) return bracket;
+
+      final poolA = bracket.pools[poolAIdx];
+      final poolB = bracket.pools[poolBIdx];
+
+      final mAIdx = poolA.matches.indexWhere((m) => m.id == matchIdA);
+      final mBIdx = poolB.matches.indexWhere((m) => m.id == matchIdB);
+      if (mAIdx == -1 || mBIdx == -1) return bracket;
+
+      final pairA = slotA == 1 ? poolA.matches[mAIdx].pair1 : poolA.matches[mAIdx].pair2;
+      final pairB = slotB == 1 ? poolB.matches[mBIdx].pair1 : poolB.matches[mBIdx].pair2;
+      if (pairA == null && pairB == null) return bracket;
+      if (pairA?.id == pairB?.id && pairA != null) return bracket;
+
+      final updatedPools = List<TournamentPool>.from(bracket.pools);
+
+      if (poolIdA == poolIdB) {
+        // Permutation au sein de la même poule
+        final updatedPairs = poolA.pairs.map((p) {
+          if (pairA != null && p.id == pairA.id) return pairB ?? p;
+          if (pairB != null && p.id == pairB.id) return pairA ?? p;
+          return p;
+        }).toList();
+
+        final updatedMatches = poolA.matches.map((m) {
+          TournamentPair? p1 = m.pair1;
+          TournamentPair? p2 = m.pair2;
+          bool changed = false;
+          if (pairA != null && p1?.id == pairA.id) {
+            p1 = pairB;
+            changed = true;
+          } else if (pairB != null && p1?.id == pairB.id) {
+            p1 = pairA;
+            changed = true;
+          }
+          if (pairA != null && p2?.id == pairA.id) {
+            p2 = pairB;
+            changed = true;
+          } else if (pairB != null && p2?.id == pairB.id) {
+            p2 = pairA;
+            changed = true;
+          }
+          if (changed) {
+            return m.copyWith(
+              pair1: p1,
+              pair2: p2,
+              clearPair1: p1 == null,
+              clearPair2: p2 == null,
+              clearScore: true,
+              clearWinner: true,
+              status: 'pending',
+            );
+          }
+          return m;
+        }).toList();
+
+        updatedPools[poolAIdx] = poolA.copyWith(pairs: updatedPairs, matches: updatedMatches);
+      } else {
+        // Permutation entre deux poules différentes
+        final pairsA = poolA.pairs.map((p) => (pairA != null && p.id == pairA.id && pairB != null) ? pairB : p).toList();
+        final pairsB = poolB.pairs.map((p) => (pairB != null && p.id == pairB.id && pairA != null) ? pairA : p).toList();
+
+        final matchesA = poolA.matches.map((m) {
+          TournamentPair? p1 = (pairA != null && m.pair1?.id == pairA.id) ? pairB : m.pair1;
+          TournamentPair? p2 = (pairA != null && m.pair2?.id == pairA.id) ? pairB : m.pair2;
+          if (p1 != m.pair1 || p2 != m.pair2) {
+            return m.copyWith(pair1: p1, pair2: p2, clearScore: true, clearWinner: true, status: 'pending');
+          }
+          return m;
+        }).toList();
+
+        final matchesB = poolB.matches.map((m) {
+          TournamentPair? p1 = (pairB != null && m.pair1?.id == pairB.id) ? pairA : m.pair1;
+          TournamentPair? p2 = (pairB != null && m.pair2?.id == pairB.id) ? pairA : m.pair2;
+          if (p1 != m.pair1 || p2 != m.pair2) {
+            return m.copyWith(pair1: p1, pair2: p2, clearScore: true, clearWinner: true, status: 'pending');
+          }
+          return m;
+        }).toList();
+
+        updatedPools[poolAIdx] = poolA.copyWith(pairs: pairsA, matches: matchesA);
+        updatedPools[poolBIdx] = poolB.copyWith(pairs: pairsB, matches: matchesB);
+      }
+
+      return bracket.copyWith(pools: updatedPools, updatedAt: DateTime.now());
+    }
+
+    // 2. Cas de l'Arbre (Tableau Principal et/ou Consolante)
+    final listMain = List<BracketMatch>.from(bracket.mainMatches);
+    final listConso = List<BracketMatch>.from(bracket.consolationMatches);
+
+    final isMainA = listMain.any((m) => m.id == matchIdA);
+    final isMainB = listMain.any((m) => m.id == matchIdB);
+
+    final targetListA = isMainA ? listMain : listConso;
+    final targetListB = isMainB ? listMain : listConso;
+
+    final idxA = targetListA.indexWhere((m) => m.id == matchIdA);
+    final idxB = targetListB.indexWhere((m) => m.id == matchIdB);
+    if (idxA == -1 || idxB == -1) return bracket;
+
+    if (matchIdA == matchIdB && slotA == slotB) return bracket;
+
+    final matchA = targetListA[idxA];
+    final matchB = targetListB[idxB];
+
+    final pairA = slotA == 1 ? matchA.pair1 : matchA.pair2;
+    final pairB = slotB == 1 ? matchB.pair1 : matchB.pair2;
+
+    if (matchIdA == matchIdB) {
+      // Inversion slot 1 et slot 2 dans le même match
+      final newPair1 = matchA.pair2;
+      final newPair2 = matchA.pair1;
+      final hasBye = (newPair1?.isBye == true) || (newPair2?.isBye == true);
+      String status = matchA.status;
+      String? score = matchA.score;
+      String? winnerId = matchA.winnerId;
+
+      if (hasBye) {
+        status = 'completed';
+        score = 'EXEMPT';
+        if (newPair1 != null && !newPair1.isBye) winnerId = newPair1.id;
+        if (newPair2 != null && !newPair2.isBye) winnerId = newPair2.id;
+      } else if (matchA.isBye || matchA.isCompleted) {
+        status = 'pending';
+        score = null;
+        winnerId = null;
+      }
+
+      final updatedMatch = matchA.copyWith(
+        pair1: newPair1,
+        pair2: newPair2,
+        clearPair1: newPair1 == null,
+        clearPair2: newPair2 == null,
+        isBye: hasBye,
+        status: status,
+        score: score,
+        winnerId: winnerId,
+        clearScore: score == null,
+        clearWinner: winnerId == null,
+      );
+
+      targetListA[idxA] = updatedMatch;
+      if (updatedMatch.nextMatchId != null) {
+        _updateProgressionAfterSwap(targetListA, updatedMatch);
+      }
+    } else {
+      // Échange entre deux matches distincts
+      final newPair1A = slotA == 1 ? pairB : matchA.pair1;
+      final newPair2A = slotA == 2 ? pairB : matchA.pair2;
+      final hasByeA = (newPair1A?.isBye == true) || (newPair2A?.isBye == true);
+      String statusA = matchA.status;
+      String? scoreA = matchA.score;
+      String? winnerIdA = matchA.winnerId;
+
+      if (hasByeA) {
+        statusA = 'completed';
+        scoreA = 'EXEMPT';
+        if (newPair1A != null && !newPair1A.isBye) winnerIdA = newPair1A.id;
+        if (newPair2A != null && !newPair2A.isBye) winnerIdA = newPair2A.id;
+      } else if (matchA.isBye || matchA.isCompleted) {
+        statusA = 'pending';
+        scoreA = null;
+        winnerIdA = null;
+      }
+
+      final updatedMatchA = matchA.copyWith(
+        pair1: newPair1A,
+        pair2: newPair2A,
+        clearPair1: newPair1A == null,
+        clearPair2: newPair2A == null,
+        isBye: hasByeA,
+        status: statusA,
+        score: scoreA,
+        winnerId: winnerIdA,
+        clearScore: scoreA == null,
+        clearWinner: winnerIdA == null,
+      );
+      targetListA[idxA] = updatedMatchA;
+
+      final newPair1B = slotB == 1 ? pairA : matchB.pair1;
+      final newPair2B = slotB == 2 ? pairA : matchB.pair2;
+      final hasByeB = (newPair1B?.isBye == true) || (newPair2B?.isBye == true);
+      String statusB = matchB.status;
+      String? scoreB = matchB.score;
+      String? winnerIdB = matchB.winnerId;
+
+      if (hasByeB) {
+        statusB = 'completed';
+        scoreB = 'EXEMPT';
+        if (newPair1B != null && !newPair1B.isBye) winnerIdB = newPair1B.id;
+        if (newPair2B != null && !newPair2B.isBye) winnerIdB = newPair2B.id;
+      } else if (matchB.isBye || matchB.isCompleted) {
+        statusB = 'pending';
+        scoreB = null;
+        winnerIdB = null;
+      }
+
+      final updatedMatchB = matchB.copyWith(
+        pair1: newPair1B,
+        pair2: newPair2B,
+        clearPair1: newPair1B == null,
+        clearPair2: newPair2B == null,
+        isBye: hasByeB,
+        status: statusB,
+        score: scoreB,
+        winnerId: winnerIdB,
+        clearScore: scoreB == null,
+        clearWinner: winnerIdB == null,
+      );
+      targetListB[idxB] = updatedMatchB;
+
+      if (updatedMatchA.nextMatchId != null) {
+        _updateProgressionAfterSwap(targetListA, updatedMatchA);
+      }
+      if (updatedMatchB.nextMatchId != null) {
+        _updateProgressionAfterSwap(targetListB, updatedMatchB);
+      }
+    }
+
+    // Mise à jour de la liste ordonnée des paires du tournoi si deux paires réelles
+    List<TournamentPair> updatedPairs = List<TournamentPair>.from(bracket.pairs);
+    if (pairA != null && pairB != null && !pairA.isBye && !pairB.isBye) {
+      final pAIdx = updatedPairs.indexWhere((p) => p.id == pairA.id);
+      final pBIdx = updatedPairs.indexWhere((p) => p.id == pairB.id);
+      if (pAIdx != -1 && pBIdx != -1) {
+        final temp = updatedPairs[pAIdx];
+        updatedPairs[pAIdx] = updatedPairs[pBIdx];
+        updatedPairs[pBIdx] = temp;
+      }
+    }
+
+    return bracket.copyWith(
+      pairs: updatedPairs,
+      mainMatches: listMain,
+      consolationMatches: listConso,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  static void _updateProgressionAfterSwap(List<BracketMatch> matches, BracketMatch match) {
+    if (match.nextMatchId == null) return;
+    final nextIdx = matches.indexWhere((m) => m.id == match.nextMatchId);
+    if (nextIdx == -1) return;
+
+    final nextMatch = matches[nextIdx];
+    final winner = match.winner;
+    final isSlot1 = match.nextMatchSlot == 1;
+
+    matches[nextIdx] = nextMatch.copyWith(
+      pair1: isSlot1 ? winner : nextMatch.pair1,
+      pair2: !isSlot1 ? winner : nextMatch.pair2,
+      clearPair1: isSlot1 && winner == null,
+      clearPair2: !isSlot1 && winner == null,
     );
   }
 
@@ -971,5 +1408,150 @@ class BracketGeneratorService {
       default:
         return "Tour ${roundsFromFinal + 1}";
     }
+  }
+
+  /// Assigne intelligemment les terrains pour les matches de poules :
+  /// Priorité Terrain 1 pour TS1 (Poule A), Terrain 2 pour TS2 (Poule B)
+  /// Terrains 3, 4, ... N pour les autres matches de chaque rotation
+  static List<BracketMatch> _assignSmartCourtsToPoolMatches({
+    required List<BracketMatch> matches,
+    required bool isPoolA,
+    required int numCourts,
+  }) {
+    if (matches.isEmpty) return matches;
+    final primaryCourt = isPoolA ? 1 : min(2, numCourts);
+    final secondaryCourt = isPoolA
+        ? (numCourts >= 3 ? 3 : 1)
+        : (numCourts >= 4 ? 4 : min(2, numCourts));
+
+    final result = <BracketMatch>[];
+
+    if (matches.length <= 3) {
+      // Poule de 3 paires : 3 matches (1 seul match par rotation)
+      // Tour 1: match 0 -> primaryCourt (avec tête de série)
+      // Tour 2: match 1 -> primaryCourt (avec tête de série)
+      // Tour 3: match 2 -> primaryCourt
+      for (int i = 0; i < matches.length; i++) {
+        result.add(matches[i].copyWith(court: primaryCourt));
+      }
+    } else if (matches.length == 10) {
+      // Poule de 5 paires : 10 matches (2 matches par rotation)
+      // Alternance intelligente entre Terrain 1 et Terrain 2 pour chaque rotation
+      final court1 = isPoolA ? 1 : min(2, numCourts);
+      final court2 = isPoolA ? (numCourts >= 2 ? 2 : 1) : min(numCourts, 3);
+      for (int i = 0; i < matches.length; i++) {
+        final assignedCourt = (i % 2 == 0) ? court1 : court2;
+        result.add(matches[i].copyWith(court: assignedCourt));
+      }
+    } else {
+      // Poule de 4 paires : 6 matches (2 matches par rotation)
+      // Matches 0, 2, 4 contiennent la paire 0 (Tête de Série)
+      for (int i = 0; i < matches.length; i++) {
+        final isTopSeedMatch = (i % 2 == 0);
+        final assignedCourt = isTopSeedMatch ? primaryCourt : secondaryCourt;
+        result.add(matches[i].copyWith(court: assignedCourt));
+      }
+    }
+    return result;
+  }
+
+  /// Assigne intelligemment les terrains pour la phase finale :
+  /// Grande Finale -> Court 1 (Court Central)
+  /// Demi-finale 1 (avec TS1) -> Court 1
+  /// Demi-finale 2 (avec TS2) -> Court 2
+  /// Petite Finale -> Court 2
+  /// Matches de classement -> Court 3, 4...
+  static List<BracketMatch> _assignSmartCourtsToFinalMatches({
+    required List<BracketMatch> matches,
+    required int numCourts,
+  }) {
+    return matches.map((m) {
+      int court = 1;
+      if (m.matchCode == 'FINALE') {
+        court = 1;
+      } else if (m.matchCode == 'DF1') {
+        court = 1;
+      } else if (m.matchCode == 'DF2') {
+        court = min(2, numCourts);
+      } else if (m.matchCode == 'PLACE_3_4') {
+        court = min(2, numCourts);
+      } else if (m.matchCode == 'PLACE_5_6') {
+        court = min(3, numCourts);
+      } else if (m.matchCode == 'PLACE_7_8') {
+        court = min(4, numCourts);
+      } else {
+        court = (m.matchIndex % numCourts) + 1;
+      }
+      return m.copyWith(court: court);
+    }).toList();
+  }
+
+  /// Assigne intelligemment les terrains pour un tableau à élimination directe :
+  /// - Matches avec TS1 -> Court 1
+  /// - Matches avec TS2 -> Court 2
+  /// - Demi-finales -> Court 1 et Court 2
+  /// - Grande Finale -> Court 1
+  /// - Autres matches -> ventilés sur Court 3, 4... jusqu'à numCourts
+  static List<BracketMatch> _assignSmartCourtsToBracketMatches({
+    required List<BracketMatch> matches,
+    required int roundsCount,
+    required int numCourts,
+  }) {
+    final result = <BracketMatch>[];
+
+    for (final m in matches) {
+      if (m.isBye) {
+        result.add(m);
+        continue;
+      }
+
+      int assignedCourt;
+
+      if (m.roundIndex == roundsCount - 1) {
+        // Grande Finale
+        assignedCourt = 1;
+      } else if (m.roundIndex == roundsCount - 2) {
+        // Demi-finales
+        assignedCourt = (m.matchIndex == 0) ? 1 : min(2, numCourts);
+      } else {
+        // Round 0 ou tours intermédiaires (1/8, Quarts)
+        final p1Seed = m.pair1?.seed;
+        final p2Seed = m.pair2?.seed;
+        final hasTs1 = p1Seed == 1 || p2Seed == 1;
+        final hasTs2 = p1Seed == 2 || p2Seed == 2;
+
+        if (hasTs1) {
+          assignedCourt = 1;
+        } else if (hasTs2) {
+          assignedCourt = min(2, numCourts);
+        } else {
+          // Ventiler sur les terrains restants (Court 3, 4... puis rotation)
+          if (numCourts <= 2) {
+            assignedCourt = (m.matchIndex % 2) + 1;
+          } else {
+            final offset = m.matchIndex % (numCourts - 2);
+            assignedCourt = 3 + offset;
+          }
+        }
+      }
+
+      result.add(m.copyWith(court: assignedCourt));
+    }
+
+    return result;
+  }
+
+  /// Assigne les terrains de la consolante
+  static List<BracketMatch> _assignSmartCourtsToConsoMatches({
+    required List<BracketMatch> matches,
+    required int numCourts,
+  }) {
+    return matches.map((m) {
+      if (m.isBye) return m;
+      final court = numCourts > 2
+          ? 3 + (m.matchIndex % (numCourts - 2))
+          : min(2, numCourts);
+      return m.copyWith(court: court);
+    }).toList();
   }
 }

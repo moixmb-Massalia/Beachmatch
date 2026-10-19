@@ -23,10 +23,17 @@ class TournamentModel {
   final String? country;
   final String? clubId;
   final List<String> formats;
+  final String? status;
   
   // Geocoding cache in-memory & Firestore
   double? latitude;
   double? longitude;
+
+  static const Map<String, int> _frenchMonths = {
+    'janvier': 1, 'fevrier': 2, 'février': 2, 'mars': 3, 'avril': 4,
+    'mai': 5, 'juin': 6, 'juillet': 7, 'aout': 8, 'août': 8,
+    'septembre': 9, 'octobre': 10, 'novembre': 11, 'decembre': 12, 'décembre': 12
+  };
 
   DateTime? get startDate => _parseDatePart(false);
   DateTime? get endDate => _parseDatePart(true);
@@ -37,6 +44,47 @@ class TournamentModel {
       String s = dateString.trim();
       if (s.toLowerCase().startsWith('du ')) {
         s = s.substring(3).trim();
+      }
+
+      // 1. Format 'DD - DD Month YYYY' ex: '08 - 15 Novembre 2026'
+      final mRangeSameMonth = RegExp(r'(\d{1,2})\s*[-–]\s*(\d{1,2})\s+([a-zA-ZÀ-ÿ]+)\s+(\d{4})').firstMatch(s);
+      if (mRangeSameMonth != null) {
+        final d1 = int.parse(mRangeSameMonth.group(1)!);
+        final d2 = int.parse(mRangeSameMonth.group(2)!);
+        final monthStr = mRangeSameMonth.group(3)!.toLowerCase();
+        final year = int.parse(mRangeSameMonth.group(4)!);
+        final m = _frenchMonths[monthStr];
+        if (m != null) {
+          final day = getEnd ? d2 : d1;
+          return DateTime(year, m, day);
+        }
+      }
+
+      // 2. Format 'DD Month - DD Month YYYY' ex: '31 Octobre - 01 Novembre 2026'
+      final mRangeDiffMonth = RegExp(r'(\d{1,2})\s+([a-zA-ZÀ-ÿ]+)\s*[-–]\s*(\d{1,2})\s+([a-zA-ZÀ-ÿ]+)\s+(\d{4})').firstMatch(s);
+      if (mRangeDiffMonth != null) {
+        final d1 = int.parse(mRangeDiffMonth.group(1)!);
+        final m1Str = mRangeDiffMonth.group(2)!.toLowerCase();
+        final d2 = int.parse(mRangeDiffMonth.group(3)!);
+        final m2Str = mRangeDiffMonth.group(4)!.toLowerCase();
+        final year = int.parse(mRangeDiffMonth.group(5)!);
+        final m1 = _frenchMonths[m1Str];
+        final m2 = _frenchMonths[m2Str];
+        if (m1 != null && m2 != null) {
+          return getEnd ? DateTime(year, m2, d2) : DateTime(year, m1, d1);
+        }
+      }
+
+      // 3. Format 'DD Month YYYY' ex: '15 Octobre 2026'
+      final mSingle = RegExp(r'(\d{1,2})\s+([a-zA-ZÀ-ÿ]+)\s+(\d{4})').firstMatch(s);
+      if (mSingle != null) {
+        final d = int.parse(mSingle.group(1)!);
+        final mStr = mSingle.group(2)!.toLowerCase();
+        final year = int.parse(mSingle.group(3)!);
+        final m = _frenchMonths[mStr];
+        if (m != null) {
+          return DateTime(year, m, d);
+        }
       }
 
       String target = s;
@@ -75,6 +123,10 @@ class TournamentModel {
   }
 
   bool get isPassed {
+    final s = (status ?? '').toUpperCase().trim();
+    if (s == 'COMPLETED' || s == 'FINISHED' || s == 'TERMINÉ' || s == 'TERMINE') {
+      return true;
+    }
     final end = endDate ?? startDate;
     if (end == null) return false;
     final now = DateTime.now();
@@ -108,6 +160,7 @@ class TournamentModel {
     this.country,
     this.clubId,
     this.formats = const ['DH', 'DD'],
+    this.status,
     this.latitude,
     this.longitude,
   });
@@ -146,16 +199,35 @@ class TournamentModel {
 
     List<String> formats = [];
     if (data['formats'] != null && data['formats'] is List) {
-      formats = (data['formats'] as List).map((e) => e.toString()).toList();
+      for (final raw in (data['formats'] as List)) {
+        final upper = raw.toString().toUpperCase().trim();
+        if (upper == 'DH' || upper == 'DM' || upper.contains('DOUBLE HOMME') || upper.contains('HOMME') || upper.contains('MESSIEURS')) {
+          if (!formats.contains('DH')) formats.add('DH');
+        } else if (upper == 'DD' || upper == 'DF' || upper.contains('DOUBLE DAME') || upper.contains('DAME') || upper.contains('FEMME')) {
+          if (!formats.contains('DD')) formats.add('DD');
+        } else if (upper == 'DX' || upper.contains('MIXTE')) {
+          if (!formats.contains('DX')) formats.add('DX');
+        } else if (upper.contains('JEUNE') || upper.contains('U1')) {
+          if (!formats.contains('Jeunes')) formats.add('Jeunes');
+        } else if (raw.toString().isNotEmpty && !formats.contains(raw.toString())) {
+          formats.add(raw.toString());
+        }
+      }
     }
     if (formats.isEmpty) {
       final nameUpper = (data['name'] ?? data['title'] ?? '').toString().toUpperCase();
       final catUpper = (data['category'] ?? data['level'] ?? '').toString().toUpperCase();
-      if (nameUpper.contains('MIXTE') || nameUpper.contains(' DX') || catUpper.contains('MIXTE')) formats.add('DX');
-      if (nameUpper.contains('HOMMES') || nameUpper.contains(' DH') || nameUpper.contains('DM') || catUpper.contains('HOMMES')) formats.add('DH');
-      if (nameUpper.contains('DAMES') || nameUpper.contains(' DD') || nameUpper.contains('DF') || catUpper.contains('DAMES')) formats.add('DD');
-      if (nameUpper.contains('JEUNES') || catUpper.contains('JEUNES')) formats.add('Jeunes');
-      if (formats.isEmpty) formats = ['DH', 'DD'];
+
+      // Règle spécifique Octobre Rose : dédié aux femmes, DD uniquement sauf si Mixte expressément mentionné
+      if ((nameUpper.contains('ROSE') || catUpper.contains('ROSE')) && !nameUpper.contains('MIXTE') && !nameUpper.contains(' DX')) {
+        formats.add('DD');
+      } else {
+        if (nameUpper.contains('MIXTE') || nameUpper.contains(' DX') || catUpper.contains('MIXTE')) formats.add('DX');
+        if (nameUpper.contains('HOMMES') || nameUpper.contains(' DH') || nameUpper.contains(' DM') || nameUpper.contains('(DM') || catUpper.contains('HOMMES') || catUpper.contains('MESSIEURS')) formats.add('DH');
+        if (nameUpper.contains('DAMES') || nameUpper.contains(' DD') || nameUpper.contains(' DF') || nameUpper.contains('(DF') || catUpper.contains('DAMES') || catUpper.contains('FEMMES')) formats.add('DD');
+        if (nameUpper.contains('JEUNES') || catUpper.contains('JEUNES')) formats.add('Jeunes');
+        if (formats.isEmpty) formats = ['DH', 'DD'];
+      }
     }
 
     return TournamentModel(
@@ -178,6 +250,7 @@ class TournamentModel {
       country: data['country'],
       clubId: data['clubId'],
       formats: formats,
+      status: data['status']?.toString(),
       latitude: lat,
       longitude: lng,
     );
@@ -192,6 +265,7 @@ class TournamentModel {
       'distance': distance,
       'category': category,
       'formats': formats,
+      if (status != null) 'status': status,
       if (clubId != null) 'clubId': clubId,
       if (address != null) 'address': address,
       if (balls != null) 'balls': balls,

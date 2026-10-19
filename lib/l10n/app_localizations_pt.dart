@@ -15,7 +15,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get navHome => 'Início';
 
   @override
-  String get navCourts => 'Campos';
+  String get navCourts => 'Quadras';
 
   @override
   String get navPlayers => 'Jogadores';
@@ -41,7 +41,8 @@ class AppLocalizationsPt extends AppLocalizations {
   String get homeHeaderTitle => 'Beach Tennis Club';
 
   @override
-  String get homeHeaderSubtitle => 'Encontre um campo e parceiros em 1 clique';
+  String get homeHeaderSubtitle =>
+      'Encontre uma quadra e parceiros em 1 clique';
 
   @override
   String homeWeatherSunny(int temp) {

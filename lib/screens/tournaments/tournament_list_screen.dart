@@ -8,11 +8,9 @@ import '../../theme/colors.dart';
 import '../../models/tournament.dart';
 import 'tournament_detail_screen.dart';
 import 'tournament_radar_screen.dart';
-import 'beach_score_hub_screen.dart';
 import '../../services/sound_service.dart';
 import '../../l10n/app_localizations.dart';
 import 'package:geolocator/geolocator.dart';
-import '../../widgets/feature_discovery_bubble.dart';
 
 class TournamentListScreen extends StatefulWidget {
   final bool showHeader;
@@ -23,7 +21,9 @@ class TournamentListScreen extends StatefulWidget {
 }
 
 class _TournamentListScreenState extends State<TournamentListScreen> {
-  String _selectedCountryFilter = 'ALL';
+  String _selectedCountryFilter = 'FR';
+  String _userDetectedCountry = 'FR';
+  bool _hasUserManuallyChangedCountry = false;
   String _selectedCategoryFilter = 'ALL';
   String _selectedDistanceFilter = 'ALL';
   String _selectedFormatFilter = 'ALL';
@@ -41,48 +41,182 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
     }
     return str;
   }
+
+  bool _isTournamentFromCountry(TournamentModel t, String countryCode) {
+    if (countryCode == 'ALL') return true;
+
+    final loc = _removeAccents(t.location).toLowerCase();
+    final c = _removeAccents(t.country ?? '').toLowerCase();
+    final name = _removeAccents(t.name).toLowerCase();
+
+    switch (countryCode) {
+      case 'FR':
+        final isOther = loc.contains('reunion') || loc.contains('bresil') || loc.contains('brasil') || 
+            loc.contains('italie') || loc.contains('italy') || loc.contains('espagne') || loc.contains('spain') || 
+            loc.contains('venezuela') || loc.contains('aruba') || loc.contains('martinique') || 
+            loc.contains('guadeloupe') || loc.contains('saint-barth') || loc.contains('saint-martin') || 
+            c.contains('reunion') || c.contains('bresil') || c.contains('brasil') || c == 'br' || c.contains('italie') || 
+            c.contains('espagne') || c.contains('spain') || c.contains('venezuela') || c.contains('aruba') || 
+            c.contains('martinique') || c.contains('guadeloupe') || c.contains('saint-barth') || c.contains('saint-martin');
+        return !isOther;
+
+      case 'BR':
+        return loc.contains('bresil') || loc.contains('brasil') || c.contains('bresil') || c.contains('brasil') || c == 'br' ||
+            loc.contains('cuiaba') || loc.contains('sao paulo') || loc.contains('rio') || loc.contains('curitiba') ||
+            loc.contains('florianopolis') || loc.contains('porto alegre') || loc.contains('palmas') || loc.contains('fortaleza') ||
+            loc.contains('salvador') || loc.contains('ribeirao') || loc.contains('balneario') || loc.contains('santos') ||
+            name.contains('brasilia') || name.contains('copacabana') || name.contains('cuiaba') || 
+            name.contains('panam') || name.contains('pan-american') || name.contains('cbt') || name.contains('sand series');
+
+      case 'RE':
+        return loc.contains('reunion') || c.contains('reunion') || c == 're' ||
+            name.contains('brisants') || name.contains('bourbon') || name.contains('tcbsp') || name.contains('beach park');
+
+      case 'ANT':
+        return loc.contains('martinique') || loc.contains('guadeloupe') || loc.contains('saint-barth') || loc.contains('saint-martin') ||
+            c.contains('martinique') || c.contains('guadeloupe') || c.contains('saint-barth') || c.contains('saint-martin') ||
+            name.contains('madiana') || name.contains('fcbt') || name.contains('karibbean') || name.contains('an nou');
+
+      case 'IT':
+        return loc.contains('italie') || loc.contains('italy') || c.contains('italie') || c.contains('italy') || c == 'it' ||
+            name.contains('cervia') || name.contains('terracina');
+
+      case 'ES':
+        return loc.contains('espagne') || loc.contains('spain') || c.contains('espagne') || c.contains('spain') || c == 'es' ||
+            name.contains('canaria') || name.contains('barcelona');
+
+      case 'VE':
+        return loc.contains('venezuela') || c.contains('venezuela') || c == 've' ||
+            name.contains('lecheria') || name.contains('margarita') || name.contains('dracula') ||
+            loc.contains('aruba') || c.contains('aruba') || c == 'aw' ||
+            name.contains('aruba') || name.contains('bushiri') || name.contains('bta');
+
+      default:
+        return true;
+    }
+  }
+
+  String _detectUserCountryFromProfileOrDevice() {
+    // 1. Profil utilisateur (s'il est renseigné dans le compte BeachMatch)
+    try {
+      final user = context.read<AppState>().currentUser;
+      if (user != null) {
+        if (user.isBrazilian || user.country.toUpperCase() == 'BR') return 'BR';
+        if (user.country.toUpperCase() == 'RE') return 'RE';
+        if (user.country.toUpperCase() == 'IT') return 'IT';
+        if (user.country.toUpperCase() == 'ES') return 'ES';
+        if (user.location.trim().isNotEmpty) {
+          final loc = _removeAccents(user.location).toLowerCase();
+          if (loc.contains('bresil') || loc.contains('brasil') || loc.contains('cuiaba') || loc.contains('sao paulo') || loc.contains('rio') || loc.contains('curitiba') || loc.contains('florianopolis') || loc.contains('palmas') || loc.contains('fortaleza') || loc.contains('brasilia') || loc.contains('salvador')) {
+            return 'BR';
+          }
+          if (loc.contains('reunion')) return 'RE';
+          if (loc.contains('italie') || loc.contains('italy') || loc.contains('italia')) return 'IT';
+          if (loc.contains('espagne') || loc.contains('spain') || loc.contains('espana')) return 'ES';
+          if (loc.contains('martinique') || loc.contains('guadeloupe') || loc.contains('saint-barth') || loc.contains('saint-martin')) return 'ANT';
+          if (loc.contains('aruba') || loc.contains('venezuela')) return 'VE';
+          if (loc.contains('france') || loc.contains('paris') || loc.contains('marseille') || loc.contains('nice') || loc.contains('lyon') || loc.contains('bordeaux') || loc.contains('toulouse')) {
+            return 'FR';
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 2. Paramètres régionaux et langue du smartphone (sans GPS)
+    try {
+      final locale = WidgetsBinding.instance.platformDispatcher.locale;
+      final countryCode = (locale.countryCode ?? '').toUpperCase();
+      final lang = locale.languageCode.toLowerCase();
+
+      if (countryCode == 'BR' || lang == 'pt') return 'BR';
+      if (countryCode == 'RE') return 'RE';
+      if (countryCode == 'IT' || lang == 'it') return 'IT';
+      if (countryCode == 'ES' || lang == 'es') return 'ES';
+      if (countryCode == 'AW' || countryCode == 'VE') return 'VE';
+      if (countryCode == 'FR' || lang == 'fr') return 'FR';
+    } catch (_) {}
+
+    // 3. Fuseau horaire du smartphone
+    try {
+      final offset = DateTime.now().timeZoneOffset.inHours;
+      if (offset >= -4 && offset <= -2) return 'BR';
+      if (offset == 4) return 'RE';
+    } catch (_) {}
+
+    return 'FR';
+  }
+
+  String _detectCountryFromPosition(Position pos) {
+    if (pos.latitude >= -22.0 && pos.latitude <= -20.0 && pos.longitude >= 55.0 && pos.longitude <= 56.5) {
+      return 'RE';
+    }
+    if (pos.latitude >= -34.0 && pos.latitude <= 6.0 && pos.longitude >= -74.0 && pos.longitude <= -34.0) {
+      return 'BR';
+    }
+    if (pos.latitude >= 35.5 && pos.latitude <= 47.5 && pos.longitude >= 6.5 && pos.longitude <= 19.0) {
+      return 'IT';
+    }
+    if (pos.latitude >= 36.0 && pos.latitude <= 44.0 && pos.longitude >= -9.5 && pos.longitude <= 3.5) {
+      return 'ES';
+    }
+    if (pos.latitude >= 14.0 && pos.latitude <= 18.5 && pos.longitude >= -63.5 && pos.longitude <= -60.5) {
+      return 'ANT';
+    }
+    if (pos.latitude >= 41.0 && pos.latitude <= 51.5 && pos.longitude >= -5.5 && pos.longitude <= 10.0) {
+      return 'FR';
+    }
+    return 'FR';
+  }
   
-  final List<Map<String, String>> _distanceFilters = [
-    {'id': 'ALL', 'label': 'Toutes distances 📍'},
+  List<Map<String, String>> _getDistanceFilters(bool isBr) => [
+    {'id': 'ALL', 'label': isBr ? 'Todas as distâncias 📍' : 'Toutes distances 📍'},
     {'id': '20', 'label': '< 20 km'},
     {'id': '50', 'label': '< 50 km'},
     {'id': '100', 'label': '< 100 km'},
     {'id': '200', 'label': '< 200 km'},
   ];
 
-  final List<Map<String, String>> _countryFilters = [
-    {'id': 'ALL', 'label': 'Tous pays 🌍'},
-    {'id': 'FR', 'label': 'Métropole 🇫🇷'},
-    {'id': 'RE', 'label': 'La Réunion 🇷🇪'},
-    {'id': 'ANT', 'label': 'Antilles 🌴'},
-    {'id': 'IT', 'label': 'Italie 🇮🇹'},
-    {'id': 'ES', 'label': 'Espagne 🇪🇸'},
-    {'id': 'BR', 'label': 'Brésil 🇧🇷'},
+  List<Map<String, String>> _getCountryFilters(bool isBr) => [
+    {'id': 'ALL', 'label': isBr ? 'Todos os países 🌍' : 'Tous pays 🌍'},
+    {'id': 'BR', 'label': isBr ? 'Brasil 🇧🇷' : 'Brésil 🇧🇷'},
+    {'id': 'FR', 'label': isBr ? 'França 🇫🇷' : 'Métropole 🇫🇷'},
+    {'id': 'RE', 'label': isBr ? 'Ilha Reunião 🇷🇪' : 'La Réunion 🇷🇪'},
+    {'id': 'ANT', 'label': isBr ? 'Antilhas 🌴' : 'Antilles 🌴'},
+    {'id': 'IT', 'label': isBr ? 'Itália 🇮🇹' : 'Italie 🇮🇹'},
+    {'id': 'ES', 'label': isBr ? 'Espanha 🇪🇸' : 'Espagne 🇪🇸'},
+    {'id': 'VE', 'label': 'Venezuela & Aruba 🇻🇪'},
   ];
 
-  final List<Map<String, String>> _formatFilters = [
-    {'id': 'ALL', 'label': 'Tous formats 🎾'},
-    {'id': 'DH', 'label': 'Double Hommes (DH)'},
-    {'id': 'DD', 'label': 'Double Dames (DD)'},
-    {'id': 'DX', 'label': 'Double Mixte (DX)'},
-    {'id': 'Jeunes', 'label': 'Jeunes (U14-U18)'},
+  List<Map<String, String>> _getFormatFilters(bool isBr) => [
+    {'id': 'ALL', 'label': isBr ? 'Todos formatos 🎾' : 'Tous formats 🎾'},
+    {'id': 'DH', 'label': 'DH'},
+    {'id': 'DD', 'label': 'DD'},
+    {'id': 'DX', 'label': 'DX'},
+    {'id': 'Jeunes', 'label': isBr ? 'Juvenil (Sub-14/18)' : 'Jeunes (U14-U18)'},
   ];
 
-  final List<Map<String, String>> _categoryFilters = [
-    {'id': 'ALL', 'label': 'Toutes catégories 🏆'},
+  List<Map<String, String>> _getCategoryFilters(bool isBr) => [
+    {'id': 'ALL', 'label': isBr ? 'Todas as categorias 🏆' : 'Toutes catégories 🏆'},
     {'id': 'Sand Series 🌟', 'label': 'Sand Series 🌟'},
+    {'id': 'CBT', 'label': 'CBT / Nacional 🇧🇷'},
     {'id': 'BT 2000 / 400', 'label': 'BT 2000 / 400'},
     {'id': 'BT 1000', 'label': 'BT 1000'},
     {'id': 'BT 500', 'label': 'BT 500'},
     {'id': 'BT 250', 'label': 'BT 250'},
     {'id': 'BT 100 / 25', 'label': 'BT 100 / 25'},
-    {'id': 'Terminés', 'label': 'Terminés 🏁'},
+    {'id': 'Terminés', 'label': isBr ? 'Encerrados 🏁' : 'Terminés 🏁'},
   ];
 
   @override
   void initState() {
     super.initState();
-    _initUserLocation();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initAutoCountryDetection();
+      final appState = context.read<AppState>();
+      if (appState.tournaments.isEmpty) {
+        appState.loadTournaments();
+      }
+    });
     _searchController.addListener(() {
       _searchDebounce?.cancel();
       _searchDebounce = Timer(const Duration(milliseconds: 250), () {
@@ -93,12 +227,6 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
         }
       });
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final appState = context.read<AppState>();
-      if (appState.tournaments.isEmpty) {
-        appState.loadTournaments();
-      }
-    });
   }
 
   @override
@@ -108,17 +236,47 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
     super.dispose();
   }
 
+  Future<void> _initAutoCountryDetection() async {
+    // 1. Détection automatique préalable (sans GPS requis : Profil ou smartphone)
+    final initialCountry = _detectUserCountryFromProfileOrDevice();
+    if (!_hasUserManuallyChangedCountry && mounted) {
+      setState(() {
+        _userDetectedCountry = initialCountry;
+        _selectedCountryFilter = initialCountry;
+      });
+    }
+
+    // 2. Détection GPS plus précise si disponible
+    await _initUserLocation();
+  }
+
   Future<void> _initUserLocation() async {
     try {
       final pos = context.read<AppState>().currentPosition;
       if (pos != null) {
         setState(() => _currentPosition = pos);
+        final country = _detectCountryFromPosition(pos);
+        if (!_hasUserManuallyChangedCountry && mounted) {
+          setState(() {
+            _userDetectedCountry = country;
+            _selectedCountryFilter = country;
+          });
+        }
         return;
       }
       final permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
         final currentPos = await Geolocator.getLastKnownPosition() ?? await Geolocator.getCurrentPosition();
-        if (mounted) setState(() => _currentPosition = currentPos);
+        if (mounted) {
+          setState(() => _currentPosition = currentPos);
+          final country = _detectCountryFromPosition(currentPos);
+          if (!_hasUserManuallyChangedCountry) {
+            setState(() {
+              _userDetectedCountry = country;
+              _selectedCountryFilter = country;
+            });
+          }
+        }
       }
     } catch (_) {}
   }
@@ -161,6 +319,8 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AppState>().currentUser;
+    final isBr = user?.isBrazilian == true || _userDetectedCountry == 'BR';
     final allTournaments = context.watch<AppState>().tournaments;
     
     // Filtering logic
@@ -187,37 +347,8 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
       }
 
       // Filter by Country / Region
-      if (_selectedCountryFilter == 'FR') {
-        final loc = t.location.toLowerCase();
-        final c = (t.country ?? '').toLowerCase();
-        final isOther = loc.contains('réunion') || loc.contains('reunion') || loc.contains('brésil') || loc.contains('brasil') || loc.contains('italie') || loc.contains('italy') || loc.contains('espagne') || loc.contains('spain') || loc.contains('martinique') || loc.contains('guadeloupe') || loc.contains('saint-barth') || loc.contains('saint-martin') || c.contains('réunion') || c.contains('brésil') || c.contains('italie') || c.contains('espagne') || c.contains('martinique') || c.contains('guadeloupe') || c.contains('saint-barth') || c.contains('saint-martin');
-        if (isOther) return false;
-      } else if (_selectedCountryFilter == 'RE') {
-        final loc = t.location.toLowerCase();
-        final c = (t.country ?? '').toLowerCase();
-        final name = t.name.toLowerCase();
-        if (!loc.contains('réunion') && !loc.contains('reunion') && !c.contains('réunion') && !name.contains('brisants') && !name.contains('bourbon') && !name.contains('tcbsp') && !name.contains('beach park')) return false;
-      } else if (_selectedCountryFilter == 'ANT') {
-        final loc = t.location.toLowerCase();
-        final c = (t.country ?? '').toLowerCase();
-        final name = t.name.toLowerCase();
-        final isAnt = loc.contains('martinique') || loc.contains('guadeloupe') || loc.contains('saint-barth') || loc.contains('saint-martin') || c.contains('martinique') || c.contains('guadeloupe') || c.contains('saint-barth') || c.contains('saint-martin') || name.contains('madiana') || name.contains('fcbt') || name.contains('karibbean') || name.contains('an nou');
-        if (!isAnt) return false;
-      } else if (_selectedCountryFilter == 'BR') {
-        final loc = t.location.toLowerCase();
-        final c = (t.country ?? '').toLowerCase();
-        final name = t.name.toLowerCase();
-        if (!loc.contains('brésil') && !loc.contains('brasil') && !c.contains('brésil') && !name.contains('brasilia') && !name.contains('copacabana')) return false;
-      } else if (_selectedCountryFilter == 'IT') {
-        final loc = t.location.toLowerCase();
-        final c = (t.country ?? '').toLowerCase();
-        final name = t.name.toLowerCase();
-        if (!loc.contains('italie') && !loc.contains('italy') && !c.contains('italie') && !name.contains('cervia') && !name.contains('terracina')) return false;
-      } else if (_selectedCountryFilter == 'ES') {
-        final loc = t.location.toLowerCase();
-        final c = (t.country ?? '').toLowerCase();
-        final name = t.name.toLowerCase();
-        if (!loc.contains('espagne') && !loc.contains('spain') && !c.contains('espagne') && !name.contains('canaria') && !name.contains('barcelona')) return false;
+      if (_selectedCountryFilter != 'ALL') {
+        if (!_isTournamentFromCountry(t, _selectedCountryFilter)) return false;
       }
 
       // Filter by Format (DH, DD, DX, Jeunes)
@@ -246,6 +377,8 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
           _selectedCategoryFilter != 'Terminés') {
         if (_selectedCategoryFilter == 'Sand Series 🌟') {
           if (!t.category.toLowerCase().contains('sand')) return false;
+        } else if (_selectedCategoryFilter == 'CBT') {
+          if (!t.category.toUpperCase().contains('CBT')) return false;
         } else if (_selectedCategoryFilter == 'BT 2000 / 400') {
           if (!t.category.contains('2000') && !t.category.contains('400')) return false;
         } else if (_selectedCategoryFilter == 'BT 100 / 25') {
@@ -292,6 +425,14 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
       });
     } else {
       filteredTournaments.sort((a, b) {
+        // Priorité dynamique aux tournois du pays de l'utilisateur (France, Brésil, Réunion, Italie, etc.) si "Tous pays" est sélectionné
+        if (_selectedCountryFilter == 'ALL') {
+          final isAUserCountry = _isTournamentFromCountry(a, _userDetectedCountry);
+          final isBUserCountry = _isTournamentFromCountry(b, _userDetectedCountry);
+          if (isAUserCountry && !isBUserCountry) return -1;
+          if (!isAUserCountry && isBUserCountry) return 1;
+        }
+
         final dateA = a.startDate ?? DateTime(2099);
         final dateB = b.startDate ?? DateTime(2099);
         
@@ -370,325 +511,101 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                     ),
                   ),
 
-                const FeatureDiscoveryBubble(
-                  featureKey: 'tournaments_guide',
-                  title: "Guide des Compétitions FFT",
-                  message: "Filtrez par catégorie (BT 25 à BT 2000), trouvez un partenaire via 'SOS Partenaire' ou suivez les scores en direct sur BeachScore Live !",
-                  icon: Icons.emoji_events_rounded,
-                  margin: EdgeInsets.fromLTRB(20, 4, 20, 10),
-                ),
-
-                // 🔴 BANNIÈRE HERO INTERACTIVE BEACHSCORE LIVE (Option 1)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 2, 20, 8),
-                  child: GestureDetector(
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const BeachScoreHubScreen()),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFF8B0000), // Deep ruby
-                            Color(0xFFE53935), // Vivid red
-                            Color(0xFFF4A535), // Warm gold
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: AppColors.gold.withValues(alpha: 0.8), width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.redAccent.withValues(alpha: 0.4),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.35),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-                            ),
-                            child: const Icon(Icons.live_tv_rounded, color: Colors.white, size: 20),
-                          ),
-                          const SizedBox(width: 12),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Text(
-                                      "BEACHSCORE LIVE 🔴",
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 13.5,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      "ITF / FFT",
-                                      style: TextStyle(
-                                        color: AppColors.gold,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  "Scores en direct, calendrier mondial & pronostics",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  "Ouvrir",
-                                  style: TextStyle(
-                                    color: Colors.black,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 11.5,
-                                  ),
-                                ),
-                                SizedBox(width: 3),
-                                Icon(Icons.arrow_forward_ios_rounded, color: Colors.black, size: 10),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-                // 🔍 Barre de Recherche Instantanée
+                // 🔍 Barre de Recherche Compacte & Bouton Filtres
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                      decoration: InputDecoration(
-                        hintText: "Rechercher une ville, club, catégorie...",
-                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
-                        prefixIcon: const Icon(Icons.search_rounded, color: AppColors.gold, size: 20),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear_rounded, color: Colors.white60, size: 18),
-                                onPressed: () {
-                                  _searchController.clear();
-                                },
-                              )
-                            : null,
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      ),
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(height: 8),
-
-                // 🎛️ BARRE DE MENUS DÉROULANTS (Distance, Pays, Format DH/DD/DX, Catégorie)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                  child: Column(
+                  child: Row(
                     children: [
-                      // Rangée 1 : Distance + Pays
-                      Row(
-                        children: [
-                          _buildDropdownCard<String>(
-                            value: _selectedDistanceFilter,
-                            icon: Icons.near_me_rounded,
-                            isActive: _selectedDistanceFilter != 'ALL',
-                            items: _distanceFilters.map((f) {
-                              return DropdownMenuItem<String>(
-                                value: f['id']!,
-                                child: Text(
-                                  f['label']!,
-                                  style: TextStyle(
-                                    color: _selectedDistanceFilter == f['id'] ? AppColors.gold : Colors.white,
-                                    fontSize: 11.5,
-                                    fontWeight: _selectedDistanceFilter == f['id'] ? FontWeight.bold : FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (val) {
-                              if (val != null) _handleDistanceFilter(val);
-                            },
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF16253B),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
                           ),
-                          const SizedBox(width: 8),
-                          _buildDropdownCard<String>(
-                            value: _selectedCountryFilter,
-                            icon: Icons.public_rounded,
-                            isActive: _selectedCountryFilter != 'ALL',
-                            items: _countryFilters.map((f) {
-                              return DropdownMenuItem<String>(
-                                value: f['id']!,
-                                child: Text(
-                                  f['label']!,
-                                  style: TextStyle(
-                                    color: _selectedCountryFilter == f['id'] ? AppColors.gold : Colors.white,
-                                    fontSize: 11.5,
-                                    fontWeight: _selectedCountryFilter == f['id'] ? FontWeight.bold : FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (val) {
-                              if (val != null) setState(() => _selectedCountryFilter = val);
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      // Rangée 2 : Format (DH/DD/DX/Jeunes) + Catégorie
-                      Row(
-                        children: [
-                          _buildDropdownCard<String>(
-                            value: _selectedFormatFilter,
-                            icon: Icons.sports_tennis_rounded,
-                            isActive: _selectedFormatFilter != 'ALL',
-                            items: _formatFilters.map((f) {
-                              return DropdownMenuItem<String>(
-                                value: f['id']!,
-                                child: Text(
-                                  f['label']!,
-                                  style: TextStyle(
-                                    color: _selectedFormatFilter == f['id'] ? AppColors.gold : Colors.white,
-                                    fontSize: 11.5,
-                                    fontWeight: _selectedFormatFilter == f['id'] ? FontWeight.bold : FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (val) {
-                              if (val != null) setState(() => _selectedFormatFilter = val);
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          _buildDropdownCard<String>(
-                            value: _selectedCategoryFilter,
-                            icon: Icons.emoji_events_rounded,
-                            isActive: _selectedCategoryFilter != 'ALL',
-                            items: _categoryFilters.map((f) {
-                              return DropdownMenuItem<String>(
-                                value: f['id']!,
-                                child: Text(
-                                  f['label']!,
-                                  style: TextStyle(
-                                    color: _selectedCategoryFilter == f['id'] ? AppColors.gold : Colors.white,
-                                    fontSize: 11.5,
-                                    fontWeight: _selectedCategoryFilter == f['id'] ? FontWeight.bold : FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (val) {
-                              if (val != null) setState(() => _selectedCategoryFilter = val);
-                            },
-                          ),
-                        ],
-                      ),
-                      // Bouton Réinitialiser si un filtre est actif
-                      if (_selectedDistanceFilter != 'ALL' ||
-                          _selectedCountryFilter != 'ALL' ||
-                          _selectedFormatFilter != 'ALL' ||
-                          _selectedCategoryFilter != 'ALL') ...[
-                        const SizedBox(height: 6),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            InkWell(
-                              onTap: () {
-                                setState(() {
-                                  _selectedDistanceFilter = 'ALL';
-                                  _selectedCountryFilter = 'ALL';
-                                  _selectedFormatFilter = 'ALL';
-                                  _selectedCategoryFilter = 'ALL';
-                                });
-                              },
-                              borderRadius: BorderRadius.circular(10),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: AppColors.coral.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: AppColors.coral.withValues(alpha: 0.5)),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.restart_alt_rounded, color: AppColors.coral, size: 14),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      "Réinitialiser les filtres",
-                                      style: TextStyle(
-                                        color: AppColors.coral,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                          child: TextField(
+                            controller: _searchController,
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            decoration: InputDecoration(
+                              hintText: isBr ? "Buscar cidade, arena, torneio..." : "Rechercher une ville, club, tournoi...",
+                              hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
+                              prefixIcon: const Icon(Icons.search_rounded, color: AppColors.gold, size: 20),
+                              suffixIcon: _searchQuery.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear_rounded, color: Colors.white60, size: 18),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                      },
+                                    )
+                                  : null,
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                             ),
-                          ],
+                          ),
                         ),
-                      ],
+                      ),
+                      const SizedBox(width: 8),
+                      // Bouton Filtres Avancés Modal
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          _showAdvancedFilterModal(context, isBr);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: _hasActiveFilters()
+                                ? AppColors.coral.withValues(alpha: 0.3)
+                                : const Color(0xFF16253B),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: _hasActiveFilters() ? AppColors.coral : Colors.white.withValues(alpha: 0.3),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Icon(
+                                Icons.tune_rounded,
+                                color: _hasActiveFilters() ? AppColors.coral : Colors.white70,
+                                size: 20,
+                              ),
+                              if (_hasActiveFilters())
+                                Positioned(
+                                  right: -2,
+                                  top: -2,
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.gold,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
+                
+                const SizedBox(height: 6),
+
+                // 🔽 Menus Déroulants Pays & Catégories (Contraste maximal, aucun ton sur ton gris)
+                _buildDropdownFiltersRow(isBr),
 
                 if (_isLocating)
-                  const Padding(
-                    padding: EdgeInsets.all(6.0),
+                  Padding(
+                    padding: const EdgeInsets.all(6.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: AppColors.gold, strokeWidth: 2)),
-                        SizedBox(width: 8),
-                        Text("Localisation en cours...", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                        const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: AppColors.gold, strokeWidth: 2)),
+                        const SizedBox(width: 8),
+                        Text(isBr ? "Obtendo localização..." : "Localisation en cours...", style: const TextStyle(color: Colors.white70, fontSize: 12)),
                       ],
                     ),
                   ),
@@ -717,7 +634,7 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                                     const CircularProgressIndicator(color: AppColors.gold),
                                     const SizedBox(height: 16),
                                     Text(
-                                      "Chargement des tournois officiels...",
+                                      isBr ? "Carregando torneios oficiais..." : "Chargement des tournois officiels...",
                                       style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 14),
                                     ),
                                   ],
@@ -748,7 +665,7 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                                           context.read<AppState>().loadTournaments();
                                         },
                                         icon: const Icon(Icons.refresh, size: 18, color: Colors.black),
-                                        label: const Text("Réinitialiser / Actualiser", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                                        label: Text(isBr ? "Redefinir / Atualizar" : "Réinitialiser / Actualiser", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: AppColors.gold,
                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -771,7 +688,7 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _buildMonthHeader(_getMonthHeaderLabel(tournament.startDate!)),
+                                  _buildMonthHeader(_getMonthHeaderLabel(tournament.startDate!, isBr: isBr)),
                                   _buildTournamentCard(context, tournament),
                                 ],
                               );
@@ -799,11 +716,16 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
     return current.month != previous.month || current.year != previous.year;
   }
 
-  String _getMonthHeaderLabel(DateTime dt) {
-    const months = [
+  String _getMonthHeaderLabel(DateTime dt, {bool isBr = false}) {
+    const monthsFr = [
       'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
       'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
     ];
+    const monthsPt = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    final months = isBr ? monthsPt : monthsFr;
     return '${months[dt.month - 1]} ${dt.year}';
   }
 
@@ -866,17 +788,21 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
     final locLower = tournament.location.toLowerCase();
     final countryLower = (tournament.country ?? '').toLowerCase();
     final nameLower = tournament.name.toLowerCase();
-    if (locLower.contains('italie') || locLower.contains('italy') || countryLower.contains('italie') || locLower.contains('cervia') || locLower.contains('terracina')) {
+    if (locLower.contains('italie') || locLower.contains('italy') || countryLower == 'it' || countryLower.contains('italie') || locLower.contains('cervia') || locLower.contains('terracina')) {
       flag = '🇮🇹';
-    } else if (locLower.contains('espagne') || locLower.contains('spain') || countryLower.contains('espagne') || locLower.contains('canaria') || locLower.contains('barcelona')) {
+    } else if (locLower.contains('espagne') || locLower.contains('spain') || countryLower == 'es' || countryLower.contains('espagne') || locLower.contains('canaria') || locLower.contains('barcelona')) {
       flag = '🇪🇸';
-    } else if (locLower.contains('brésil') || locLower.contains('brasil') || countryLower.contains('brésil') || countryLower.contains('brazil') || locLower.contains('copacabana') || locLower.contains('brasilia')) {
+    } else if (countryLower == 'br' || countryLower.contains('br') || countryLower.contains('brasil') || countryLower.contains('brazil') || locLower.contains('brésil') || locLower.contains('brasil') || locLower.contains('copacabana') || locLower.contains('brasilia') || locLower.contains('cuiaba') || locLower.contains('fortaleza') || locLower.contains('palmas') || locLower.contains('salvador') || locLower.contains('curitiba') || locLower.contains('ceara') || locLower.contains('belo horizonte') || locLower.contains('porto alegre') || locLower.contains('santos') || locLower.contains('campinas') || locLower.contains('vitoria') || nameLower.contains('cbt')) {
       flag = '🇧🇷';
+    } else if (locLower.contains('venezuela') || locLower.contains('vénézuela') || countryLower == 've' || countryLower.contains('venezuela') || locLower.contains('lecheria') || locLower.contains('margarita') || locLower.contains('puerto cabello')) {
+      flag = '🇻🇪';
+    } else if (locLower.contains('aruba') || countryLower == 'aw' || countryLower.contains('aruba') || locLower.contains('bushiri')) {
+      flag = '🇦🇼';
     } else if (locLower.contains('saint-martin') || locLower.contains('st martin') || locLower.contains('orientale') || locLower.contains('guadeloupe') || locLower.contains('martinique')) {
       flag = '🌴';
     } else if (locLower.contains('nouméa') || locLower.contains('noumea')) {
       flag = '🇳🇨';
-    } else if (locLower.contains('reunion') || locLower.contains('réunion') || locLower.contains('clotilde') || locLower.contains('paul') || nameLower.contains('brisants')) {
+    } else if (locLower.contains('reunion') || locLower.contains('réunion') || countryLower == 're' || countryLower.contains('reunion') || locLower.contains('clotilde') || locLower.contains('paul') || nameLower.contains('brisants')) {
       flag = '🇷🇪';
     } else {
       flag = '🇫🇷';
@@ -1066,7 +992,7 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                               if (tournament.club.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 2),
-                                  child: Text(tournament.club, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                                  child: Text(tournament.club, style: const TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.w500)),
                                 ),
                             ],
                           ),
@@ -1081,7 +1007,9 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                             const Icon(Icons.how_to_reg_rounded, color: AppColors.gold, size: 12),
                             const SizedBox(width: 4),
                             Text(
-                              "Inscriptions & Contact JAT dispos",
+                              (countryLower == 'br' || countryLower.contains('br') || locLower.contains('brasil') || nameLower.contains('cbt'))
+                                  ? "Inscrições & Contato do Árbitro"
+                                  : "Inscriptions & Contact JAT dispos",
                               style: TextStyle(color: AppColors.gold.withValues(alpha: 0.9), fontSize: 10.5, fontWeight: FontWeight.bold),
                             ),
                           ],
@@ -1098,53 +1026,392 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
   );
 }
 
-  Widget _buildDropdownCard<T>({
-    required T value,
-    required List<DropdownMenuItem<T>> items,
-    required ValueChanged<T?> onChanged,
-    required IconData icon,
-    required bool isActive,
-  }) {
-    return Expanded(
-      child: Container(
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E293B).withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isActive ? AppColors.gold : Colors.white.withValues(alpha: 0.22),
-            width: isActive ? 1.4 : 1.0,
-          ),
-          boxShadow: isActive
-              ? [
+  bool _hasActiveFilters() {
+    return _selectedDistanceFilter != 'ALL' ||
+        _selectedCountryFilter != _userDetectedCountry ||
+        _selectedFormatFilter != 'ALL' ||
+        _selectedCategoryFilter != 'ALL' ||
+        _searchQuery.isNotEmpty;
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _selectedDistanceFilter = 'ALL';
+      _selectedCountryFilter = _userDetectedCountry;
+      _selectedFormatFilter = 'ALL';
+      _selectedCategoryFilter = 'ALL';
+      _hasUserManuallyChangedCountry = false;
+      _searchController.clear();
+      _searchQuery = '';
+    });
+  }
+
+  Widget _buildDropdownFiltersRow(bool isBr) {
+    final countryFilters = _getCountryFilters(isBr);
+    final categoryFilters = _getCategoryFilters(isBr);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+      child: Row(
+        children: [
+          // 🌍 Menu Déroulant PAYS
+          Expanded(
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF16253B),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _selectedCountryFilter != 'ALL' ? AppColors.gold : Colors.white.withValues(alpha: 0.35),
+                  width: 1.2,
+                ),
+                boxShadow: [
                   BoxShadow(
-                    color: AppColors.gold.withValues(alpha: 0.25),
+                    color: Colors.black.withValues(alpha: 0.35),
                     blurRadius: 6,
-                  )
-                ]
-              : null,
-        ),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<T>(
-            value: value,
-            items: items,
-            onChanged: onChanged,
-            isExpanded: true,
-            dropdownColor: const Color(0xFF0F172A),
-            icon: Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: isActive ? AppColors.gold : Colors.white70,
-              size: 18,
-            ),
-            style: TextStyle(
-              color: isActive ? AppColors.gold : Colors.white,
-              fontSize: 11.5,
-              fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: countryFilters.any((c) => c['id'] == _selectedCountryFilter) ? _selectedCountryFilter : 'ALL',
+                  dropdownColor: const Color(0xFF0F172A),
+                  icon: const Icon(Icons.arrow_drop_down, color: AppColors.gold, size: 22),
+                  isExpanded: true,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  onChanged: (val) {
+                    if (val != null) {
+                      HapticFeedback.selectionClick();
+                      setState(() {
+                        _hasUserManuallyChangedCountry = true;
+                        _selectedCountryFilter = val;
+                      });
+                    }
+                  },
+                  items: countryFilters.map((c) {
+                    final isSel = c['id'] == _selectedCountryFilter;
+                    return DropdownMenuItem<String>(
+                      value: c['id'],
+                      child: Text(
+                        c['label']!,
+                        style: TextStyle(
+                          color: isSel ? AppColors.gold : Colors.white,
+                          fontWeight: isSel ? FontWeight.w900 : FontWeight.w600,
+                          fontSize: 12.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
             ),
           ),
-        ),
+
+          const SizedBox(width: 8),
+
+          // 🏆 Menu Déroulant CATÉGORIES / NIVEAUX
+          Expanded(
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF16253B),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _selectedCategoryFilter != 'ALL' ? AppColors.coral : Colors.white.withValues(alpha: 0.35),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: categoryFilters.any((c) => c['id'] == _selectedCategoryFilter) ? _selectedCategoryFilter : 'ALL',
+                  dropdownColor: const Color(0xFF0F172A),
+                  icon: const Icon(Icons.arrow_drop_down, color: AppColors.coral, size: 22),
+                  isExpanded: true,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  onChanged: (val) {
+                    if (val != null) {
+                      HapticFeedback.selectionClick();
+                      setState(() => _selectedCategoryFilter = val);
+                    }
+                  },
+                  items: categoryFilters.map((c) {
+                    final isSel = c['id'] == _selectedCategoryFilter;
+                    return DropdownMenuItem<String>(
+                      value: c['id'],
+                      child: Text(
+                        c['label']!,
+                        style: TextStyle(
+                          color: isSel ? AppColors.coral : Colors.white,
+                          fontWeight: isSel ? FontWeight.w900 : FontWeight.w600,
+                          fontSize: 12.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ),
+
+          if (_hasActiveFilters()) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                _resetFilters();
+              },
+              child: Container(
+                height: 44,
+                width: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.coral.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.coral, width: 1.2),
+                ),
+                child: const Icon(Icons.restart_alt_rounded, color: AppColors.coral, size: 20),
+              ),
+            ),
+          ],
+        ],
       ),
+    );
+  }
+
+  void _showAdvancedFilterModal(BuildContext context, bool isBr) {
+    final formatFilters = _getFormatFilters(isBr);
+    final distanceFilters = _getDistanceFilters(isBr);
+    final countryFilters = _getCountryFilters(isBr);
+    final categoryFilters = _getCategoryFilters(isBr);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0F172A),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalContext, modalSetState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            isBr ? "Filtros avançados" : "Filtres avancés",
+                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              HapticFeedback.lightImpact();
+                              setState(() {
+                                _selectedDistanceFilter = 'ALL';
+                                _selectedCountryFilter = 'ALL';
+                                _selectedCategoryFilter = 'ALL';
+                                _selectedFormatFilter = 'ALL';
+                              });
+                              Navigator.pop(ctx);
+                            },
+                            child: Text(isBr ? "Redefinir" : "Réinitialiser", style: const TextStyle(color: AppColors.coral, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(isBr ? "Formato de jogo" : "Format de jeu", style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 13)),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 7.6,
+                        children: formatFilters.map((f) {
+                          final isSelected = _selectedFormatFilter == f['id'];
+                          return ChoiceChip(
+                            label: Text(
+                              f['label']!,
+                              style: TextStyle(
+                                color: isSelected ? const Color(0xFF0F172A) : Colors.white,
+                                fontSize: 11.9,
+                                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                              ),
+                            ),
+                            visualDensity: const VisualDensity(horizontal: -1.0, vertical: -1.0),
+                            labelPadding: const EdgeInsets.symmetric(horizontal: 7.6, vertical: 0),
+                            selected: isSelected,
+                            selectedColor: AppColors.gold,
+                            backgroundColor: const Color(0xFF1E293B),
+                            side: BorderSide(
+                              color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.35),
+                              width: isSelected ? 1.4 : 1.0,
+                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11.4)),
+                            showCheckmark: false,
+                            onSelected: (sel) {
+                              if (sel) {
+                                HapticFeedback.lightImpact();
+                                setState(() => _selectedFormatFilter = f['id']!);
+                                modalSetState(() {});
+                              }
+                            },
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(isBr ? "Distância máxima" : "Distance maximale", style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 13)),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        children: distanceFilters.map((d) {
+                          final isSelected = _selectedDistanceFilter == d['id'];
+                          return ChoiceChip(
+                            label: Text(
+                              d['label']!,
+                              style: TextStyle(
+                                color: isSelected ? const Color(0xFF0F172A) : Colors.white,
+                                fontSize: 12.5,
+                                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                              ),
+                            ),
+                            selected: isSelected,
+                            selectedColor: AppColors.gold,
+                            backgroundColor: const Color(0xFF1E293B),
+                            side: BorderSide(
+                              color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.35),
+                              width: isSelected ? 1.4 : 1.0,
+                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            showCheckmark: false,
+                            onSelected: (sel) {
+                              if (sel) {
+                                HapticFeedback.lightImpact();
+                                _handleDistanceFilter(d['id']!);
+                                modalSetState(() {});
+                              }
+                            },
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(isBr ? "Países & Regiões" : "Pays & Régions", style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 13)),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        children: countryFilters.map((c) {
+                          final isSelected = _selectedCountryFilter == c['id'];
+                          return ChoiceChip(
+                            label: Text(
+                              c['label']!,
+                              style: TextStyle(
+                                color: isSelected ? const Color(0xFF0F172A) : Colors.white,
+                                fontSize: 12.5,
+                                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                              ),
+                            ),
+                            selected: isSelected,
+                            selectedColor: AppColors.gold,
+                            backgroundColor: const Color(0xFF1E293B),
+                            side: BorderSide(
+                              color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.35),
+                              width: isSelected ? 1.4 : 1.0,
+                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            showCheckmark: false,
+                            onSelected: (sel) {
+                              if (sel) {
+                                HapticFeedback.lightImpact();
+                                setState(() => _selectedCountryFilter = c['id']!);
+                                modalSetState(() {});
+                              }
+                            },
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(isBr ? "Categoria do Torneio" : "Catégorie de Tournoi", style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 13)),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        children: categoryFilters.map((cat) {
+                          final isSelected = _selectedCategoryFilter == cat['id'];
+                          return ChoiceChip(
+                            label: Text(
+                              cat['label']!,
+                              style: TextStyle(
+                                color: isSelected ? const Color(0xFF0F172A) : Colors.white,
+                                fontSize: 12.5,
+                                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                              ),
+                            ),
+                            selected: isSelected,
+                            selectedColor: AppColors.gold,
+                            backgroundColor: const Color(0xFF1E293B),
+                            side: BorderSide(
+                              color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.35),
+                              width: isSelected ? 1.4 : 1.0,
+                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            showCheckmark: false,
+                            onSelected: (sel) {
+                              if (sel) {
+                                HapticFeedback.lightImpact();
+                                setState(() => _selectedCategoryFilter = cat['id']!);
+                                modalSetState(() {});
+                              }
+                            },
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            Navigator.pop(ctx);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.coral,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                          child: Text(isBr ? "Aplicar filtros" : "Appliquer les filtres", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
