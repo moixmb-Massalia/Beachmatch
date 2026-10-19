@@ -17,6 +17,7 @@ import 'clubs/group_chat_detail_screen.dart';
 import 'tournaments/tournament_detail_screen.dart';
 import 'tournaments/tournament_chat_screen.dart';
 import 'public_profile_screen.dart';
+import 'login_screen.dart';
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
@@ -100,7 +101,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     return null;
   }
 
-  String _formatChatTimestamp(Timestamp? timestamp) {
+  String _formatChatTimestamp(Timestamp? timestamp, {bool isBr = false}) {
     if (timestamp == null) return "";
     final date = timestamp.toDate();
     final now = DateTime.now();
@@ -113,12 +114,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
     final yesterday = now.subtract(const Duration(days: 1));
     final isYesterday = yesterday.year == date.year && yesterday.month == date.month && yesterday.day == date.day;
     if (isYesterday) {
-      return "Hier";
+      return isBr ? "Ontem" : "Hier";
     }
 
     final difference = now.difference(date);
     if (difference.inDays < 7 && now.weekday > date.weekday) {
-      const days = ['Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.', 'Dim.'];
+      final days = isBr
+          ? const ['Seg.', 'Ter.', 'Qua.', 'Qui.', 'Sex.', 'Sáb.', 'Dom.']
+          : const ['Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.', 'Dim.'];
       return days[date.weekday - 1];
     }
 
@@ -144,13 +147,123 @@ class _MessagesScreenState extends State<MessagesScreen> {
     final currentUser = appState.currentUser;
     final ChatService chatService = ChatService();
 
-    if (currentUser == null) return const Scaffold(body: Center(child: Text("Non connecté")));
+    if (currentUser == null) {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/beach_sunset_players_1785052273648.jpg',
+                fit: BoxFit.cover,
+                cacheWidth: 1080,
+              ),
+            ),
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.55),
+                      Colors.black.withValues(alpha: 0.85),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                      child: Container(
+                        padding: const EdgeInsets.all(28),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(18),
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  colors: [AppColors.coral, AppColors.gold],
+                                ),
+                              ),
+                              child: const Icon(CupertinoIcons.chat_bubble_2_fill, color: Colors.white, size: 36),
+                            ),
+                            const SizedBox(height: 20),
+                            const Text(
+                              "Messagerie Beach Tennis",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              "Connectez-vous pour échanger avec vos partenaires, rejoindre les chats de clubs et suivre les discussions de tournois.",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                            ),
+                            const SizedBox(height: 24),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.coral,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                elevation: 4,
+                              ),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                );
+                              },
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.login, size: 18),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    "Se connecter / Entrar",
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final isBr = currentUser.isBrazilian;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 80),
+        padding: const EdgeInsets.only(bottom: 115.0),
         child: Container(
           decoration: BoxDecoration(
             gradient: const LinearGradient(
@@ -172,16 +285,16 @@ class _MessagesScreenState extends State<MessagesScreen> {
             child: InkWell(
               borderRadius: BorderRadius.circular(30),
               onTap: () => _showNewMessageModal(context, currentUser),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(CupertinoIcons.square_pencil, color: Colors.white, size: 18),
-                    SizedBox(width: 8),
+                    const Icon(CupertinoIcons.square_pencil, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
                     Text(
-                      "Nouveau message",
-                      style: TextStyle(
+                      isBr ? "Nova mensagem" : "Nouveau message",
+                      style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
@@ -222,322 +335,467 @@ class _MessagesScreenState extends State<MessagesScreen> {
           ),
           SafeArea(
             bottom: false,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header Glass
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: chatService.getRecentChats(currentUser.id),
+              builder: (context, snapshot) {
+                final allChats = snapshot.hasData ? snapshot.data!.docs.toList() : <QueryDocumentSnapshot>[];
+                allChats.sort((a, b) {
+                  final aData = a.data() as Map<String, dynamic>;
+                  final bData = b.data() as Map<String, dynamic>;
+                  final aRaw = aData['lastTimestamp'];
+                  final bRaw = bData['lastTimestamp'];
+                  final aTime = aRaw is Timestamp ? aRaw.toDate() : (aRaw is String ? DateTime.tryParse(aRaw) : null);
+                  final bTime = bRaw is Timestamp ? bRaw.toDate() : (bRaw is String ? DateTime.tryParse(bRaw) : null);
+                  if (aTime == null && bTime == null) return 0;
+                  if (aTime == null) return 1;
+                  if (bTime == null) return -1;
+                  return bTime.compareTo(aTime);
+                });
+
+                // Isoler les demandes de message entrantes (Option A)
+                final incomingRequests = allChats.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final isTournament = data['isTournament'] == true || doc.id.startsWith('tournament_');
+                  final isGroup = data['isGroup'] == true && !isTournament;
+                  if (isTournament || isGroup) return false;
+                  return data['isRequest'] == true &&
+                         data['requestReceiverId'] == currentUser.id &&
+                         data['status'] == 'pending';
+                }).toList();
+
+                // 1. Filtrer selon l'onglet actif
+                final chatsByCategory = allChats.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final isTournament = data['isTournament'] == true || doc.id.startsWith('tournament_');
+                  final isGroup = data['isGroup'] == true && !isTournament;
+                  final isIncomingRequest = !isTournament && !isGroup &&
+                      data['isRequest'] == true &&
+                      data['requestReceiverId'] == currentUser.id &&
+                      data['status'] == 'pending';
+
+                  if (_selectedFilter == 'requests') {
+                    return isIncomingRequest;
+                  }
+
+                  // Les onglets classiques masquent les demandes en attente
+                  if (isIncomingRequest) return false;
+
+                  if (_selectedFilter == 'tournaments') return isTournament;
+                  if (_selectedFilter == 'clubs') return isGroup;
+                  if (_selectedFilter == 'players') return !isGroup && !isTournament;
+                  return true;
+                }).toList();
+
+                // 2. Recherche textuelle
+                final searchTokens = _normalize(_searchQuery).split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+
+                final filteredChats = chatsByCategory.where((doc) {
+                  if (searchTokens.isEmpty) return true;
+                  final chatData = doc.data() as Map<String, dynamic>;
+                  final isTournament = chatData['isTournament'] == true || doc.id.startsWith('tournament_');
+                  final isGroup = chatData['isGroup'] == true && !isTournament;
+                  final lastMessage = chatData['lastMessage'] as String? ?? "";
+
+                  if (isTournament || isGroup) {
+                    final groupName = chatData['groupName'] as String? ?? (isTournament ? "Tournoi" : "Groupe");
+                    return _matchesTokens("$groupName $lastMessage", searchTokens);
+                  } else {
+                    final users = List<String>.from(chatData['users'] ?? []);
+                    final otherUserId = users.firstWhere((id) => id != currentUser.id, orElse: () => currentUser.id);
+                    final otherUser = _resolveUser(otherUserId, appState);
+                    if (otherUser != null) {
+                      return _matchesTokens("${otherUser.displayName} ${otherUser.location} $lastMessage", searchTokens);
+                    }
+                    return _matchesTokens(lastMessage, searchTokens);
+                  }
+                }).toList();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header Glass
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(colors: [AppColors.gold, AppColors.coral]),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(CupertinoIcons.chat_bubble_2_fill, color: Colors.white, size: 14),
-                                SizedBox(width: 6),
-                                Text(
-                                  "MESSAGES",
-                                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.1),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(colors: [AppColors.gold, AppColors.coral]),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(CupertinoIcons.chat_bubble_2_fill, color: Colors.white, size: 14),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      isBr ? "MENSAGENS" : "MESSAGES",
+                                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.1),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            isBr ? "Conversas & Arenas" : "Discussions & Clubs",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            isBr
+                                ? "Converse em tempo real com seus parceiros e arenas"
+                                : "Échangez en direct avec vos partenaires et vos clubs",
+                            style: const TextStyle(color: Colors.white70, fontSize: 13),
+                          ),
+                          const SizedBox(height: 14),
+                          // Filter Pills
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _buildFilterChip("all", isBr ? "Todas 💬" : "Tous 💬"),
+                                const SizedBox(width: 8),
+                                _buildFilterChip(
+                                  "requests",
+                                  incomingRequests.isNotEmpty
+                                      ? (isBr
+                                          ? "📩 Solicitações (${incomingRequests.length})"
+                                          : "📩 Demandes (${incomingRequests.length})")
+                                      : (isBr ? "📩 Solicitações" : "📩 Demandes"),
+                                  hasAlert: incomingRequests.isNotEmpty,
+                                ),
+                                const SizedBox(width: 8),
+                                _buildFilterChip("tournaments", isBr ? "🏆 Torneios" : "🏆 Tournois"),
+                                const SizedBox(width: 8),
+                                _buildFilterChip("clubs", isBr ? "👥 Arenas" : "👥 Clubs"),
+                                const SizedBox(width: 8),
+                                _buildFilterChip("players", isBr ? "🎾 Atletas" : "🎾 Joueurs"),
                               ],
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        "Discussions & Clubs",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        "Échangez en direct avec vos partenaires et vos clubs",
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
-                      ),
-                      const SizedBox(height: 14),
-                      // Filter Pills
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            _buildFilterChip("all", "Tous 💬"),
-                            const SizedBox(width: 8),
-                            _buildFilterChip("tournaments", "🏆 Tournois"),
-                            const SizedBox(width: 8),
-                            _buildFilterChip("clubs", "👥 Clubs"),
-                            const SizedBox(width: 8),
-                            _buildFilterChip("players", "🎾 Joueurs"),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      // Search Bar
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                        ),
-                        child: TextField(
-                          controller: _searchController,
-                          onChanged: _onSearchChanged,
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
-                          decoration: InputDecoration(
-                            hintText: "Rechercher une conversation...",
-                            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
-                            prefixIcon: const Icon(CupertinoIcons.search, color: Colors.white70, size: 18),
-                            suffixIcon: _searchController.text.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(CupertinoIcons.clear_circled_solid, color: Colors.white60, size: 18),
-                                    onPressed: () {
-                                      _debounceTimer?.cancel();
-                                      _searchController.clear();
-                                      setState(() => _searchQuery = '');
-                                    },
-                                  )
-                                : null,
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Chat List
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: chatService.getRecentChats(currentUser.id),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasError) {
-                        return const Center(child: Text("Erreur de chargement", style: TextStyle(color: Colors.white70)));
-                      }
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator(color: AppColors.coral));
-                      }
-
-                      final allChats = snapshot.data!.docs.toList();
-                      allChats.sort((a, b) {
-                        final aData = a.data() as Map<String, dynamic>;
-                        final bData = b.data() as Map<String, dynamic>;
-                        final aTime = aData['lastTimestamp'] as Timestamp?;
-                        final bTime = bData['lastTimestamp'] as Timestamp?;
-                        if (aTime == null || bTime == null) return 0;
-                        return bTime.compareTo(aTime);
-                      });
-
-                      // 1. Filter according to selected tab
-                      final chatsByCategory = allChats.where((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final isTournament = data['isTournament'] == true || doc.id.startsWith('tournament_');
-                        final isGroup = data['isGroup'] == true && !isTournament;
-                        if (_selectedFilter == 'tournaments') return isTournament;
-                        if (_selectedFilter == 'clubs') return isGroup;
-                        if (_selectedFilter == 'players') return !isGroup && !isTournament;
-                        return true;
-                      }).toList();
-
-                      // 2. Pre-filter by search query (multi-token & accent-insensitive)
-                      final searchTokens = _normalize(_searchQuery).split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
-
-                      final filteredChats = chatsByCategory.where((doc) {
-                        if (searchTokens.isEmpty) return true;
-                        final chatData = doc.data() as Map<String, dynamic>;
-                        final isTournament = chatData['isTournament'] == true || doc.id.startsWith('tournament_');
-                        final isGroup = chatData['isGroup'] == true && !isTournament;
-                        final lastMessage = chatData['lastMessage'] as String? ?? "";
-
-                        if (isTournament || isGroup) {
-                          final groupName = chatData['groupName'] as String? ?? (isTournament ? "Tournoi" : "Groupe");
-                          return _matchesTokens("$groupName $lastMessage", searchTokens);
-                        } else {
-                          final users = List<String>.from(chatData['users'] ?? []);
-                          final otherUserId = users.firstWhere((id) => id != currentUser.id, orElse: () => currentUser.id);
-                          final otherUser = _resolveUser(otherUserId, appState);
-                          if (otherUser != null) {
-                            return _matchesTokens("${otherUser.displayName} ${otherUser.location} $lastMessage", searchTokens);
-                          }
-                          return _matchesTokens(lastMessage, searchTokens);
-                        }
-                      }).toList();
-
-                      if (chatsByCategory.isEmpty) {
-                        return Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(32.0),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(24),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                                child: Container(
-                                  padding: const EdgeInsets.all(28),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.08),
-                                    borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.coral.withValues(alpha: 0.2),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: const Icon(CupertinoIcons.chat_bubble_2, color: AppColors.gold, size: 36),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        _selectedFilter == 'tournaments'
-                                            ? "Aucun chat de tournoi actif"
-                                            : _selectedFilter == 'clubs'
-                                                ? "Aucun chat de club actif"
-                                                : _selectedFilter == 'players'
-                                                    ? "Aucun message privé"
-                                                    : "Aucune conversation",
-                                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        _selectedFilter == 'tournaments'
-                                            ? "Accédez à un tournoi pour participer à ses sondages et échanger !"
-                                            : "Rejoignez un club ou proposez une partie à un joueur pour lancer la discussion !",
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(color: Colors.white60, fontSize: 13, height: 1.4),
-                                      ),
+                          // Option A Notification Banner
+                          if (incomingRequests.isNotEmpty && _selectedFilter != 'requests')
+                            GestureDetector(
+                              onTap: () => setState(() => _selectedFilter = 'requests'),
+                              child: Container(
+                                margin: const EdgeInsets.only(top: 10),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      AppColors.coral.withValues(alpha: 0.35),
+                                      AppColors.gold.withValues(alpha: 0.35),
                                     ],
                                   ),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.6), width: 1.2),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: const BoxDecoration(
+                                        color: AppColors.coral,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(CupertinoIcons.envelope_badge_fill, color: Colors.white, size: 14),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        isBr
+                                            ? "${incomingRequests.length} nova${incomingRequests.length > 1 ? 's' : ''} solicitação${incomingRequests.length > 1 ? 'ões' : ''} de mensagem"
+                                            : "${incomingRequests.length} nouvelle${incomingRequests.length > 1 ? 's' : ''} demande${incomingRequests.length > 1 ? 's' : ''} de message",
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.gold,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        isBr ? "Ver" : "Consulter",
+                                        style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 11),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
-                          ),
-                        );
-                      }
-
-                      if (filteredChats.isEmpty) {
-                        return Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(32.0),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(24),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                                child: Container(
-                                  padding: const EdgeInsets.all(28),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.08),
-                                    borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.coral.withValues(alpha: 0.2),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: const Icon(CupertinoIcons.search, color: AppColors.gold, size: 36),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      const Text(
-                                        "Aucun résultat trouvé",
-                                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        "Aucune discussion ne correspond à '$_searchQuery'.",
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(color: Colors.white60, fontSize: 13, height: 1.4),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      ElevatedButton.icon(
+                          const SizedBox(height: 10),
+                          // Search Bar
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                            ),
+                            child: TextField(
+                              controller: _searchController,
+                              onChanged: _onSearchChanged,
+                              style: const TextStyle(color: Colors.white, fontSize: 13),
+                              decoration: InputDecoration(
+                                hintText: isBr ? "Buscar uma conversa..." : "Rechercher une conversation...",
+                                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
+                                prefixIcon: const Icon(CupertinoIcons.search, color: Colors.white70, size: 18),
+                                suffixIcon: _searchController.text.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(CupertinoIcons.clear_circled_solid, color: Colors.white60, size: 18),
                                         onPressed: () {
                                           _debounceTimer?.cancel();
                                           _searchController.clear();
                                           setState(() => _searchQuery = '');
                                         },
-                                        icon: const Icon(CupertinoIcons.clear, size: 16),
-                                        label: const Text("Effacer la recherche"),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: AppColors.coral,
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                                      )
+                                    : null,
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                               ),
                             ),
                           ),
-                        );
-                      }
+                        ],
+                      ),
+                    ),
 
-                      return ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-                        itemCount: filteredChats.length,
-                        itemBuilder: (context, index) {
-                          final chatData = filteredChats[index].data() as Map<String, dynamic>;
-                          final chatId = filteredChats[index].id;
-                          final isTournament = chatData['isTournament'] == true || chatId.startsWith('tournament_');
-                          final isGroup = chatData['isGroup'] == true && !isTournament;
-                          final users = List<String>.from(chatData['users'] ?? []);
-                          final lastMessage = chatData['lastMessage'] as String? ?? "";
-                          final lastTimestamp = chatData['lastTimestamp'] as Timestamp?;
-                          final unreadBy = List<String>.from(chatData['unreadBy'] ?? []);
-                          final isUnread = unreadBy.contains(currentUser.id);
-
-                          if (isTournament) {
-                            final tournamentName = chatData['groupName'] as String? ?? "Tournoi";
-                            final tournamentId = chatData['tournamentId'] as String? ?? chatId.replaceFirst('tournament_', '');
-                            return _buildTournamentMessageItem(
-                              context,
-                              currentUser,
-                              tournamentName,
-                              tournamentId,
-                              lastMessage,
-                              lastTimestamp,
-                              isUnread,
-                              appState,
-                            );
-                          } else if (isGroup) {
-                            final groupName = chatData['groupName'] as String? ?? "Groupe";
-                            final groupIcon = chatData['groupIcon'] as String?;
-                            final clubId = chatId.replaceFirst('club_', '');
-                            return _buildGroupMessageItem(context, currentUser, groupName, groupIcon, lastMessage, clubId, lastTimestamp, isUnread);
-                          } else {
-                            final otherUserId = users.firstWhere((id) => id != currentUser.id, orElse: () => currentUser.id);
-                            final otherUser = _resolveUser(otherUserId, appState);
-                            if (otherUser != null) {
-                              return _buildMessageItem(context, currentUser, otherUser, lastMessage, chatId, lastTimestamp, isUnread);
-                            } else {
-                              return _buildLoadingMessageItem(lastMessage, lastTimestamp, isUnread);
-                            }
+                    // Chat List
+                    Expanded(
+                      child: Builder(
+                        builder: (context) {
+                          if (snapshot.hasError) {
+                            return Center(child: Text(isBr ? "Erro de carregamento" : "Erreur de chargement", style: const TextStyle(color: Colors.white70)));
                           }
+                          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                            return const Center(child: CircularProgressIndicator(color: AppColors.coral));
+                          }
+
+                          if (chatsByCategory.isEmpty) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(28),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.08),
+                                        borderRadius: BorderRadius.circular(24),
+                                        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(16),
+                                            decoration: BoxDecoration(
+                                              color: (_selectedFilter == 'requests' ? AppColors.gold : AppColors.coral).withValues(alpha: 0.2),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(
+                                              _selectedFilter == 'requests' ? CupertinoIcons.envelope_badge_fill : CupertinoIcons.chat_bubble_2,
+                                              color: AppColors.gold,
+                                              size: 36,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            _selectedFilter == 'requests'
+                                                ? (isBr ? "Nenhuma solicitação pendente" : "Aucune demande en attente")
+                                                : _selectedFilter == 'tournaments'
+                                                    ? (isBr ? "Nenhum chat de torneio ativo" : "Aucun chat de tournoi actif")
+                                                    : _selectedFilter == 'clubs'
+                                                        ? (isBr ? "Nenhum chat de arena ativo" : "Aucun chat de club actif")
+                                                        : _selectedFilter == 'players'
+                                                            ? (isBr ? "Nenhuma mensagem privada" : "Aucun message privé")
+                                                            : (isBr ? "Nenhuma conversa" : "Aucune conversation"),
+                                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            _selectedFilter == 'requests'
+                                                ? (isBr
+                                                    ? "Quando um atleta enviar a primeira mensagem, ela aparecerá aqui. Você poderá ver o perfil e escolher aceitar ou recusar !"
+                                                    : "Lorsqu'un joueur vous envoie un premier message, il apparaîtra ici. Vous pourrez voir son profil et choisir d'accepter ou de refuser !")
+                                                : _selectedFilter == 'tournaments'
+                                                    ? (isBr
+                                                        ? "Acesse um torneio para participar de enquetes e chats !"
+                                                        : "Accédez à un tournoi pour participer à ses sondages et échanger !")
+                                                    : (isBr
+                                                        ? "Participe de uma arena ou convide um atleta para jogar e iniciar a conversa !"
+                                                        : "Rejoignez un club ou proposez une partie à un joueur pour lancer la discussion !"),
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(color: Colors.white60, fontSize: 13, height: 1.4),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          if (filteredChats.isEmpty) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(28),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.08),
+                                        borderRadius: BorderRadius.circular(24),
+                                        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(16),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.coral.withValues(alpha: 0.2),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(CupertinoIcons.search, color: AppColors.gold, size: 36),
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            isBr ? "Nenhum resultado encontrado" : "Aucun résultat trouvé",
+                                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            isBr
+                                                ? "Nenhuma conversa corresponde a '$_searchQuery'."
+                                                : "Aucune discussion ne correspond à '$_searchQuery'.",
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(color: Colors.white60, fontSize: 13, height: 1.4),
+                                          ),
+                                          const SizedBox(height: 16),
+                                          ElevatedButton.icon(
+                                            onPressed: () {
+                                              _debounceTimer?.cancel();
+                                              _searchController.clear();
+                                              setState(() => _searchQuery = '');
+                                            },
+                                            icon: const Icon(CupertinoIcons.clear, size: 16),
+                                            label: Text(isBr ? "Limpar busca" : "Effacer la recherche"),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: AppColors.coral,
+                                              foregroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          return ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+                            itemCount: filteredChats.length,
+                            itemBuilder: (context, index) {
+                              final chatData = filteredChats[index].data() as Map<String, dynamic>;
+                              final chatId = filteredChats[index].id;
+                              final isTournament = chatData['isTournament'] == true || chatId.startsWith('tournament_');
+                              final isGroup = chatData['isGroup'] == true && !isTournament;
+                              final users = List<String>.from(chatData['users'] ?? []);
+                              final lastMessage = chatData['lastMessage'] as String? ?? "";
+                              final rawLastTs = chatData['lastTimestamp'];
+                              final Timestamp? lastTimestamp = rawLastTs is Timestamp
+                                  ? rawLastTs
+                                  : (rawLastTs is String
+                                      ? () {
+                                          final dt = DateTime.tryParse(rawLastTs);
+                                          return dt != null ? Timestamp.fromDate(dt) : null;
+                                        }()
+                                      : null);
+                              final unreadBy = List<String>.from(chatData['unreadBy'] ?? []);
+                              final isUnread = unreadBy.contains(currentUser.id);
+
+                              if (_selectedFilter == 'requests') {
+                                final otherUserId = users.firstWhere((id) => id != currentUser.id, orElse: () => currentUser.id);
+                                final otherUser = _resolveUser(otherUserId, appState);
+                                if (otherUser != null) {
+                                  return _buildRequestMessageItem(
+                                    context,
+                                    currentUser,
+                                    otherUser,
+                                    lastMessage,
+                                    chatId,
+                                    lastTimestamp,
+                                    appState,
+                                    chatService,
+                                  );
+                                } else {
+                                  return _buildLoadingMessageItem(lastMessage, lastTimestamp, false);
+                                }
+                              } else if (isTournament) {
+                                final tournamentName = chatData['groupName'] as String? ?? "Tournoi";
+                                final tournamentId = chatData['tournamentId'] as String? ?? chatId.replaceFirst('tournament_', '');
+                                return _buildTournamentMessageItem(
+                                  context,
+                                  currentUser,
+                                  tournamentName,
+                                  tournamentId,
+                                  lastMessage,
+                                  lastTimestamp,
+                                  isUnread,
+                                  appState,
+                                );
+                              } else if (isGroup) {
+                                final groupName = chatData['groupName'] as String? ?? "Groupe";
+                                final groupIcon = chatData['groupIcon'] as String?;
+                                final clubId = chatId.replaceFirst('club_', '');
+                                return _buildGroupMessageItem(context, currentUser, groupName, groupIcon, lastMessage, clubId, lastTimestamp, isUnread);
+                              } else {
+                                final otherUserId = users.firstWhere((id) => id != currentUser.id, orElse: () => currentUser.id);
+                                final otherUser = _resolveUser(otherUserId, appState);
+                                final isPending = chatData['status'] == 'pending' && chatData['requestSenderId'] == currentUser.id;
+                                if (otherUser != null) {
+                                  return _buildMessageItem(
+                                    context,
+                                    currentUser,
+                                    otherUser,
+                                    lastMessage,
+                                    chatId,
+                                    lastTimestamp,
+                                    isUnread,
+                                    isPending: isPending,
+                                  );
+                                } else {
+                                  return _buildLoadingMessageItem(lastMessage, lastTimestamp, isUnread);
+                                }
+                              }
+                            },
+                          );
                         },
-                      );
-                    },
-                  ),
-                ),
-              ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -545,7 +803,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     );
   }
 
-  Widget _buildFilterChip(String value, String label) {
+  Widget _buildFilterChip(String value, String label, {bool hasAlert = false}) {
     final isSelected = _selectedFilter == value;
     return GestureDetector(
       onTap: () => setState(() => _selectedFilter = value),
@@ -553,28 +811,324 @@ class _MessagesScreenState extends State<MessagesScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.coral : Colors.white.withValues(alpha: 0.12),
+          color: isSelected
+              ? (value == 'requests' ? AppColors.gold : AppColors.coral)
+              : (hasAlert ? AppColors.coral.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.12)),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? AppColors.coral : Colors.white.withValues(alpha: 0.2),
-            width: 1,
+            color: isSelected
+                ? (value == 'requests' ? AppColors.gold : AppColors.coral)
+                : (hasAlert ? AppColors.gold : Colors.white.withValues(alpha: 0.2)),
+            width: hasAlert ? 1.5 : 1,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.coral.withValues(alpha: 0.4),
+                    color: (value == 'requests' ? AppColors.gold : AppColors.coral).withValues(alpha: 0.4),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   )
                 ]
-              : null,
+              : (hasAlert
+                  ? [
+                      BoxShadow(
+                        color: AppColors.gold.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      )
+                    ]
+                  : null),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: Colors.white,
+            color: isSelected
+                ? (value == 'requests' ? Colors.black : Colors.white)
+                : (hasAlert ? AppColors.gold : Colors.white),
             fontSize: 12,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            fontWeight: isSelected || hasAlert ? FontWeight.bold : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRequestMessageItem(
+    BuildContext context,
+    UserModel currentUser,
+    UserModel otherUser,
+    String lastMessage,
+    String chatId,
+    Timestamp? lastTimestamp,
+    AppState appState,
+    ChatService chatService,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF16253B).withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.55), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.gold.withValues(alpha: 0.15),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header: Expéditeur
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => PublicProfileScreen.open(context, player: otherUser),
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [AppColors.coral, AppColors.gold],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          border: Border.all(color: AppColors.gold, width: 2),
+                        ),
+                        child: ClipOval(
+                          child: otherUser.photoUrl != null && otherUser.photoUrl!.isNotEmpty
+                              ? Image.network(otherUser.photoUrl!, fit: BoxFit.cover)
+                              : Center(
+                                  child: Text(
+                                    otherUser.displayName.isNotEmpty ? otherUser.displayName[0].toUpperCase() : "?",
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  otherUser.displayName,
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (lastTimestamp != null)
+                                Text(
+                                  _formatChatTimestamp(lastTimestamp, isBr: currentUser.isBrazilian),
+                                  style: const TextStyle(color: Colors.white54, fontSize: 11),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.gold.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  currentUser.isBrazilian ? "Nív. ${otherUser.level}" : "Niv. ${otherUser.level}",
+                                  style: const TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  otherUser.location.isNotEmpty
+                                      ? otherUser.location
+                                      : (currentUser.isBrazilian ? "Atleta de Beach Tennis" : "Joueur Beach Tennis"),
+                                  style: const TextStyle(color: Colors.white60, fontSize: 11),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Message snippet bubble
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(CupertinoIcons.quote_bubble_fill, color: AppColors.coral, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          lastMessage.isNotEmpty
+                              ? lastMessage
+                              : (currentUser.isBrazilian ? "Solicitação de contato recebida." : "Demande de contact reçue."),
+                          style: const TextStyle(color: Colors.white, fontSize: 13, fontStyle: FontStyle.italic),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // 3 Action Buttons: [ Profil ] [ Refuser ] [ Accepter ]
+                Row(
+                  children: [
+                    // Profil
+                    Expanded(
+                      flex: 4,
+                      child: OutlinedButton.icon(
+                        onPressed: () => PublicProfileScreen.open(context, player: otherUser),
+                        icon: const Icon(CupertinoIcons.person_crop_circle, size: 14, color: Colors.white70),
+                        label: Text(
+                          currentUser.isBrazilian ? "Perfil" : "Profil",
+                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Refuser
+                    Expanded(
+                      flex: 4,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              backgroundColor: const Color(0xFF16253B),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              title: Text(
+                                currentUser.isBrazilian ? "Recusar solicitação ?" : "Refuser la demande ?",
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                              ),
+                              content: Text(
+                                currentUser.isBrazilian
+                                    ? "Deseja recusar a solicitação de ${otherUser.displayName} ? Esta conversa será removida."
+                                    : "Voulez-vous refuser la demande de ${otherUser.displayName} ? Cette discussion sera supprimée.",
+                                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: Text(
+                                    currentUser.isBrazilian ? "Cancelar" : "Annuler",
+                                    style: const TextStyle(color: Colors.white60),
+                                  ),
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.redAccent,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: Text(
+                                    currentUser.isBrazilian ? "Recusar" : "Refuser",
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (confirm == true) {
+                            await chatService.rejectMessageRequest(currentUser.id, otherUser.id);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    currentUser.isBrazilian
+                                        ? "Solicitação de ${otherUser.displayName} recusada."
+                                        : "Demande de ${otherUser.displayName} refusée.",
+                                  ),
+                                  backgroundColor: const Color(0xFF16253B),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        icon: const Icon(CupertinoIcons.xmark_circle, size: 14, color: Colors.redAccent),
+                        label: Text(
+                          currentUser.isBrazilian ? "Recusar" : "Refuser",
+                          style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.6)),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Accepter
+                    Expanded(
+                      flex: 5,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          await chatService.acceptMessageRequest(currentUser.id, otherUser.id);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  currentUser.isBrazilian
+                                      ? "Solicitação de ${otherUser.displayName} aceita !"
+                                      : "Demande de ${otherUser.displayName} acceptée !",
+                                ),
+                                backgroundColor: const Color(0xFF16253B),
+                              ),
+                            );
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => ChatDetailScreen(otherUser: otherUser)),
+                            );
+                          }
+                        },
+                        icon: const Icon(CupertinoIcons.checkmark_alt_circle_fill, size: 14, color: Colors.black),
+                        label: Text(
+                          currentUser.isBrazilian ? "Aceitar" : "Accepter",
+                          style: const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.w900),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.gold,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -650,8 +1204,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
     String lastMessage,
     String chatId,
     Timestamp? lastTimestamp,
-    bool isUnread,
-  ) {
+    bool isUnread, {
+    bool isPending = false,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       child: ClipRRect(
@@ -667,21 +1222,29 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 builder: (ctx) => AlertDialog(
                   backgroundColor: const Color(0xFF16253B),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  title: const Row(
+                  title: Row(
                     children: [
-                      Icon(Icons.delete_outline, color: AppColors.coral),
-                      SizedBox(width: 8),
-                      Text("Supprimer le chat", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      const Icon(Icons.delete_outline, color: AppColors.coral),
+                      const SizedBox(width: 8),
+                      Text(
+                        currentUser.isBrazilian ? "Excluir conversa" : "Supprimer le chat",
+                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
                   content: Text(
-                    "Voulez-vous supprimer votre conversation avec ${otherUser.displayName} ?",
+                    currentUser.isBrazilian
+                        ? "Deseja excluir sua conversa com ${otherUser.displayName} ?"
+                        : "Voulez-vous supprimer votre conversation avec ${otherUser.displayName} ?",
                     style: const TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text("Annuler", style: TextStyle(color: Colors.white60)),
+                      child: Text(
+                        currentUser.isBrazilian ? "Cancelar" : "Annuler",
+                        style: const TextStyle(color: Colors.white60),
+                      ),
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -689,7 +1252,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text("Supprimer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        currentUser.isBrazilian ? "Excluir" : "Supprimer",
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ],
                 ),
@@ -702,12 +1268,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 color: Colors.redAccent.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(CupertinoIcons.trash_fill, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
-                  Text("Supprimer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  const Icon(CupertinoIcons.trash_fill, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    currentUser.isBrazilian ? "Excluir" : "Supprimer",
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
             ),
@@ -715,7 +1284,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
               ChatService().deleteChat(currentUser.id, otherUser.id);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text("Conversation avec ${otherUser.displayName} supprimée."),
+                  content: Text(
+                    currentUser.isBrazilian
+                        ? "Conversa com ${otherUser.displayName} excluída."
+                        : "Conversation avec ${otherUser.displayName} supprimée.",
+                  ),
                   backgroundColor: const Color(0xFF16253B),
                 ),
               );
@@ -805,7 +1378,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               ),
                               if (lastTimestamp != null)
                                 Text(
-                                  _formatChatTimestamp(lastTimestamp),
+                                  _formatChatTimestamp(lastTimestamp, isBr: currentUser.isBrazilian),
                                   style: TextStyle(
                                     color: isUnread ? AppColors.gold : Colors.white60,
                                     fontSize: 11,
@@ -825,15 +1398,39 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
-                                    "Niv. ${otherUser.level}",
+                                    currentUser.isBrazilian ? "Nív. ${otherUser.level}" : "Niv. ${otherUser.level}",
                                     style: const TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                               ],
+                              if (isPending) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                  margin: const EdgeInsets.only(right: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: Colors.amber.withValues(alpha: 0.5), width: 0.8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(CupertinoIcons.hourglass, color: Colors.amber, size: 9),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        currentUser.isBrazilian ? "Pendente" : "En attente",
+                                        style: const TextStyle(color: Colors.amber, fontSize: 9, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                               Expanded(
                                 child: Text(
-                                  lastMessage.isNotEmpty ? lastMessage : "Nouvelle discussion",
+                                  lastMessage.isNotEmpty
+                                      ? lastMessage
+                                      : (currentUser.isBrazilian ? "Nova conversa" : "Nouvelle discussion"),
                                   style: TextStyle(
                                     color: isUnread ? Colors.white : Colors.white70,
                                     fontSize: 13,
@@ -858,17 +1455,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     );
   }
 
-  String _getClubPhotoAsset(String name) {
-    const beachPhotos = [
-      'assets/images/beach_sunset_players_1785052273648.jpg',
-      'assets/images/beach_tennis_racket_1785052259397.jpg',
-      'assets/images/beach_court_aerial_1785052250131.jpg',
-      'assets/images/beach_tennis_ball_1785052281869.jpg',
-      'assets/images/hero_beach_tennis_1785051787379.jpg',
-    ];
-    int hash = name.codeUnits.fold(0, (prev, elem) => prev + elem);
-    return beachPhotos[hash.abs() % beachPhotos.length];
-  }
+  String _getClubPhotoAsset(String name) => ClubModel.getClubPhotoAsset(name);
 
   Widget _buildClubAvatar(String groupName, String? groupIcon, {double size = 52}) {
     final photoAsset = _getClubPhotoAsset(groupName);
@@ -952,21 +1539,29 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 builder: (ctx) => AlertDialog(
                   backgroundColor: const Color(0xFF16253B),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  title: const Row(
+                  title: Row(
                     children: [
-                      Icon(Icons.delete_outline, color: AppColors.coral),
-                      SizedBox(width: 8),
-                      Text("Supprimer la discussion", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      const Icon(Icons.delete_outline, color: AppColors.coral),
+                      const SizedBox(width: 8),
+                      Text(
+                        currentUser.isBrazilian ? "Excluir conversa" : "Supprimer la discussion",
+                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
                   content: Text(
-                    "Voulez-vous retirer le chat de '$groupName' de votre boîte de réception ?",
+                    currentUser.isBrazilian
+                        ? "Deseja remover o chat de '$groupName' de suas mensagens ?"
+                        : "Voulez-vous retirer le chat de '$groupName' de votre boîte de réception ?",
                     style: const TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text("Annuler", style: TextStyle(color: Colors.white60)),
+                      child: Text(
+                        currentUser.isBrazilian ? "Cancelar" : "Annuler",
+                        style: const TextStyle(color: Colors.white60),
+                      ),
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -974,7 +1569,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text("Supprimer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        currentUser.isBrazilian ? "Excluir" : "Supprimer",
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ],
                 ),
@@ -987,12 +1585,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 color: Colors.redAccent.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(CupertinoIcons.trash_fill, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
-                  Text("Supprimer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  const Icon(CupertinoIcons.trash_fill, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    currentUser.isBrazilian ? "Excluir" : "Supprimer",
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
             ),
@@ -1000,7 +1601,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
               ChatService().deleteChat(currentUser.id, '', isGroup: true, clubId: clubId);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text("Chat '$groupName' retiré de vos messages."),
+                  content: Text(
+                    currentUser.isBrazilian
+                        ? "Chat '$groupName' removido de suas mensagens."
+                        : "Chat '$groupName' retiré de vos messages.",
+                  ),
                   backgroundColor: const Color(0xFF16253B),
                 ),
               );
@@ -1093,9 +1698,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(color: AppColors.coral.withValues(alpha: 0.5)),
                                 ),
-                                child: const Text(
-                                  "Voir le club",
-                                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                child: Text(
+                                  currentUser.isBrazilian ? "Ver arena" : "Voir le club",
+                                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ),
@@ -1110,15 +1715,17 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                 color: AppColors.gold.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(6),
                               ),
-                              child: const Text(
-                                "CHAT CLUB",
-                                style: TextStyle(color: AppColors.gold, fontSize: 9, fontWeight: FontWeight.bold),
+                              child: Text(
+                                currentUser.isBrazilian ? "CHAT ARENA" : "CHAT CLUB",
+                                style: const TextStyle(color: AppColors.gold, fontSize: 9, fontWeight: FontWeight.bold),
                               ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                lastMessage.isNotEmpty ? lastMessage : "Accéder au chat du club",
+                                lastMessage.isNotEmpty
+                                    ? lastMessage
+                                    : (currentUser.isBrazilian ? "Acessar chat da arena" : "Accéder au chat du club"),
                                 style: TextStyle(
                                   color: isUnread ? Colors.white : Colors.white70,
                                   fontSize: 13,
@@ -1131,7 +1738,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             if (lastTimestamp != null) ...[
                               const SizedBox(width: 6),
                               Text(
-                                _formatChatTimestamp(lastTimestamp),
+                                _formatChatTimestamp(lastTimestamp, isBr: currentUser.isBrazilian),
                                 style: TextStyle(
                                   color: isUnread ? AppColors.gold : Colors.white60,
                                   fontSize: 11,
@@ -1179,21 +1786,29 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 builder: (ctx) => AlertDialog(
                   backgroundColor: const Color(0xFF16253B),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  title: const Row(
+                  title: Row(
                     children: [
-                      Icon(Icons.delete_outline, color: AppColors.coral),
-                      SizedBox(width: 8),
-                      Text("Supprimer la discussion", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      const Icon(Icons.delete_outline, color: AppColors.coral),
+                      const SizedBox(width: 8),
+                      Text(
+                        currentUser.isBrazilian ? "Excluir conversa" : "Supprimer la discussion",
+                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
                   content: Text(
-                    "Voulez-vous retirer le chat de '$tournamentName' de votre boîte de réception ?",
+                    currentUser.isBrazilian
+                        ? "Deseja remover o chat de '$tournamentName' de suas mensagens ?"
+                        : "Voulez-vous retirer le chat de '$tournamentName' de votre boîte de réception ?",
                     style: const TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text("Annuler", style: TextStyle(color: Colors.white60)),
+                      child: Text(
+                        currentUser.isBrazilian ? "Cancelar" : "Annuler",
+                        style: const TextStyle(color: Colors.white60),
+                      ),
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -1201,7 +1816,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text("Supprimer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        currentUser.isBrazilian ? "Excluir" : "Supprimer",
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ],
                 ),
@@ -1214,12 +1832,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 color: Colors.redAccent.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(CupertinoIcons.trash_fill, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
-                  Text("Supprimer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  const Icon(CupertinoIcons.trash_fill, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    currentUser.isBrazilian ? "Excluir" : "Supprimer",
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
             ),
@@ -1227,7 +1848,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
               ChatService().deleteChat(currentUser.id, '', isGroup: true, tournamentId: tournamentId);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text("Chat '$tournamentName' retiré de vos messages."),
+                  content: Text(
+                    currentUser.isBrazilian
+                        ? "Chat '$tournamentName' retiré de vos messages."
+                        : "Chat '$tournamentName' retiré de vos messages.",
+                  ),
                   backgroundColor: const Color(0xFF16253B),
                 ),
               );
@@ -1383,9 +2008,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
                                   ),
-                                  child: const Text(
-                                    "Voir l'épreuve",
-                                    style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
+                                  child: Text(
+                                    currentUser.isBrazilian ? "Ver torneio" : "Voir l'épreuve",
+                                    style: const TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ),
@@ -1400,15 +2025,17 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                   color: AppColors.gold.withValues(alpha: 0.25),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: const Text(
-                                  "CHAT TOURNOI",
-                                  style: TextStyle(color: AppColors.gold, fontSize: 9, fontWeight: FontWeight.w900),
+                                child: Text(
+                                  currentUser.isBrazilian ? "CHAT TORNEIO" : "CHAT TOURNOI",
+                                  style: const TextStyle(color: AppColors.gold, fontSize: 9, fontWeight: FontWeight.w900),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  lastMessage.isNotEmpty ? lastMessage : "Accéder au chat du tournoi",
+                                  lastMessage.isNotEmpty
+                                      ? lastMessage
+                                      : (currentUser.isBrazilian ? "Acessar chat do torneio" : "Accéder au chat du tournoi"),
                                   style: TextStyle(
                                     color: isUnread ? Colors.white : Colors.white70,
                                     fontSize: 13,
@@ -1421,7 +2048,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               if (lastTimestamp != null) ...[
                                 const SizedBox(width: 6),
                                 Text(
-                                  _formatChatTimestamp(lastTimestamp),
+                                  _formatChatTimestamp(lastTimestamp, isBr: currentUser.isBrazilian),
                                   style: TextStyle(
                                     color: isUnread ? AppColors.gold : Colors.white60,
                                     fontSize: 11,
@@ -1488,6 +2115,7 @@ class _NewMessageModalState extends State<_NewMessageModal> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final isBr = widget.currentUser.isBrazilian;
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -1533,18 +2161,18 @@ class _NewMessageModalState extends State<_NewMessageModal> {
                     child: const Icon(CupertinoIcons.square_pencil, color: Colors.white, size: 20),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "Nouvelle discussion",
-                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                          isBr ? "Nova conversa" : "Nouvelle discussion",
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
-                          "Sélectionnez un joueur pour lui écrire",
-                          style: TextStyle(color: Colors.white60, fontSize: 12),
+                          isBr ? "Selecione um atleta para enviar mensagem" : "Sélectionnez un joueur pour lui écrire",
+                          style: const TextStyle(color: Colors.white60, fontSize: 12),
                         ),
                       ],
                     ),
@@ -1569,7 +2197,7 @@ class _NewMessageModalState extends State<_NewMessageModal> {
                   onChanged: _onFilterChanged,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: "Rechercher par nom, ville...",
+                    hintText: isBr ? "Buscar por nome, cidade..." : "Rechercher par nom, ville...",
                     hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
                     prefixIcon: const Icon(CupertinoIcons.search, color: AppColors.coral, size: 20),
                     suffixIcon: _searchCtrl.text.isNotEmpty
@@ -1597,7 +2225,7 @@ class _NewMessageModalState extends State<_NewMessageModal> {
                       return const Center(child: CircularProgressIndicator(color: AppColors.coral));
                     }
                     if (snapshot.hasError) {
-                      return const Center(child: Text("Erreur de chargement", style: TextStyle(color: Colors.white70)));
+                      return Center(child: Text(isBr ? "Erro de carregamento" : "Erreur de chargement", style: const TextStyle(color: Colors.white70)));
                     }
 
                     final docs = snapshot.data?.docs ?? [];
@@ -1620,7 +2248,13 @@ class _NewMessageModalState extends State<_NewMessageModal> {
                         })
                         .toList();
 
-                    users.sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
+                    users.sort((a, b) {
+                      if (isBr) {
+                        if (a.isBrazilian && !b.isBrazilian) return -1;
+                        if (!a.isBrazilian && b.isBrazilian) return 1;
+                      }
+                      return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+                    });
 
                     if (users.isEmpty) {
                       return Center(
@@ -1630,7 +2264,9 @@ class _NewMessageModalState extends State<_NewMessageModal> {
                             Icon(CupertinoIcons.person_badge_minus, color: Colors.white.withValues(alpha: 0.3), size: 48),
                             const SizedBox(height: 12),
                             Text(
-                              _filter.isNotEmpty ? "Aucun joueur trouvé pour '$_filter'" : "Aucun joueur disponible",
+                              _filter.isNotEmpty
+                                  ? (isBr ? "Nenhum atleta encontrado para '$_filter'" : "Aucun joueur trouvé pour '$_filter'")
+                                  : (isBr ? "Nenhum atleta disponível" : "Aucun joueur disponible"),
                               style: const TextStyle(color: Colors.white60, fontSize: 14),
                               textAlign: TextAlign.center,
                             ),
@@ -1706,7 +2342,7 @@ class _NewMessageModalState extends State<_NewMessageModal> {
                                                 borderRadius: BorderRadius.circular(6),
                                               ),
                                               child: Text(
-                                                "Niv. ${player.level}",
+                                                isBr ? "Nív. ${player.level}" : "Niv. ${player.level}",
                                                 style: const TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
                                               ),
                                             ),
@@ -1734,14 +2370,14 @@ class _NewMessageModalState extends State<_NewMessageModal> {
                                     gradient: const LinearGradient(colors: [AppColors.coral, AppColors.gold]),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: const Row(
+                                  child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 12),
-                                      SizedBox(width: 4),
+                                      const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 12),
+                                      const SizedBox(width: 4),
                                       Text(
-                                        "Écrire",
-                                        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                        isBr ? "Conversar" : "Écrire",
+                                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                                       ),
                                     ],
                                   ),

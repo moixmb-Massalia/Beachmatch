@@ -10,6 +10,7 @@ class ClubModel {
   String? logoUrl;
   String? bannerUrl;
   final String location;
+  final String? country;
   final DateTime createdAt;
 
   ClubModel({
@@ -22,6 +23,7 @@ class ClubModel {
     this.logoUrl,
     this.bannerUrl,
     required this.location,
+    this.country,
     required this.createdAt,
   });
 
@@ -36,7 +38,13 @@ class ClubModel {
       logoUrl: data['logoUrl'],
       bannerUrl: data['bannerUrl'],
       location: data['location'] ?? 'France',
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      country: data['country'],
+      createdAt: () {
+        final c = data['createdAt'];
+        if (c is Timestamp) return c.toDate();
+        if (c is String) return DateTime.tryParse(c) ?? DateTime.now();
+        return DateTime.now();
+      }(),
     );
   }
 
@@ -50,7 +58,24 @@ class ClubModel {
       'logoUrl': logoUrl,
       'bannerUrl': bannerUrl,
       'location': location,
+      'country': country,
       'createdAt': createdAt,
     };
   }
+
+  /// 🏖️ Retourne une photo thématique de Beach Tennis déterministe basée sur le nom du club
+  static String getClubPhotoAsset(String name) {
+    const beachPhotos = [
+      'assets/images/beach_sunset_players_1785052273648.jpg',
+      'assets/images/beach_tennis_racket_1785052259397.jpg',
+      'assets/images/beach_court_aerial_1785052250131.jpg',
+      'assets/images/beach_tennis_ball_1785052281869.jpg',
+      'assets/images/hero_beach_tennis_1785051787379.jpg',
+    ];
+    int hash = name.codeUnits.fold(0, (prev, elem) => prev + elem);
+    return beachPhotos[hash.abs() % beachPhotos.length];
+  }
+
+  /// Photo d'illustration par défaut de cette instance
+  String get defaultPhotoAsset => getClubPhotoAsset(name);
 }

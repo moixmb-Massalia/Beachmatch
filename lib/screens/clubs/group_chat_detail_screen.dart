@@ -13,8 +13,11 @@ import '../../providers/app_state.dart';
 import '../../services/chat_service.dart';
 import '../../theme/colors.dart';
 import '../../models/user.dart';
+import '../../models/club.dart';
 import '../../widgets/club_invite_dialog.dart';
+import 'package:flutter/cupertino.dart';
 import '../public_profile_screen.dart';
+import '../login_screen.dart';
 import '../../widgets/feature_discovery_bubble.dart';
 import '../../widgets/chat_enhancements.dart';
 
@@ -127,17 +130,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
     );
   }
 
-  String _getClubPhotoAsset(String name) {
-    const beachPhotos = [
-      'assets/images/beach_sunset_players_1785052273648.jpg',
-      'assets/images/beach_tennis_racket_1785052259397.jpg',
-      'assets/images/beach_court_aerial_1785052250131.jpg',
-      'assets/images/beach_tennis_ball_1785052281869.jpg',
-      'assets/images/hero_beach_tennis_1785051787379.jpg',
-    ];
-    int hash = name.codeUnits.fold(0, (prev, elem) => prev + elem);
-    return beachPhotos[hash.abs() % beachPhotos.length];
-  }
+  String _getClubPhotoAsset(String name) => ClubModel.getClubPhotoAsset(name);
 
   void _confirmDeleteChat(BuildContext context, UserModel currentUser) {
     showDialog(
@@ -191,7 +184,41 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final currentUser = context.watch<AppState>().currentUser;
-    if (currentUser == null) return const Scaffold();
+    if (currentUser == null) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.primary,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(widget.clubName, style: const TextStyle(color: Colors.white, fontSize: 16)),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(CupertinoIcons.person_3_fill, size: 48, color: AppColors.gold),
+                const SizedBox(height: 16),
+                const Text("Connexion requise", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                const Text("Connectez-vous pour rejoindre le chat de ce club.", style: TextStyle(color: Colors.white70, fontSize: 14), textAlign: TextAlign.center),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.coral, foregroundColor: Colors.white),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                  child: const Text("Se connecter"),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     final photoAsset = _getClubPhotoAsset(widget.clubName);
 
@@ -492,10 +519,13 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
 
   Widget _buildMessageBubble(Map<String, dynamic> data, String messageId, bool isMe, String senderName, String currentUserId) {
     final text = data['text'] ?? '';
-    final imageUrl = data['imageUrl'] as String?;
-    final poll = data['poll'] as Map<String, dynamic>?;
-    final timestamp = data['timestamp'] as Timestamp?;
-    final timeStr = timestamp != null ? DateFormat('HH:mm').format(timestamp.toDate()) : '';
+    final imageUrl = data['imageUrl']?.toString();
+    final poll = data['poll'] is Map ? (data['poll'] as Map).cast<String, dynamic>() : null;
+    final dynamic rawTs = data['timestamp'];
+    final DateTime? tsDate = rawTs is Timestamp
+        ? rawTs.toDate()
+        : (rawTs is String ? DateTime.tryParse(rawTs) : null);
+    final timeStr = tsDate != null ? DateFormat('HH:mm').format(tsDate) : '';
 
     if (poll != null) {
       return Align(

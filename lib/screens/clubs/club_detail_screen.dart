@@ -15,11 +15,27 @@ import 'group_chat_detail_screen.dart';
 import 'president_dashboard_screen.dart';
 import '../../models/user.dart';
 import '../public_profile_screen.dart';
+import '../login_screen.dart';
 
 class ClubDetailScreen extends StatefulWidget {
   final ClubModel club;
   
   const ClubDetailScreen({super.key, required this.club});
+
+  static Future<void> open(BuildContext context, String clubId) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('clubs').doc(clubId).get();
+      if (doc.exists && doc.data() != null && context.mounted) {
+        final club = ClubModel.fromMap(doc.data()!, doc.id);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ClubDetailScreen(club: club)),
+        );
+      }
+    } catch (e) {
+      debugPrint("Erreur ouverture club: $e");
+    }
+  }
 
   @override
   State<ClubDetailScreen> createState() => _ClubDetailScreenState();
@@ -161,6 +177,23 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
 
   (double, double) _getClubCoordinates(String location, String clubName) {
     final text = "$location $clubName".toLowerCase();
+    
+    // Villes et Arènes du Brésil 🇧🇷
+    if (text.contains('fortaleza') || text.contains('ceará') || text.contains('ceara')) return (-3.7319, -38.5267);
+    if (text.contains('são paulo') || text.contains('sao paulo')) return (-23.5505, -46.6333);
+    if (text.contains('rio') || text.contains('copacabana') || text.contains('ipanema')) return (-22.9068, -43.1729);
+    if (text.contains('cuiabá') || text.contains('cuiaba')) return (-15.6014, -56.0979);
+    if (text.contains('brasília') || text.contains('brasilia')) return (-15.7975, -47.8919);
+    if (text.contains('santos') || text.contains('gonzaga')) return (-23.9618, -46.3322);
+    if (text.contains('curitiba')) return (-25.4284, -49.2733);
+    if (text.contains('florianópolis') || text.contains('florianopolis') || text.contains('camboriú') || text.contains('camboriu')) return (-27.5954, -48.5480);
+    if (text.contains('salvador')) return (-12.9777, -38.5016);
+    if (text.contains('belo horizonte')) return (-19.9245, -43.9352);
+    if (text.contains('palmas')) return (-10.1847, -48.3336);
+    if (text.contains('porto alegre')) return (-30.0346, -51.2177);
+    if (text.contains('bresil') || text.contains('brasil') || text.contains('cbt') || widget.club.country == 'BR') return (-15.7801, -47.9292);
+
+    // France 🇫🇷
     if (text.contains('marseille')) return (43.2965, 5.3698);
     if (text.contains('nice') || text.contains('cannes') || text.contains('antibes')) return (43.7102, 7.2620);
     if (text.contains('bordeaux') || text.contains('arcachon') || text.contains('landes')) return (44.8378, -0.5792);
@@ -177,17 +210,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
     return (43.2965, 5.3698); // Défaut Méditerranée
   }
 
-  String _getClubPhotoAsset(String name) {
-    const beachPhotos = [
-      'assets/images/beach_sunset_players_1785052273648.jpg',
-      'assets/images/beach_tennis_racket_1785052259397.jpg',
-      'assets/images/beach_court_aerial_1785052250131.jpg',
-      'assets/images/beach_tennis_ball_1785052281869.jpg',
-      'assets/images/hero_beach_tennis_1785051787379.jpg',
-    ];
-    int hash = name.codeUnits.fold(0, (prev, elem) => prev + elem);
-    return beachPhotos[hash.abs() % beachPhotos.length];
-  }
+  String _getClubPhotoAsset(String name) => ClubModel.getClubPhotoAsset(name);
 
   Widget _buildGlassCard({required Widget child, EdgeInsetsGeometry? padding, double marginBottom = 16}) {
     return ClipRRect(
@@ -211,7 +234,41 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final currentUser = context.watch<AppState>().currentUser;
-    if (currentUser == null) return const Scaffold();
+    if (currentUser == null) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.primary,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(widget.club.name, style: const TextStyle(color: Colors.white, fontSize: 16)),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.sports_tennis, size: 48, color: AppColors.gold),
+                const SizedBox(height: 16),
+                const Text("Connexion requise", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                const Text("Connectez-vous pour voir les membres et activités du club.", style: TextStyle(color: Colors.white70, fontSize: 14), textAlign: TextAlign.center),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.coral, foregroundColor: Colors.white),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                  child: const Text("Se connecter"),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     // Détection Président / Admin
     final firebaseEmail = FirebaseAuth.instance.currentUser?.email?.toLowerCase().trim() ?? '';
@@ -222,8 +279,9 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
             widget.club.presidentEmails.map((e) => e.toLowerCase().trim()).contains(firebaseEmail));
     final canEditPhoto = isPresident;
     final isMember = widget.club.memberIds.contains(currentUser.id);
+    final isBrClub = widget.club.country == 'BR' || widget.club.location.toLowerCase().contains('brasil') || widget.club.location.toLowerCase().contains('brésil');
     final displayLocation = (widget.club.location.isEmpty || widget.club.location.toLowerCase().contains('recherche'))
-        ? "France"
+        ? (isBrClub ? "Brasil" : "France")
         : widget.club.location;
 
     return Scaffold(
@@ -256,9 +314,9 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                         onPressed: () => Navigator.pop(context),
                       ),
                       const SizedBox(width: 4),
-                      const Text(
-                        "Fiche du Club",
-                        style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                      Text(
+                        isBrClub ? "Arena Oficial" : "Fiche du Club",
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                       const Spacer(),
                       // Bouton Partager / QR Code dans l'AppBar
@@ -283,7 +341,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                           ),
                           onPressed: () => _toggleMembership(currentUser.id),
                           child: Text(
-                            isMember ? "Membre ✓" : "Rejoindre",
+                            isMember ? (isBrClub ? "Membro ✓" : "Membre ✓") : (isBrClub ? "Participar" : "Rejoindre"),
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                           ),
                         )
@@ -295,14 +353,14 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: AppColors.gold.withValues(alpha: 0.6)),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.workspace_premium, color: AppColors.gold, size: 14),
-                              SizedBox(width: 4),
+                              const Icon(Icons.workspace_premium, color: AppColors.gold, size: 14),
+                              const SizedBox(width: 4),
                               Text(
-                                "Président 👑",
-                                style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12),
+                                isBrClub ? "Gestor / Dono 👑" : "Président 👑",
+                                style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12),
                               ),
                             ],
                           ),
@@ -484,12 +542,12 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                                   child: const Icon(Icons.admin_panel_settings, color: AppColors.gold, size: 22),
                                 ),
                                 const SizedBox(width: 12),
-                                const Expanded(
+                                Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text("Espace Président", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-                                      Text("Gérez votre club et vos tournois", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                      Text(isBrClub ? "Painel do Gestor" : "Espace Président", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                                      Text(isBrClub ? "Gerencie sua arena e torneios" : "Gérez votre club et vos tournois", style: const TextStyle(color: Colors.white70, fontSize: 12)),
                                     ],
                                   ),
                                 ),
@@ -504,7 +562,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                     elevation: 0,
                                   ),
-                                  child: const Text("Gérer", style: TextStyle(fontWeight: FontWeight.bold)),
+                                  child: Text(isBrClub ? "Gerenciar" : "Gérer", style: const TextStyle(fontWeight: FontWeight.bold)),
                                 ),
                               ],
                             ),
@@ -531,7 +589,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                             Expanded(
                               child: _buildInfoCard(
                                 icon: Icons.location_on,
-                                title: "Lieu",
+                                title: isBrClub ? "Localização" : "Lieu",
                                 value: displayLocation,
                               ),
                             ),
@@ -539,10 +597,12 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                             Expanded(
                               child: _buildInfoCard(
                                 icon: Icons.group,
-                                title: "Membres",
-                                value: "${widget.club.memberIds.length} joueur${widget.club.memberIds.length > 1 ? 's' : ''}",
+                                title: isBrClub ? "Atletas" : "Membres",
+                                value: isBrClub
+                                    ? "${widget.club.memberIds.length} atleta${widget.club.memberIds.length > 1 ? 's' : ''}"
+                                    : "${widget.club.memberIds.length} joueur${widget.club.memberIds.length > 1 ? 's' : ''}",
                                 onTap: () => _showMembersBottomSheet(context),
-                                subtitleHint: "Voir la liste →",
+                                subtitleHint: isBrClub ? "Ver atletas →" : "Voir la liste →",
                               ),
                             ),
                           ],
@@ -554,18 +614,20 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Row(
+                              Row(
                                 children: [
-                                  Icon(Icons.info_outline, color: AppColors.gold, size: 18),
-                                  SizedBox(width: 8),
-                                  Text("À propos du club", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                                  const Icon(Icons.info_outline, color: AppColors.gold, size: 18),
+                                  const SizedBox(width: 8),
+                                  Text(isBrClub ? "Sobre a arena" : "À propos du club", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                                 ],
                               ),
                               const SizedBox(height: 10),
                               Text(
                                 widget.club.description.isNotEmpty
                                     ? widget.club.description
-                                    : "Bienvenue sur la fiche officielle du club. Rejoignez le club pour accéder au Chat interne et participer aux matchs !",
+                                    : (isBrClub
+                                        ? "Bem-vindo à página oficial da arena. Participe para acessar o chat e marcar jogos !"
+                                        : "Bienvenue sur la fiche officielle du club. Rejoignez le club pour accéder au Chat interne et participer aux matchs !"),
                                 style: const TextStyle(color: Colors.white70, height: 1.4, fontSize: 14),
                               ),
                             ],
@@ -599,9 +661,9 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                               ),
                               icon: const Icon(Icons.chat_bubble_rounded, color: Colors.white),
-                              label: const Text(
-                                "Chat interne du club",
-                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                              label: Text(
+                                isBrClub ? "Chat & Resenha da Arena" : "Chat interne du club",
+                                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                               ),
                               onPressed: () {
                                 Navigator.push(
@@ -665,13 +727,13 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
       }
     }
 
-    // Sort: President first, then by eloScore desc, then displayName
+    // Sort: President first, then by level desc, then displayName
     result.sort((a, b) {
       final aIsAdmin = widget.club.adminId == a.id;
       final bIsAdmin = widget.club.adminId == b.id;
       if (aIsAdmin && !bIsAdmin) return -1;
       if (!aIsAdmin && bIsAdmin) return 1;
-      if (b.eloScore != a.eloScore) return b.eloScore.compareTo(a.eloScore);
+      if (b.level != a.level) return b.level.compareTo(a.level);
       return a.displayName.compareTo(b.displayName);
     });
 
@@ -851,11 +913,6 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                                           "Niv. ${player.level}",
                                           style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600),
                                         ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        "${player.eloScore} pts",
-                                        style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold),
                                       ),
                                       if (player.isLookingForPartner) ...[
                                         const SizedBox(width: 6),
