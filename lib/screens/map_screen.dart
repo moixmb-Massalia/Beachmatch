@@ -353,11 +353,13 @@ class _MapScreenState extends State<MapScreen> {
                     final target = LatLng(userPos.latitude, userPos.longitude);
                     _currentCenter = target;
                     controller.animateCamera(CameraUpdate.newLatLngZoom(target, 14.5));
-                  } else if (_currentCenter != null && _currentCenter != _defaultWideViewCenter) {
+                  } else if (_currentCenter != null && _currentCenter != _defaultWideViewCenter && _currentCenter != _defaultBrazilWideViewCenter) {
                     controller.animateCamera(CameraUpdate.newLatLngZoom(_currentCenter!, 14.5));
                   } else {
-                    _currentCenter = _defaultWideViewCenter;
-                    controller.animateCamera(CameraUpdate.newLatLngZoom(_defaultWideViewCenter, _defaultWideZoom));
+                    final isBr = context.read<AppState>().currentUser?.isBrazilian == true;
+                    final fallback = isBr ? _defaultBrazilWideViewCenter : _defaultWideViewCenter;
+                    _currentCenter = fallback;
+                    controller.animateCamera(CameraUpdate.newLatLngZoom(fallback, _defaultWideZoom));
                   }
                 }
               },
@@ -366,10 +368,12 @@ class _MapScreenState extends State<MapScreen> {
                     ? LatLng(widget.initialCourt!.latitude, widget.initialCourt!.longitude)
                     : (_currentCenter ?? (context.read<AppState>().currentPosition != null
                         ? LatLng(context.read<AppState>().currentPosition!.latitude, context.read<AppState>().currentPosition!.longitude)
-                        : _defaultWideViewCenter)),
+                        : ((context.read<AppState>().currentUser?.isBrazilian == true)
+                            ? _defaultBrazilWideViewCenter
+                            : _defaultWideViewCenter))),
                 zoom: widget.initialCourt != null 
                     ? 15.5 
-                    : ((_currentCenter != null && _currentCenter != _defaultWideViewCenter) || context.read<AppState>().currentPosition != null
+                    : ((_currentCenter != null && _currentCenter != _defaultWideViewCenter && _currentCenter != _defaultBrazilWideViewCenter) || context.read<AppState>().currentPosition != null
                         ? 14.5 
                         : _defaultWideZoom),
               ),
@@ -1985,7 +1989,9 @@ class _MapScreenState extends State<MapScreen> {
                         controller: cityCtrl,
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
-                          hintText: "Ville (ex: Marseille, Saint-Gilles...)",
+                          hintText: (context.read<AppState>().currentUser?.isBrazilian == true)
+                              ? "Cidade (ex: Florianópolis, Santos, Rio...)"
+                              : "Ville (ex: Marseille, Saint-Gilles...)",
                           hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
                           filled: true,
                           fillColor: Colors.white.withValues(alpha: 0.06),

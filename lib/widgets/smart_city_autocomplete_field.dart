@@ -1,5 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/app_state.dart';
 import '../data/tournament_cities.dart';
 import '../theme/colors.dart';
 
@@ -47,6 +49,7 @@ class _SmartCityAutocompleteFieldState extends State<SmartCityAutocompleteField>
 
   @override
   Widget build(BuildContext context) {
+    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
     return TextFormField(
       controller: widget.controller,
       readOnly: true,
@@ -55,7 +58,7 @@ class _SmartCityAutocompleteFieldState extends State<SmartCityAutocompleteField>
       decoration: InputDecoration(
         filled: true,
         fillColor: Colors.white.withValues(alpha: 0.15),
-        hintText: widget.hint ?? "Choisir ma ville ou région...",
+        hintText: widget.hint ?? (isBr ? "Escolher minha cidade ou região..." : "Choisir ma ville ou région..."),
         hintStyle: const TextStyle(color: Colors.white54),
         prefixIcon: const Icon(Icons.location_on_rounded, color: AppColors.coral),
         suffixIcon: Row(
@@ -69,9 +72,9 @@ class _SmartCityAutocompleteFieldState extends State<SmartCityAutocompleteField>
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
               ),
-              child: const Text(
-                "Choisir",
-                style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 11),
+              child: Text(
+                isBr ? "Escolher" : "Choisir",
+                style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 11),
               ),
             ),
           ],
@@ -112,13 +115,13 @@ class _CityPickerModalState extends State<_CityPickerModal> {
   String _selectedCountryFilter = 'ALL';
   String _searchQuery = '';
 
-  final List<Map<String, String>> _countryPills = [
-    {'code': 'ALL', 'label': 'Toutes 🌍'},
-    {'code': 'France', 'label': 'France 🇫🇷'},
-    {'code': 'La Réunion', 'label': 'Réunion 🇷🇪'},
-    {'code': 'Italie', 'label': 'Italie 🇮🇹'},
-    {'code': 'Espagne', 'label': 'Espagne 🇪🇸'},
-    {'code': 'Brésil', 'label': 'Brésil 🇧🇷'},
+  List<Map<String, String>> _getCountryPills(bool isBr) => [
+    {'code': 'ALL', 'label': isBr ? 'Todas 🌍' : 'Toutes 🌍'},
+    {'code': 'Brésil', 'label': isBr ? 'Brasil 🇧🇷' : 'Brésil 🇧🇷'},
+    {'code': 'France', 'label': isBr ? 'França 🇫🇷' : 'France 🇫🇷'},
+    {'code': 'La Réunion', 'label': isBr ? 'Reunião 🇷🇪' : 'Réunion 🇷🇪'},
+    {'code': 'Italie', 'label': isBr ? 'Itália 🇮🇹' : 'Italie 🇮🇹'},
+    {'code': 'Espagne', 'label': isBr ? 'Espanha 🇪🇸' : 'Espagne 🇪🇸'},
     {'code': 'Aruba', 'label': 'Aruba 🇦🇼'},
     {'code': 'Venezuela', 'label': 'Venezuela 🇻🇪'},
   ];
@@ -126,6 +129,10 @@ class _CityPickerModalState extends State<_CityPickerModal> {
   @override
   void initState() {
     super.initState();
+    final isBr = context.read<AppState>().currentUser?.isBrazilian == true;
+    if (isBr) {
+      _selectedCountryFilter = 'Brésil';
+    }
     _searchCtrl.addListener(() {
       setState(() {
         _searchQuery = _searchCtrl.text.toLowerCase().trim();
@@ -155,6 +162,9 @@ class _CityPickerModalState extends State<_CityPickerModal> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
+    final countryPills = _getCountryPills(isBr);
+
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       child: BackdropFilter(
@@ -181,20 +191,22 @@ class _CityPickerModalState extends State<_CityPickerModal> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.location_city_rounded, color: AppColors.gold, size: 22),
-                  SizedBox(width: 8),
+                  const Icon(Icons.location_city_rounded, color: AppColors.gold, size: 22),
+                  const SizedBox(width: 8),
                   Text(
-                    "Villes & Destinations Beach Tennis",
-                    style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                    isBr ? "Cidades & Destinos de Beach Tennis" : "Villes & Destinations Beach Tennis",
+                    style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
               const SizedBox(height: 6),
-              const Text(
-                "Sélectionnez votre ville parmi les lieux de compétitions officielles pour calibrer vos alertes et votre radar.",
-                style: TextStyle(color: Colors.white60, fontSize: 12),
+              Text(
+                isBr
+                    ? "Selecione sua cidade para calibrar seus alertas, torneios e radar no Brasil."
+                    : "Sélectionnez votre ville parmi les lieux de compétitions officielles pour calibrer vos alertes et votre radar.",
+                style: const TextStyle(color: Colors.white60, fontSize: 12),
               ),
               const SizedBox(height: 14),
 
@@ -203,7 +215,7 @@ class _CityPickerModalState extends State<_CityPickerModal> {
                 controller: _searchCtrl,
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 decoration: InputDecoration(
-                  hintText: "Rechercher une ville (ex: Marseille, Cervia...)",
+                  hintText: isBr ? "Buscar cidade (ex: Florianópolis, Santos, Rio...)" : "Rechercher une ville (ex: Marseille, Cervia...)",
                   hintStyle: const TextStyle(color: Colors.white54, fontSize: 13),
                   prefixIcon: const Icon(Icons.search, color: AppColors.gold, size: 20),
                   filled: true,
@@ -219,10 +231,10 @@ class _CityPickerModalState extends State<_CityPickerModal> {
                 height: 34,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  itemCount: _countryPills.length,
+                  itemCount: countryPills.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (ctx, i) {
-                    final p = _countryPills[i];
+                    final p = countryPills[i];
                     final isSel = _selectedCountryFilter == p['code'];
                     return InkWell(
                       onTap: () => setState(() => _selectedCountryFilter = p['code']!),

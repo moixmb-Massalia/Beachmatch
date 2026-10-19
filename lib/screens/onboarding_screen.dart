@@ -17,17 +17,36 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   late TextEditingController _pseudoController;
   final TextEditingController _licenceController = TextEditingController();
+  final TextEditingController _arenaController = TextEditingController();
   int _selectedLevel = 1;
+  String _selectedCbtCategory = 'Iniciante';
   bool _isVerifying = false;
   bool _isLicenceVerified = false;
   int? _verifiedElo;
   String? _verifiedRanking;
+
+  static const List<String> _cbtCategories = [
+    'Iniciante',
+    'Categoria D',
+    'Categoria C',
+    'Categoria B',
+    'Categoria A',
+    'PRO',
+  ];
 
   @override
   void initState() {
     super.initState();
     final currentUser = context.read<AppState>().currentUser;
     _pseudoController = TextEditingController(text: currentUser?.displayName ?? "");
+  }
+
+  @override
+  void dispose() {
+    _pseudoController.dispose();
+    _licenceController.dispose();
+    _arenaController.dispose();
+    super.dispose();
   }
 
   Future<void> _verifyLicence() async {
@@ -209,82 +228,191 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           ),
                           const SizedBox(height: 32),
 
-                          // Licence
-                          Text(licenceLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _licenceController,
-                                  decoration: InputDecoration(
-                                    hintText: lang == 'pt' ? "Ex: CBT12345" : "Ex: 1234567A",
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                                    filled: true,
-                                    fillColor: Colors.white,
+                          // Form fields
+                          if (lang == 'pt') ...[
+                            // Name
+                            Text(nameLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _pseudoController,
+                              decoration: InputDecoration(
+                                hintText: "Ex: André Baran",
+                                prefixIcon: const Icon(Icons.person_outline_rounded, color: AppColors.primary),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                                filled: true,
+                                fillColor: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // Categoria CBT
+                            const Row(
+                              children: [
+                                Icon(Icons.emoji_events_outlined, size: 18, color: AppColors.gold),
+                                SizedBox(width: 6),
+                                Text("Categoria CBT (Circuito Nacional 🇧🇷)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              "Selecione sua categoria de jogo para partidas e torneios:",
+                              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                            ),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              alignment: WrapAlignment.center,
+                              children: _cbtCategories.map((cat) {
+                                final isSelected = _selectedCbtCategory == cat;
+                                return ChoiceChip(
+                                  label: Text(
+                                    cat,
+                                    style: TextStyle(
+                                      color: isSelected ? Colors.white : AppColors.textMain,
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                  selected: isSelected,
+                                  selectedColor: AppColors.primary,
+                                  backgroundColor: Colors.white,
+                                  onSelected: (selected) {
+                                    if (selected) {
+                                      setState(() {
+                                        _selectedCbtCategory = cat;
+                                        switch (cat) {
+                                          case 'Iniciante':
+                                            _selectedLevel = 1;
+                                            break;
+                                          case 'Categoria D':
+                                            _selectedLevel = 2;
+                                            break;
+                                          case 'Categoria C':
+                                            _selectedLevel = 3;
+                                            break;
+                                          case 'Categoria B':
+                                            _selectedLevel = 4;
+                                            break;
+                                          case 'Categoria A':
+                                          case 'PRO':
+                                            _selectedLevel = 5;
+                                            break;
+                                        }
+                                      });
+                                    }
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // Registro CBT
+                            const Text("Registro / ID CBT (Opcional)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _licenceController,
+                              decoration: InputDecoration(
+                                hintText: "Ex: CBT12345",
+                                prefixIcon: const Icon(Icons.badge_outlined, color: AppColors.textMuted),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                                filled: true,
+                                fillColor: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // Arena / Clube Habitual
+                            const Text("Arena ou Clube habitual (Opcional)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _arenaController,
+                              decoration: InputDecoration(
+                                hintText: "Ex: Arena Ipanema, Posto 10...",
+                                prefixIcon: const Icon(Icons.beach_access_rounded, color: AppColors.textMuted),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                                filled: true,
+                                fillColor: Colors.white,
+                              ),
+                            ),
+                          ] else ...[
+                            // French / International Flow
+                            // Licence
+                            Text(licenceLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _licenceController,
+                                    decoration: InputDecoration(
+                                      hintText: "Ex: 1234567A",
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              ElevatedButton(
-                                onPressed: _isVerifying ? null : _verifyLicence,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                const SizedBox(width: 8),
+                                ElevatedButton(
+                                  onPressed: _isVerifying ? null : _verifyLicence,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  ),
+                                  child: _isVerifying 
+                                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                      : Text(verifyBtnLabel),
                                 ),
-                                child: _isVerifying 
-                                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                    : Text(verifyBtnLabel),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Pseudo -> Real Name
-                          Text(nameLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _pseudoController,
-                            readOnly: _isLicenceVerified,
-                            decoration: InputDecoration(
-                              hintText: lang == 'pt' ? "Ex: André Baran" : "Ex: Rafa Nadal",
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                              filled: true,
-                              fillColor: _isLicenceVerified ? Colors.grey[200] : Colors.white,
+                              ],
                             ),
-                          ),
-                          const SizedBox(height: 16),
+                            const SizedBox(height: 16),
 
-                          // Level
-                          Text(levelLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            alignment: WrapAlignment.center,
-                            children: List.generate(5, (index) {
-                              final level = index + 1;
-                              final isSelected = _selectedLevel == level;
-                              final prefix = lang == 'en' ? 'Lvl' : (lang == 'pt' ? 'Nív.' : 'Niv.');
-                              return ChoiceChip(
-                                label: Text("$prefix $level", style: TextStyle(color: isSelected ? Colors.white : AppColors.textMain)),
-                                selected: isSelected,
-                                selectedColor: AppColors.primary,
-                                backgroundColor: Colors.white,
-                                onSelected: (selected) {
-                                  if (selected) setState(() => _selectedLevel = level);
-                                },
-                              );
-                            }),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            levelDesc,
-                            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
-                            textAlign: TextAlign.center,
-                          ),
+                            // Pseudo -> Real Name
+                            Text(nameLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _pseudoController,
+                              readOnly: _isLicenceVerified,
+                              decoration: InputDecoration(
+                                hintText: "Ex: Rafa Nadal",
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                                filled: true,
+                                fillColor: _isLicenceVerified ? Colors.grey[200] : Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Level
+                            Text(levelLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              alignment: WrapAlignment.center,
+                              children: List.generate(5, (index) {
+                                final level = index + 1;
+                                final isSelected = _selectedLevel == level;
+                                final prefix = lang == 'en' ? 'Lvl' : 'Niv.';
+                                return ChoiceChip(
+                                  label: Text("$prefix $level", style: TextStyle(color: isSelected ? Colors.white : AppColors.textMain)),
+                                  selected: isSelected,
+                                  selectedColor: AppColors.primary,
+                                  backgroundColor: Colors.white,
+                                  onSelected: (selected) {
+                                    if (selected) setState(() => _selectedLevel = level);
+                                  },
+                                );
+                              }),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              levelDesc,
+                              style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                           const SizedBox(height: 32),
 
                           // Continue Button
@@ -299,13 +427,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               
                               final appState = context.read<AppState>();
                               try {
-                                await appState.completeOnboarding(
-                                  _pseudoController.text.trim(), 
-                                  _selectedLevel,
-                                  licenceNumber: _isLicenceVerified ? _licenceController.text.trim() : null,
-                                  eloScore: _isLicenceVerified ? _verifiedElo : null,
-                                  ranking: _isLicenceVerified ? _verifiedRanking : null,
-                                );
+                                if (lang == 'pt') {
+                                  await appState.completeOnboarding(
+                                    _pseudoController.text.trim(),
+                                    _selectedLevel,
+                                    cbtId: _licenceController.text.trim().isNotEmpty ? _licenceController.text.trim() : null,
+                                    cbtCategory: _selectedCbtCategory,
+                                    arena: _arenaController.text.trim().isNotEmpty ? _arenaController.text.trim() : null,
+                                  );
+                                } else {
+                                  await appState.completeOnboarding(
+                                    _pseudoController.text.trim(), 
+                                    _selectedLevel,
+                                    licenceNumber: _isLicenceVerified ? _licenceController.text.trim() : null,
+                                    eloScore: _isLicenceVerified ? _verifiedElo : null,
+                                    ranking: _isLicenceVerified ? _verifiedRanking : null,
+                                  );
+                                }
                                 
                                 if (context.mounted) {
                                   Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const MainNavigationScreen()));

@@ -631,27 +631,44 @@ class AppState extends ChangeNotifier {
     return isNewUser;
   }
 
-  Future<void> completeOnboarding(String pseudo, int level, {String? licenceNumber, int? eloScore, String? ranking}) async {
+  Future<void> completeOnboarding(
+    String pseudo, 
+    int level, {
+    String? licenceNumber, 
+    int? eloScore, 
+    String? ranking,
+    String? cbtId,
+    String? cbtCategory,
+    String? arena,
+  }) async {
     if (_currentUser == null) return;
     
+    final isBr = _currentUser!.isBrazilian || _currentUser!.country == 'BR';
+    final cbtIdVal = isBr ? (cbtId ?? licenceNumber) : null;
+    final cbtCatVal = isBr ? (cbtCategory ?? ranking ?? 'Iniciante') : null;
+    final frenchLicence = isBr ? null : licenceNumber;
+
     // Update model
     _currentUser = UserModel(
       id: _currentUser!.id,
       displayName: pseudo,
       level: level,
       eloScore: eloScore ?? 0,
-      ranking: ranking,
+      ranking: isBr ? cbtCatVal : ranking,
       location: _currentUser!.location,
       country: _currentUser!.country,
       isPremium: false,
       createdAt: _currentUser!.createdAt,
-      licenceNumber: licenceNumber,
+      licenceNumber: frenchLicence,
+      cbtId: cbtIdVal,
+      cbtCategory: cbtCatVal,
+      clubName: arena ?? _currentUser!.clubName,
       fcmToken: _currentUser!.fcmToken,
     );
     
     // Save to Firestore
     final userData = _currentUser!.toMap();
-    userData['searchTokens'] = _generateSearchTokens(pseudo, licenceNumber);
+    userData['searchTokens'] = _generateSearchTokens(pseudo, isBr ? cbtIdVal : frenchLicence);
     await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set(userData);
     await _checkAndApplyPreauthorizedRoles(_currentUser!.id, FirebaseAuth.instance.currentUser?.email);
     await loadData();
@@ -1241,18 +1258,7 @@ class AppState extends ChangeNotifier {
   Future<void> markTutorialAsSeen() async {
     if (_currentUser == null) return;
     
-    _currentUser = UserModel(
-      id: _currentUser!.id,
-      displayName: _currentUser!.displayName,
-      location: _currentUser!.location,
-      level: _currentUser!.level,
-      eloScore: 0,
-      isPremium: _currentUser!.isPremium,
-      createdAt: _currentUser!.createdAt,
-      photoUrl: _currentUser!.photoUrl,
-      licenceNumber: _currentUser!.licenceNumber,
-      hasSeenTutorial: true,
-    );
+    _currentUser = _currentUser!.copyWith(hasSeenTutorial: true);
     
     await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set({
       'hasSeenTutorial': true,

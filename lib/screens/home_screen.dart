@@ -18,6 +18,7 @@ import '../widgets/feature_discovery_bubble.dart';
 import 'create_match_screen.dart';
 import 'profile_screen.dart';
 import '../widgets/home_fft_licence_banner.dart';
+import 'tutorial_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -106,6 +107,74 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (user != null && (user.country.toUpperCase() == 'FR' || user.country.toUpperCase() == 'RE' || user.country.toUpperCase() == 'ANT') && (user.licenceNumber == null || user.licenceNumber!.trim().isEmpty)) ...[
                     const SizedBox(height: 14),
                     const HomeFftLicenceBanner(),
+                  ],
+                  if (user != null && user.isBrazilian && (user.cbtCategory == null || user.cbtCategory!.isEmpty)) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFF007A33),
+                            Color(0xFF002776),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.gold.withValues(alpha: 0.6)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Text("🇧🇷", style: TextStyle(fontSize: 22)),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Bem-vindo(a) ao BeachMatch !",
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13.5),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  "Faça o tour completo de todos os 5 menus do app.",
+                                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const TutorialScreen(isReplay: true)),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.gold,
+                              foregroundColor: const Color(0xFF0F141E),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text("Ver Tour", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                   FeatureDiscoveryBubble(
                     featureKey: 'home_overview',

@@ -20,6 +20,7 @@ import 'chat_detail_screen.dart';
 import '../widgets/link_fft_licence_modal.dart';
 import '../l10n/app_localizations.dart';
 import 'fft_rankings_screen.dart';
+import 'tutorial_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -1513,6 +1514,28 @@ class ProfileScreen extends StatelessWidget {
         children: [
           Text(AppLocalizations.of(context).profileLegalTitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
           const SizedBox(height: 16),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.explore_rounded, color: AppColors.gold),
+            title: Text(
+              user.isBrazilian ? "Guia do App · Tour das Funcionalidades 🇧🇷" : "Guide de l'App · Tour complet",
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(
+              user.isBrazilian 
+                  ? "Conheça todos os menus e recursos do app em uma só passada" 
+                  : "Découvrez toutes les fonctionnalités et onglets de l'application",
+              style: const TextStyle(color: Colors.white60, fontSize: 12),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const TutorialScreen(isReplay: true)),
+              );
+            },
+          ),
+          const Divider(color: Colors.white12, height: 20),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.policy_rounded, color: AppColors.gold),

@@ -4,9 +4,27 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../theme/colors.dart';
+import 'profile_edit_screen.dart';
+
+class TutorialItem {
+  final IconData icon;
+  final String tag;
+  final String title;
+  final String subtitle;
+  final List<String> bullets;
+
+  const TutorialItem({
+    required this.icon,
+    required this.tag,
+    required this.title,
+    required this.subtitle,
+    required this.bullets,
+  });
+}
 
 class TutorialScreen extends StatefulWidget {
-  const TutorialScreen({super.key});
+  final bool isReplay;
+  const TutorialScreen({super.key, this.isReplay = false});
 
   @override
   State<TutorialScreen> createState() => _TutorialScreenState();
@@ -39,207 +57,387 @@ class _TutorialScreenState extends State<TutorialScreen> {
     return 'en';
   }
 
-  List<Map<String, dynamic>> _getLocalizedPages(String lang) {
+  List<TutorialItem> _getLocalizedPages(String lang) {
     switch (lang) {
       case 'pt':
         return [
-          {
-            'icon': Icons.sports_tennis_rounded,
-            'title': "Bem-vindo(a) !",
-            'subtitle': "A comunidade nº 1 de Beach Tennis",
-            'description': "Bem-vindo(a) ao BeachMatch! Encontre arenas de areia, organize partidas com amigos e acompanhe torneios oficiais."
-          },
-          {
-            'icon': CupertinoIcons.map_fill,
-            'title': "Mapa & Arenas",
-            'subtitle': "Quadras públicas & Arenas privadas",
-            'description': "Descubra as melhores arenas de praia, confira a previsão do clima e vento em tempo real e trace sua rota até a quadra."
-          },
-          {
-            'icon': Icons.groups_rounded,
-            'title': "Organize seus Jogos",
-            'subtitle': "Partidas amigáveis & Desafios",
-            'description': "Crie jogos na sua arena favorita em 1 clique, convide parceiros, confirme os placares e evolua na classificação."
-          },
-          {
-            'icon': CupertinoIcons.calendar,
-            'title': "Torneios CBT & ITF",
-            'subtitle': "Do Circuito Amador ao Profissional",
-            'description': "Acompanhe o calendário oficial de torneios, use o 'SOS Parceiro' para achar uma dupla e inscreva sua equipe com facilidade."
-          },
-          {
-            'icon': Icons.sports_rounded,
-            'title': "Placar ao Vivo & Arbitragem",
-            'subtitle': "Acompanhamento ponto a ponto",
-            'description': "Apite ou acompanhe jogos na beira da quadra: placar em tempo real, tie-break, super tie-break e estatísticas completas."
-          },
-          {
-            'icon': Icons.emoji_events_rounded,
-            'title': "Ranking & Comunidade",
-            'subtitle': "Jogadores & Arenas Oficiais",
-            'description': "Consulte o ranking, descubra os melhores atletas do circuito e interaja no chat exclusivo da sua arena."
-          },
+          const TutorialItem(
+            icon: Icons.sports_tennis_rounded,
+            tag: "👋 BEM-VINDO(A)",
+            title: "BeachMatch Brasil ☀️",
+            subtitle: "A plataforma oficial dos apaixonados por Beach Tennis",
+            bullets: [
+              "Bem-vindo(a) ao app definitivo para jogar, competir e evoluir no Beach Tennis.",
+              "Encontre quadras e arenas de areia em qualquer cidade do Brasil.",
+              "Conecte-se com parceiros do seu nível e organize partidas sem complicação.",
+              "Acompanhe o circuito oficial da CBT (Confederação Brasileira de Tênis) e ITF.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.home_rounded,
+            tag: "ABA 1 · INÍCIO",
+            title: "Feed Ao Vivo & Comunidade 🏠",
+            subtitle: "Tudo o que acontece no esporte em tempo real",
+            bullets: [
+              "Status 'Procurando parceiro': Ative para ser chamado para jogos hoje mesmo.",
+              "Partidas do dia: Veja os jogos agendados perto de você e peça para entrar.",
+              "Atalhos instantâneos: Crie um jogo ou busque novos atletas em 1 toque.",
+              "Feed social: Compartilhe fotos, resultados e novidades da sua arena.",
+            ],
+          ),
+          const TutorialItem(
+            icon: CupertinoIcons.map_fill,
+            tag: "ABA 2 · MAPA & ARENAS",
+            title: "Arenas & Previsão do Vento 🏖️",
+            subtitle: "Centenas de quadras mapeadas no Brasil",
+            bullets: [
+              "Localização GPS: Florianópolis, Santos, Rio de Janeiro, São Paulo e todo o país.",
+              "Filtro inteligente: Quadras públicas gratuitas na praia ou Arenas privadas com iluminação.",
+              "Previsão em tempo real: Vento ao vivo (nós / km/h), temperatura e condições marítimas.",
+              "Rotas automáticas: Abra a navegação direto no Waze ou Google Maps.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.groups_rounded,
+            tag: "ABA 3 · PARTIDAS",
+            title: "Organize Jogos & Rei da Praia 🎾",
+            subtitle: "Jogue mais e esqueça a confusão em grupos",
+            bullets: [
+              "Crie partidas na sua arena favorita em menos de 10 segundos.",
+              "Modo Rei da Praia 👑: Rotação automática de duplas e pontuação de games.",
+              "Divisão de custos: Facilitador de cobrança de quadra e bolas via PIX.",
+              "Faltou o 4º jogador? O BeachMatch envia um alerta para jogadores do seu nível.",
+            ],
+          ),
+          const TutorialItem(
+            icon: CupertinoIcons.calendar,
+            tag: "ABA 4 · TORNEIOS",
+            title: "Torneios CBT, ITF & BeachScore 🏆",
+            subtitle: "Do circuito amador ao profissional",
+            bullets: [
+              "Calendário Oficial: Filtre por PRO, Categoria A, B, C, D e Iniciante.",
+              "SOS Parceiro 🚨: Busque uma dupla para jogar torneios ou candidate-se a vagas.",
+              "BeachScore ⚖️: Marcador ao vivo na beira da quadra para árbitros e atletas.",
+              "Chaves e resultados: Acompanhe os confrontos ponto a ponto em tempo real.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.person_rounded,
+            tag: "ABA 5 · PERFIL & SUPORTE",
+            title: "Seu Perfil de Atleta & Suporte 🇧🇷",
+            subtitle: "Sua identidade esportiva e canal direto",
+            bullets: [
+              "Defina sua Categoria CBT (Iniciante a PRO), ID CBT e sua Arena/Clube oficial.",
+              "Histórico de jogos: Acompanhe vitórias, aproveitamento e evolução.",
+              "Chat com Suporte Oficial 💬: Fale diretamente com nossa equipe no chat do app para tirar qualquer dúvida.",
+              "Convide seus parceiros de treino para espalhar o Beach Tennis!",
+            ],
+          ),
         ];
 
       case 'en':
         return [
-          {
-            'icon': Icons.sports_tennis_rounded,
-            'title': "Welcome!",
-            'subtitle': "The #1 Beach Tennis Community",
-            'description': "Welcome to BeachMatch! Find beach courts and clubs, organize matches with players and follow official competitions."
-          },
-          {
-            'icon': CupertinoIcons.map_fill,
-            'title': "Map & Beach Spots",
-            'subtitle': "Free Courts & Official Clubs",
-            'description': "Discover public sand courts or lighted official clubs with real-time marine weather, wind forecast and GPS routes."
-          },
-          {
-            'icon': Icons.groups_rounded,
-            'title': "Organize your Matches",
-            'subtitle': "Friendly Games & Challenges",
-            'description': "Create a match at your favorite court in one click, invite partners, submit scores and climb the ranks."
-          },
-          {
-            'icon': CupertinoIcons.calendar,
-            'title': "Official & ITF Tournaments",
-            'subtitle': "From Open to Pro Circuit",
-            'description': "Browse the official tournament calendar, send a 'Partner SOS' to find a teammate and register your team."
-          },
-          {
-            'icon': Icons.sports_rounded,
-            'title': "Live Scoring & Umpiring",
-            'subtitle': "Point-by-point live tracker",
-            'description': "Easily referee matches court-side: live scores, tie-break, super tie-break and complete match statistics."
-          },
-          {
-            'icon': Icons.emoji_events_rounded,
-            'title': "Rankings & Community",
-            'subtitle': "Players & Official Clubs",
-            'description': "Access official rankings, discover top beach tennis athletes and chat inside your club's interactive lounge."
-          },
+          const TutorialItem(
+            icon: Icons.sports_tennis_rounded,
+            tag: "👋 WELCOME",
+            title: "Welcome to BeachMatch ☀️",
+            subtitle: "The #1 Worldwide Beach Tennis Community",
+            bullets: [
+              "Welcome to the ultimate app to play, compete, and master Beach Tennis.",
+              "Find beach courts and private arenas wherever you travel.",
+              "Connect with balanced partners and set up matches in seconds.",
+              "Follow official and international ITF tournaments worldwide.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.home_rounded,
+            tag: "TAB 1 · HOME",
+            title: "Daily Feed & Live Action 🏠",
+            subtitle: "Everything happening on the sand right now",
+            bullets: [
+              "'Looking for a Partner' status: Turn it on to receive match invites immediately.",
+              "Matches of the Day: See games happening near you and request to join.",
+              "Instant shortcuts: Schedule a match or discover nearby players with one tap.",
+              "Community feed: Share moments, photos, and club updates.",
+            ],
+          ),
+          const TutorialItem(
+            icon: CupertinoIcons.map_fill,
+            tag: "TAB 2 · MAP & COURTS",
+            title: "Beach Courts & Live Wind Forecast 🏖️",
+            subtitle: "Hundreds of verified sand spots",
+            bullets: [
+              "Accurate GPS locator: Discover public beach spots and illuminated official clubs.",
+              "Real-time marine forecast: Live wind speed (knots) and weather before heading out.",
+              "Turn-by-turn navigation: One-tap route via Waze or Google Maps.",
+              "Community reviews: Check court surface quality, nets, and amenities.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.groups_rounded,
+            tag: "TAB 3 · MATCHES",
+            title: "Organize Matches & King of Court 🎾",
+            subtitle: "No more messy messaging group chats",
+            bullets: [
+              "Schedule matches at your preferred court in less than 10 seconds.",
+              "King of the Beach mode 👑: Automatic partner rotations and game scoring.",
+              "Court fee splitting: Easy payment settlements with your playing group.",
+              "Missing a 4th player? BeachMatch alerts matching-level players automatically.",
+            ],
+          ),
+          const TutorialItem(
+            icon: CupertinoIcons.calendar,
+            tag: "TAB 4 · TOURNAMENTS",
+            title: "Tournaments & Live BeachScore 🏆",
+            subtitle: "From open tournaments to the Pro circuit",
+            bullets: [
+              "Official Tournaments calendar: Filter by category, rank, and dates.",
+              "Partner SOS 🚨: Looking for a teammate? Post a request or apply to existing ones.",
+              "BeachScore ⚖️: Court-side live score refereeing with tie-break & stats.",
+              "Live brackets: Follow tournament progression point-by-point in real time.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.person_rounded,
+            tag: "TAB 5 · PROFILE & SUPPORT",
+            title: "Your Player Profile & Support 💬",
+            subtitle: "Your sports passport and direct line",
+            bullets: [
+              "Showcase your official level, license ID, and home club arena.",
+              "Match history: Track win rate, played games, and rank progression.",
+              "Direct Official Support 💬: Message our support team anytime inside the app chat.",
+              "Invite your beach tennis buddies to join your matches!",
+            ],
+          ),
         ];
 
       case 'es':
         return [
-          {
-            'icon': Icons.sports_tennis_rounded,
-            'title': "¡Bienvenido/a!",
-            'subtitle': "La comunidad nº 1 de Beach Tennis",
-            'description': "¡Bienvenido/a a BeachMatch! Encuentra pistas y clubes, organiza partidos entre apasionados y sigue torneos oficiales."
-          },
-          {
-            'icon': CupertinoIcons.map_fill,
-            'title': "Mapa & Pistas de Playa",
-            'subtitle': "Pistas gratuitas & Clubes",
-            'description': "Descubre pistas en la arena o clubes oficiales con previsión de viento y clima en tiempo real e itinerarios."
-          },
-          {
-            'icon': Icons.groups_rounded,
-            'title': "Organiza tus Partidos",
-            'subtitle': "Partidas amistosas & Retos",
-            'description': "Crea una partida en tu pista favorita en un clic, invita compañeros, valida resultados y sube de nivel."
-          },
-          {
-            'icon': CupertinoIcons.calendar,
-            'title': "Torneos Oficiales & ITF",
-            'subtitle': "Del circuito amateur al profesional",
-            'description': "Consulta el calendario oficial de torneos, lanza un 'SOS Compañero' para formar pareja e inscribe a tu equipo."
-          },
-          {
-            'icon': Icons.sports_rounded,
-            'title': "Marcador en Vivo & Arbitraje",
-            'subtitle': "Seguimiento punto a punto",
-            'description': "Arbitra fácilmente a pie de pista: marcador en directo, tie-break, super tie-break y estadísticas de juego."
-          },
-          {
-            'icon': Icons.emoji_events_rounded,
-            'title': "Ranking & Comunidad",
-            'subtitle': "Jugadores & Clubes Oficiales",
-            'description': "Accede al ranking oficial, descubre a los mejores jugadores y conversa en la taberna interactiva de tu club."
-          },
+          const TutorialItem(
+            icon: Icons.sports_tennis_rounded,
+            tag: "👋 BIENVENIDO/A",
+            title: "BeachMatch Comunidad ☀️",
+            subtitle: "La plataforma definitiva de Beach Tennis",
+            bullets: [
+              "Bienvenido/a a la app para jugar, competir y evolucionar en el Beach Tennis.",
+              "Encuentra pistas públicas y clubes en la arena en cualquier ciudad.",
+              "Conecta con jugadores de tu nivel y organiza partidos sin complicaciones.",
+              "Sigue torneos oficiales y competiciones internacionales ITF.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.home_rounded,
+            tag: "PESTAÑA 1 · INICIO",
+            title: "Feed en Vivo & Actividades 🏠",
+            subtitle: "Todo lo que pasa en la arena al instante",
+            bullets: [
+              "Estado 'Buscando compañero': Actívalo para recibir invitaciones hoy mismo.",
+              "Partidos del día: Descubre los juegos cerca de ti y únete.",
+              "Accesos directos: Crea partidos o busca compañeros en 1 clic.",
+              "Feed social: Comparte fotos, resultados y novedades de tus pistas.",
+            ],
+          ),
+          const TutorialItem(
+            icon: CupertinoIcons.map_fill,
+            tag: "PESTAÑA 2 · MAPA",
+            title: "Mapa de Pistas & Viento en Vivo 🏖️",
+            subtitle: "Cientos de pistas en la playa y clubes",
+            bullets: [
+              "Ubicación GPS precisa: Pistas públicas gratuitas y clubes oficiales iluminados.",
+              "Viento y tiempo en directo: Consulta la fuerza del viento (nudos) antes de salir.",
+              "Ruta directa: Navegación guiada con Waze o Google Maps en 1 toque.",
+              "Comentarios y servicios: Estado de la arena, duchas y redes.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.groups_rounded,
+            tag: "PESTAÑA 3 · PARTIDOS",
+            title: "Organiza Partidos & Rey de la Pista 🎾",
+            subtitle: "Olvídate de los líos en grupos de mensajería",
+            bullets: [
+              "Crea partidas en tu pista favorita en solo 10 segundos.",
+              "Modo Rey de la Pista 👑: Rotación automática de parejas y cómputo de juegos.",
+              "División de gastos: Facilita el pago del alquiler de pista entre los 4.",
+              "¿Falta un 4º jugador? BeachMatch notifica a jugadores compatibles al instante.",
+            ],
+          ),
+          const TutorialItem(
+            icon: CupertinoIcons.calendar,
+            tag: "PESTAÑA 4 · TORNEOS",
+            title: "Torneos & Marcador BeachScore 🏆",
+            subtitle: "Del circuito amateur al profesional",
+            bullets: [
+              "Calendario oficial: Filtra por categorías y fechas de competición.",
+              "SOS Compañero 🚨: Encuentra pareja para competir en tus torneos.",
+              "BeachScore ⚖️: Marcador en vivo a pie de pista para arbitraje punto a punto.",
+              "Cuadros en vivo: Sigue los resultados de cada ronda en tiempo real.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.person_rounded,
+            tag: "PESTAÑA 5 · PERFIL & SOPORTE",
+            title: "Perfil de Jugador & Soporte 💬",
+            subtitle: "Tu ficha deportiva y ayuda directa",
+            bullets: [
+              "Configura tu categoría, número de licencia y club habitual.",
+              "Historial de juego: Consulta victorias, porcentaje de éxito y progreso.",
+              "Chat de Soporte Oficial 💬: Escríbenos en el chat de la app para cualquier duda.",
+              "¡Invita a tus compañeros de arena a sumarse al BeachMatch!",
+            ],
+          ),
         ];
 
       case 'it':
         return [
-          {
-            'icon': Icons.sports_tennis_rounded,
-            'title': "Benvenuto/a!",
-            'subtitle': "La community n°1 del Beach Tennis",
-            'description': "Benvenuto/a su BeachMatch! Trova campi e circoli, organizza partite tra appassionati e segui i tornei ufficiali."
-          },
-          {
-            'icon': CupertinoIcons.map_fill,
-            'title': "Mappa & Campi Spiaggia",
-            'subtitle': "Campi liberi & Circoli",
-            'description': "Scopri i campi sulla sabbia o i circoli con meteo vento in tempo reale e percorsi GPS diretti."
-          },
-          {
-            'icon': Icons.groups_rounded,
-            'title': "Organizza le tue Partite",
-            'subtitle': "Sfide amichevoli & Tornei",
-            'description': "Crea una partita in 1 clic sul tuo campo preferito, invita compagni, valida i punteggi e migliora il livello."
-          },
-          {
-            'icon': CupertinoIcons.calendar,
-            'title': "Tornei FITP & ITF",
-            'subtitle': "Dall'amatoriale al circuito Pro",
-            'description': "Consulta il calendario ufficiale dei tornei, lancia un 'SOS Compagno' per trovare una coppia e iscrivi la tua squadra."
-          },
-          {
-            'icon': Icons.sports_rounded,
-            'title': "Live Score & Arbitraggio",
-            'subtitle': "Punto per punto in diretta",
-            'description': "Arbitra o segui le partite a bordo campo: punteggio in tempo reale, tie-break, super tie-break e statistiche."
-          },
-          {
-            'icon': Icons.emoji_events_rounded,
-            'title': "Classifica & Community",
-            'subtitle': "Migliaia di Giocatori & Circoli",
-            'description': "Consulta le classifiche ufficiali e scambia messaggi nella bacheca interattiva del tuo circolo."
-          },
+          const TutorialItem(
+            icon: Icons.sports_tennis_rounded,
+            tag: "👋 BENVENUTO/A",
+            title: "BeachMatch Italia ☀️",
+            subtitle: "La community n°1 di Beach Tennis",
+            bullets: [
+              "Benvenuto/a nella app definitiva per giocare e competere a Beach Tennis.",
+              "Trova campi liberi sulla spiaggia e circoli ufficiali in tutta Italia.",
+              "Connettiti con compagni del tuo livello e organizza sfide in pochi secondi.",
+              "Segui il calendario tornei FITP e il circuito mondiale ITF.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.home_rounded,
+            tag: "SCHEDA 1 · HOME",
+            title: "Feed Live & Attività 🏠",
+            subtitle: "Tutto quello che succede sulla sabbia",
+            bullets: [
+              "Stato 'Cerca compagno': Attivalo per ricevere inviti alle partite.",
+              "Partite del giorno: Scopri le sfide programmate vicino a te.",
+              "Scorciatoie rapide: Crea un match o trova giocatori con 1 tocco.",
+              "Feed social: Foto, risultati e novità del tuo circolo.",
+            ],
+          ),
+          const TutorialItem(
+            icon: CupertinoIcons.map_fill,
+            tag: "SCHEDA 2 · MAPPA",
+            title: "Mappa Campi & Meteo Vento Live 🏖️",
+            subtitle: "Centinaia di campi sulla sabbia",
+            bullets: [
+              "Geolocalizzazione GPS precisa: Campi liberi e circoli attrezzati.",
+              "Vento in tempo reale: Controlla la velocità del vento (nodi) prima di andare.",
+              "Itinerario diretto con Waze o Google Maps in un clic.",
+              "Dettagli campi: Illuminazione, docce e qualità della sabbia.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.groups_rounded,
+            tag: "SCHEDA 3 · PARTITE",
+            title: "Organizza Partite & Re della Spiaggia 🎾",
+            subtitle: "Basta con i messaggi infiniti nelle chat di gruppo",
+            bullets: [
+              "Organizza le tue partite in 10 secondi sul tuo campo preferito.",
+              "Modalità Re della Spiaggia 👑: Rotazione automatica delle coppie e calcolo game.",
+              "Divisione quote campo facile e immediata tra i 4 partecipanti.",
+              "Manca il 4° giocatore? Notifica automatica ai giocatori di pari livello.",
+            ],
+          ),
+          const TutorialItem(
+            icon: CupertinoIcons.calendar,
+            tag: "SCHEDA 4 · TORNEI",
+            title: "Tornei FITP, ITF & BeachScore 🏆",
+            subtitle: "Dall'amatoriale al circuito Pro",
+            bullets: [
+              "Calendario ufficiale: Filtra per categorie e date.",
+              "SOS Compagno 🚨: Trova un partner di doppio per i prossimi tornei.",
+              "BeachScore ⚖️: Segnapunti live a bordo campo con tie-break e statistiche.",
+              "Tabelloni live: Segui i risultati dei match punto per punto.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.person_rounded,
+            tag: "SCHEDA 5 · PROFILO & SUPPORTO",
+            title: "Profilo Giocatore & Supporto Ufficiale 💬",
+            subtitle: "La tua scheda e assistenza rapida",
+            bullets: [
+              "Imposta la tua classifica, tessera federale e circolo di allenamento.",
+              "Storico match: Vittorie, percentuale di successo e crescita del livello.",
+              "Chat con il Supporto Ufficiale 💬: Scrivici quando vuoi per qualsiasi aiuto.",
+              "Condividi l'app con i tuoi compagni di spiaggia!",
+            ],
+          ),
         ];
 
       case 'fr':
       default:
         return [
-          {
-            'icon': Icons.sports_tennis_rounded,
-            'title': "Bienvenue !",
-            'subtitle': "La communauté n°1 du Beach Tennis",
-            'description': "Bienvenue sur BeachMatch ! Trouvez des terrains, organisez vos matchs entre passionnés et suivez la compétition officielle."
-          },
-          {
-            'icon': CupertinoIcons.map_fill,
-            'title': "Carte & Spots Plage",
-            'subtitle': "Terrains gratuits & Clubs",
-            'description': "Découvrez les terrains gratuits sur le sable ou les clubs officiels éclairés avec météo marine en temps réel et itinéraires."
-          },
-          {
-            'icon': Icons.groups_rounded,
-            'title': "Organisez vos Matchs",
-            'subtitle': "Parties amicales & Défis",
-            'description': "Créez une partie en sélectionnant votre terrain en un clic, invitez vos partenaires, validez vos scores et progressez dans l'arène."
-          },
-          {
-            'icon': CupertinoIcons.calendar,
-            'title': "Tournois Homologués FFT & ITF",
-            'subtitle': "Du BT 25 au circuit Pro",
-            'description': "Consultez le calendrier officiel, lancez un 'SOS Partenaire' pour trouver un binôme et inscrivez votre équipe."
-          },
-          {
-            'icon': Icons.sports_rounded,
-            'title': "Live Scoring & Arbitrage",
-            'subtitle': "Suivi point par point",
-            'description': "Arbitrez facilement vos rencontres au bord du filet : scores en direct, tie-break, super tie-break et statistiques de jeu."
-          },
-          {
-            'icon': Icons.emoji_events_rounded,
-            'title': "Classement & Tavernes",
-            'subtitle': "Joueurs & Clubs Officiels",
-            'description': "Accédez au classement officiel de tous les compétiteurs et échangez dans la Taverne interactive de votre club."
-          },
+          const TutorialItem(
+            icon: Icons.sports_tennis_rounded,
+            tag: "👋 BIENVENUE",
+            title: "BeachMatch France ☀️",
+            subtitle: "La plateforme n°1 des passionnés de Beach Tennis",
+            bullets: [
+              "Bienvenue sur l'application incontournable pour jouer et progresser.",
+              "Trouvez tous les terrains sur sable et clubs officiels en France et Outre-Mer.",
+              "Connectez-vous avec des partenaires de votre niveau en quelques secondes.",
+              "Suivez les tournois homologués FFT (BT 25 à BT 2000) et le circuit ITF.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.home_rounded,
+            tag: "ONGLET 1 · ACCUEIL",
+            title: "Fil d'Actualités & Matchs du Jour 🏠",
+            subtitle: "Toute l'effervescence du sable en temps réel",
+            bullets: [
+              "Statut 'Recherche un partenaire' : Activez-le pour être invité à jouer aujourd'hui.",
+              "Matchs du jour : Rejoignez les parties organisées près de chez vous.",
+              "Raccourcis instantanés : Créez une partie ou trouvez des joueurs en 1 clic.",
+              "Fil communautaire : Partagez vos photos, scores et actus de clubs.",
+            ],
+          ),
+          const TutorialItem(
+            icon: CupertinoIcons.map_fill,
+            tag: "ONGLET 2 · CARTE & SPOTS",
+            title: "Carte des Terrains & Météo Vent 🏖️",
+            subtitle: "Des centaines de terrains sur le sable",
+            bullets: [
+              "Localisation GPS précise : Terrains gratuits en bord de mer et clubs éclairés.",
+              "Météo marine en direct : Vent en nœuds et température avant de chausser vos chaussettes de plage.",
+              "Itinéraire direct vers le spot via Waze ou Google Maps.",
+              "Informations complètes : Filets en place, éclairage nocturne et sable.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.groups_rounded,
+            tag: "ONGLET 3 · MATCHS",
+            title: "Organisez vos Matchs & Roi du Terrain 🎾",
+            subtitle: "Fini les discussions interminables sur les groupes de messagerie",
+            bullets: [
+              "Planifiez une partie sur votre spot en 10 secondes chrono.",
+              "Mode Roi du Terrain 👑 : Rotation automatique des paires et calcul des jeux.",
+              "Partage des frais de location de terrain transparent entre les 4 joueurs.",
+              "Il manque un 4ème ? BeachMatch alerte automatiquement les joueurs du même niveau.",
+            ],
+          ),
+          const TutorialItem(
+            icon: CupertinoIcons.calendar,
+            tag: "ONGLET 4 · TOURNOIS",
+            title: "Tournois Homologués & BeachScore 🏆",
+            subtitle: "Du BT 25 au circuit professionnel ITF",
+            bullets: [
+              "Calendrier FFT & ITF : Filtrez par catégorie de tournoi et par région.",
+              "SOS Partenaire 🚨 : Trouvez un binôme pour vous inscrire en tournoi.",
+              "BeachScore ⚖️ : Feuille de match et arbitrage en direct point par point au filet.",
+              "Tableaux en direct : Suivez l'avancement des rencontres en temps réel.",
+            ],
+          ),
+          const TutorialItem(
+            icon: Icons.person_rounded,
+            tag: "ONGLET 5 · PROFIL & SUPPORT",
+            title: "Votre Profil Joueur & Support Officiel 💬",
+            subtitle: "Votre passeport sportif et écoute permanente",
+            bullets: [
+              "Indiquez votre classement FFT officiel, numéro de licence et club habituel.",
+              "Statistiques & Historique : Suivez votre ratio de victoires et vos progrès.",
+              "Chat Support Officiel 💬 : Écrivez-nous à tout moment dans le chat pour la moindre question.",
+              "Partagez l'application avec vos partenaires d'entraînement !",
+            ],
+          ),
         ];
     }
   }
@@ -250,9 +448,22 @@ class _TutorialScreenState extends State<TutorialScreen> {
     super.dispose();
   }
 
-  Future<void> _completeTutorial() async {
+  Future<void> _completeTutorial({bool openProfileEdit = false}) async {
     try {
-      await context.read<AppState>().markTutorialAsSeen();
+      if (widget.isReplay) {
+        if (mounted) Navigator.of(context).pop();
+      } else {
+        await context.read<AppState>().markTutorialAsSeen();
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      }
+
+      if (openProfileEdit && mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -273,43 +484,63 @@ class _TutorialScreenState extends State<TutorialScreen> {
     }
   }
 
+  void _prevPage() {
+    if (_currentPage > 0) {
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeInOutCubic,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final lang = _detectLanguage(context);
     final pages = _getLocalizedPages(lang);
+    final isBrazilian = lang == 'pt';
 
     final guideTitle = lang == 'pt'
-        ? "BeachMatch Guia"
+        ? "Tour BeachMatch 🇧🇷"
         : (lang == 'es'
             ? "Guía BeachMatch"
             : (lang == 'it'
                 ? "Guida BeachMatch"
-                : (lang == 'en' ? "BeachMatch Guide" : "Guide BeachMatch")));
+                : (lang == 'en' ? "BeachMatch Tour" : "Guide BeachMatch")));
 
-    final skipLabel = lang == 'pt'
-        ? "Pular"
-        : (lang == 'es'
-            ? "Saltar"
-            : (lang == 'it' ? "Salta" : (lang == 'en' ? "Skip" : "Passer")));
+    final skipLabel = widget.isReplay
+        ? (lang == 'pt' ? "Fechar" : (lang == 'en' ? "Close" : "Fermer"))
+        : (lang == 'pt' ? "Pular" : (lang == 'es' ? "Saltar" : (lang == 'it' ? "Salta" : (lang == 'en' ? "Skip" : "Passer"))));
 
     final nextLabel = lang == 'pt'
-        ? "Próximo"
+        ? "Avançar"
         : (lang == 'es'
             ? "Siguiente"
             : (lang == 'it' ? "Avanti" : (lang == 'en' ? "Next" : "Suivant")));
 
-    final startLabel = lang == 'pt'
-        ? "Vamos lá ! 🚀"
+    final backLabel = lang == 'pt'
+        ? "Voltar"
         : (lang == 'es'
-            ? "¡Vamos! 🚀"
+            ? "Volver"
+            : (lang == 'it' ? "Indietro" : (lang == 'en' ? "Back" : "Retour")));
+
+    final startLabel = lang == 'pt'
+        ? "Começar a Jogar! 🚀"
+        : (lang == 'es'
+            ? "¡Vamos a Jugar! 🚀"
             : (lang == 'it'
-                ? "Cominciamo! 🚀"
-                : (lang == 'en' ? "Let's Go! 🚀" : "C'est parti ! 🚀")));
+                ? "Inizia a Giocare! 🚀"
+                : (lang == 'en' ? "Start Playing! 🚀" : "C'est parti ! 🚀")));
+
+    final configProfileLabel = lang == 'pt'
+        ? "Configurar Categoria CBT 🇧🇷"
+        : (lang == 'en' ? "Edit Player Profile 🎾" : "Compléter mon Profil 🎾");
+
+    final isLastPage = _currentPage == pages.length - 1;
 
     return Scaffold(
       body: Stack(
         children: [
-          // Background Image
+          // Background Image with dark overlay
           Positioned.fill(
             child: Image.asset(
               'assets/images/beach_sunset_players_1785052273648.jpg',
@@ -318,40 +549,64 @@ class _TutorialScreenState extends State<TutorialScreen> {
             ),
           ),
           Positioned.fill(
-            child: Container(color: Colors.black.withValues(alpha: 0.58)),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.65),
+                    Colors.black.withValues(alpha: 0.78),
+                    Colors.black.withValues(alpha: 0.88),
+                  ],
+                ),
+              ),
+            ),
           ),
 
           SafeArea(
             child: Column(
               children: [
-                // Top Bar with Skip button
+                // Top Bar with branding & Skip/Close button
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.sports_tennis, color: AppColors.gold, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            guideTitle,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              letterSpacing: 0.5,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.sports_tennis, color: AppColors.gold, size: 18),
+                            const SizedBox(width: 6),
+                            Text(
+                              guideTitle,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                letterSpacing: 0.5,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                      TextButton(
-                        onPressed: _completeTutorial,
+                      TextButton.icon(
+                        onPressed: () => _completeTutorial(),
                         style: TextButton.styleFrom(
                           foregroundColor: Colors.white70,
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          backgroundColor: Colors.white.withValues(alpha: 0.08),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: Text(skipLabel, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                        icon: Icon(widget.isReplay ? Icons.close_rounded : Icons.fast_forward_rounded, size: 16),
+                        label: Text(skipLabel, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                       ),
                     ],
                   ),
@@ -369,97 +624,148 @@ class _TutorialScreenState extends State<TutorialScreen> {
                     itemCount: pages.length,
                     itemBuilder: (context, index) {
                       final page = pages[index];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             // Glass Icon Container with Glow
                             ClipRRect(
-                              borderRadius: BorderRadius.circular(44),
+                              borderRadius: BorderRadius.circular(38),
                               child: BackdropFilter(
                                 filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                                 child: Container(
-                                  padding: const EdgeInsets.all(26),
+                                  padding: const EdgeInsets.all(20),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.12),
+                                    color: Colors.white.withValues(alpha: 0.14),
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: AppColors.gold.withValues(alpha: 0.6),
+                                      color: AppColors.gold.withValues(alpha: 0.7),
                                       width: 2,
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppColors.gold.withValues(alpha: 0.3),
+                                        color: AppColors.gold.withValues(alpha: 0.35),
                                         blurRadius: 20,
                                         spreadRadius: 2,
                                       )
                                     ],
                                   ),
                                   child: Icon(
-                                    page['icon'] as IconData,
-                                    size: 58,
+                                    page.icon,
+                                    size: 46,
                                     color: AppColors.gold,
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 32),
+                            const SizedBox(height: 18),
 
                             // Glass Card with Content
                             ClipRRect(
-                              borderRadius: BorderRadius.circular(28),
+                              borderRadius: BorderRadius.circular(26),
                               child: BackdropFilter(
                                 filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+                                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 22),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF0F1B29).withValues(alpha: 0.75),
-                                    borderRadius: BorderRadius.circular(28),
+                                    color: const Color(0xFF0F1B29).withValues(alpha: 0.82),
+                                    borderRadius: BorderRadius.circular(26),
                                     border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.2),
+                                      color: Colors.white.withValues(alpha: 0.22),
                                       width: 1.2,
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.35),
+                                        color: Colors.black.withValues(alpha: 0.45),
                                         blurRadius: 25,
                                         offset: const Offset(0, 10),
                                       ),
                                     ],
                                   ),
                                   child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
                                     children: [
+                                      // Tab Tag Badge
+                                      Align(
+                                        alignment: Alignment.center,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primary.withValues(alpha: 0.25),
+                                            borderRadius: BorderRadius.circular(20),
+                                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+                                          ),
+                                          child: Text(
+                                            page.tag,
+                                            style: const TextStyle(
+                                              color: AppColors.primary,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 1.0,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+
+                                      // Title
                                       Text(
-                                        page['title'] as String,
+                                        page.title,
                                         style: const TextStyle(
-                                          fontSize: 24,
+                                          fontSize: 22,
                                           fontWeight: FontWeight.w900,
                                           color: Colors.white,
-                                          letterSpacing: 0.5,
+                                          letterSpacing: 0.4,
                                         ),
                                         textAlign: TextAlign.center,
                                       ),
-                                      const SizedBox(height: 6),
+                                      const SizedBox(height: 4),
+
+                                      // Subtitle
                                       Text(
-                                        page['subtitle'] as String,
+                                        page.subtitle,
                                         style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w700,
                                           color: AppColors.coral,
                                         ),
                                         textAlign: TextAlign.center,
                                       ),
                                       const SizedBox(height: 16),
-                                      Text(
-                                        page['description'] as String,
-                                        style: const TextStyle(
-                                          fontSize: 14.5,
-                                          height: 1.5,
-                                          color: Colors.white70,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
+
+                                      // Bullets
+                                      ...page.bullets.map((bullet) {
+                                        return Padding(
+                                          padding: const EdgeInsets.only(bottom: 10.0),
+                                          child: Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Container(
+                                                margin: const EdgeInsets.only(top: 3),
+                                                width: 7,
+                                                height: 7,
+                                                decoration: const BoxDecoration(
+                                                  color: AppColors.gold,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Expanded(
+                                                child: Text(
+                                                  bullet,
+                                                  style: const TextStyle(
+                                                    fontSize: 13.5,
+                                                    height: 1.42,
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.w400,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }),
                                     ],
                                   ),
                                 ),
@@ -472,11 +778,12 @@ class _TutorialScreenState extends State<TutorialScreen> {
                   ),
                 ),
 
-                // Indicators & Action Button
+                // Indicators & Action Buttons
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 16.0),
                   child: Column(
                     children: [
+                      // Dots Indicator
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(
@@ -484,8 +791,8 @@ class _TutorialScreenState extends State<TutorialScreen> {
                           (index) => AnimatedContainer(
                             duration: const Duration(milliseconds: 250),
                             margin: const EdgeInsets.symmetric(horizontal: 4),
-                            height: 7,
-                            width: _currentPage == index ? 26 : 7,
+                            height: 6,
+                            width: _currentPage == index ? 24 : 6,
                             decoration: BoxDecoration(
                               color: _currentPage == index ? AppColors.gold : Colors.white24,
                               borderRadius: BorderRadius.circular(4),
@@ -493,31 +800,111 @@ class _TutorialScreenState extends State<TutorialScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: ElevatedButton(
-                          onPressed: () => _nextPage(pages.length),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.coral,
-                            foregroundColor: Colors.white,
-                            elevation: 8,
-                            shadowColor: AppColors.coral.withValues(alpha: 0.5),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                      const SizedBox(height: 16),
+
+                      // Bottom buttons row
+                      if (isLastPage) ...[
+                        if (isBrazilian) ...[
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _completeTutorial(openProfileEdit: true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF009C3B), // Green Brazil
+                                foregroundColor: Colors.white,
+                                elevation: 6,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              icon: const Icon(Icons.badge_outlined, size: 20),
+                              label: Text(
+                                configProfileLabel,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
                             ),
                           ),
-                          child: Text(
-                            _currentPage == pages.length - 1 ? startLabel : nextLabel,
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.8,
+                          const SizedBox(height: 10),
+                        ],
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: () => _completeTutorial(),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.coral,
+                              foregroundColor: Colors.white,
+                              elevation: 6,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: Text(
+                              startLabel,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.6,
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ] else ...[
+                        Row(
+                          children: [
+                            if (_currentPage > 0) ...[
+                              SizedBox(
+                                height: 50,
+                                child: OutlinedButton.icon(
+                                  onPressed: _prevPage,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
+                                  label: Text(backLabel, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                            Expanded(
+                              child: SizedBox(
+                                height: 50,
+                                child: ElevatedButton.icon(
+                                  onPressed: () => _nextPage(pages.length),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.coral,
+                                    foregroundColor: Colors.white,
+                                    elevation: 6,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  label: Text(
+                                    nextLabel,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                  iconAlignment: IconAlignment.end,
+                                  icon: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
