@@ -1,0 +1,43 @@
+name: Build iOS IPA (TestFlight Ready)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Flutter iOS IPA
+    runs-on: macos-14
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: 🐦 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: 📦 Install Flutter Dependencies
+        run: flutter pub get
+
+      - name: 🍎 Install CocoaPods
+        run: |
+          cd ios
+          pod install --repo-update
+
+      - name: 🔨 Build iOS IPA (Release)
+        run: |
+          flutter build ipa --release --no-codesign
+
+      - name: 🚀 Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: BeachMatch-iOS-Build
+          path: build/ios/archive/
