@@ -6,22 +6,24 @@ on:
 jobs:
   build:
     name: Build & Deploy iOS
-    runs-on: macos-14
+    runs-on: macos-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🍏 Select Latest Xcode (Xcode 16+)
+      - name: 🍏 List and Select Latest Xcode
         run: |
-          echo "Available Xcode installations:"
+          echo "Operating System Info:"
+          sw_vers
+          echo "Available Xcode installations in /Applications:"
           ls -d /Applications/Xcode*.app 2>/dev/null || true
-          XCODE_APP=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -n 1)
-          if [ -n "$XCODE_APP" ]; then
-            echo "Selecting $XCODE_APP"
-            sudo xcode-select -s "$XCODE_APP/Contents/Developer"
-          else
-            echo "Xcode 16 not found, staying with default"
+          
+          # Select newest Xcode available
+          LATEST_XCODE=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -n 1)
+          if [ -n "$LATEST_XCODE" ]; then
+            echo "Selecting $LATEST_XCODE"
+            sudo xcode-select -s "$LATEST_XCODE/Contents/Developer"
           fi
           echo "Selected Xcode version:"
           xcodebuild -version
