@@ -2,6 +2,13 @@ name: Build & Upload iOS to App Store Connect
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ios/**'
+      - 'pubspec.yaml'
+      - '.github/workflows/build_ios.yml'
 
 jobs:
   build:
