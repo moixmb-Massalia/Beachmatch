@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -107,11 +108,19 @@ class BeachMatchApp extends StatefulWidget {
 
 class _BeachMatchAppState extends State<BeachMatchApp> {
   late final Stream<User?> _authStream;
+  bool _splashDelayCompleted = false;
 
   @override
   void initState() {
     super.initState();
     _authStream = FirebaseAuth.instance.authStateChanges();
+    Future.delayed(const Duration(milliseconds: 1400), () {
+      if (mounted) {
+        setState(() {
+          _splashDelayCompleted = true;
+        });
+      }
+    });
     if (!kIsWeb) {
       try {
         // Listen to foreground messages
@@ -286,12 +295,107 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
     );
   }
 
+  Widget _buildStartupSplashScreen() {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F141E),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            'assets/images/beach_sunset_players_1785052273648.jpg',
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF0A101A).withValues(alpha: 0.72),
+                  const Color(0xFF0F172A).withValues(alpha: 0.85),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+          Center(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 28),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F1928).withValues(alpha: 0.82),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: AppColors.gold.withValues(alpha: 0.35), width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        blurRadius: 40,
+                        offset: const Offset(0, 15),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Image.asset(
+                          'assets/images/app_icon.jpg',
+                          width: 90,
+                          height: 90,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.sports_tennis, size: 60, color: AppColors.coral),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        "BEACHMATCH",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        "BEACH TENNIS PLATFORM",
+                        style: TextStyle(
+                          color: AppColors.gold,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2.2,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF00D2FF),
+                          strokeWidth: 2.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentLocale = context.select<AppState, Locale?>((s) => s.currentLocale);
     return MaterialApp(
       navigatorKey: navigatorKey,
-      title: 'BeachMatch',
+      title: 'BeachMatch Tennis',
       debugShowCheckedModeBanner: false,
       locale: currentLocale,
       localizationsDelegates: const [
@@ -356,13 +460,8 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
       home: StreamBuilder<User?>(
         stream: _authStream,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              backgroundColor: Color(0xFF0F141E),
-              body: Center(
-                child: CircularProgressIndicator(color: AppColors.coral),
-              ),
-            );
+          if (!_splashDelayCompleted || snapshot.connectionState == ConnectionState.waiting) {
+            return _buildStartupSplashScreen();
           }
           if (snapshot.hasData) {
             return const MainNavigationScreen();

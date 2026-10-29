@@ -15,7 +15,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" tools:node="remove" />
     <application
-        android:label="BeachMatch"
+        android:label="BeachMatch Tennis"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
