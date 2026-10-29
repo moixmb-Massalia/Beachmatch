@@ -9,30 +9,29 @@ jobs:
     runs-on: macos-14
 
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: ☕ Setup Java
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 🐦 Setup Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      - name: 🔐 Install Apple Certificate and Provisioning Profile
+      - name: Install Apple Certificate and Provisioning Profile
         env:
           CERTIFICATE_KEY_BASE64: ${{ secrets.CERTIFICATE_KEY_BASE64 }}
           CERTIFICATE_CER_BASE64: ${{ secrets.CERTIFICATE_CER_BASE64 }}
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || 'temporary_keychain_password' }}
+          KEYCHAIN_PASSWORD: "temporary_keychain_password_2026"
         run: |
-          # Create paths
           KEY_PATH=$RUNNER_TEMP/private.key
           CER_PATH=$RUNNER_TEMP/distribution.cer
           PEM_PATH=$RUNNER_TEMP/distribution.pem
@@ -40,51 +39,54 @@ jobs:
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
-          # Decode private key and Apple DER certificate
           echo -n "$CERTIFICATE_KEY_BASE64" | base64 --decode -o $KEY_PATH
           echo -n "$CERTIFICATE_CER_BASE64" | base64 --decode -o $CER_PATH
           echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
 
-          # Convert DER cert to PEM format
           openssl x509 -inform DER -in $CER_PATH -out $PEM_PATH
+          openssl pkcs12 -export -inkey $KEY_PATH -in $PEM_PATH -out $P12_PATH -passout pass:"$P12_PASSWORD"
 
-          # Export PKCS12 using macOS native OpenSSL/LibreSSL (guarantees Apple keychain compatibility)
-          openssl pkcs12 -export \
-            -inkey $KEY_PATH \
-            -in $PEM_PATH \
-            -out $P12_PATH \
-            -passout pass:"$P12_PASSWORD"
-
-          # Create temporary keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-
-          # Import certificate to keychain
           security import $P12_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
 
-          # Apply provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/9bed1ba2-7e5d-49fa-a446-0436708bbc6c.mobileprovision
+          echo "Certificate and provisioning profile installed successfully."
 
-      - name: 📦 Install Flutter Dependencies
+      - name: Create required build directories
+        run: |
+          mkdir -p build/ios/SourcePackages
+          mkdir -p build/ios/ipa
+
+      - name: Install Flutter Dependencies
         run: flutter pub get
 
-      - name: 🍎 Install CocoaPods
+      - name: Install CocoaPods
         run: |
           cd ios
           pod install --repo-update
 
-      - name: 🔨 Build iOS IPA (App Store Signed)
+      - name: Build iOS IPA
         run: |
           flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
-          IPA_FILE=$(find build/ios/ipa -name "*.ipa" | head -n 1)
-          echo "Found IPA: $IPA_FILE"
-          echo "IPA_FILE_PATH=$IPA_FILE" >> $GITHUB_ENV
+          echo "Build complete. Looking for IPA..."
+          find build -name "*.ipa" || true
 
-      - name: 🚀 Upload to App Store Connect / TestFlight
+      - name: Find IPA path
+        run: |
+          IPA_PATH=$(find build/ios/ipa -name "*.ipa" 2>/dev/null | head -n 1)
+          if [ -z "$IPA_PATH" ]; then
+            echo "No IPA found in build/ios/ipa, searching wider..."
+            IPA_PATH=$(find build -name "*.ipa" 2>/dev/null | head -n 1)
+          fi
+          echo "IPA_FILE_PATH=$IPA_PATH" >> $GITHUB_ENV
+          echo "Found IPA at: $IPA_PATH"
+
+      - name: Upload to App Store Connect via TestFlight
         uses: apple-actions/upload-testflight-build@v1
         with:
           app-path: ${{ env.IPA_FILE_PATH }}
@@ -92,9 +94,10 @@ jobs:
           api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
           api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
 
-      - name: 💾 Save IPA Artifact
+      - name: Save IPA as GitHub Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: BeachMatch-iOS-IPA
           path: build/ios/ipa/
+          if-no-files-found: warn
