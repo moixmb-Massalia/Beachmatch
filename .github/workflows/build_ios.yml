@@ -1,11 +1,11 @@
-name: Build iOS IPA (TestFlight Ready)
+name: Build & Upload iOS to App Store Connect
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build Flutter iOS IPA
+    name: Build & Deploy iOS
     runs-on: macos-14
 
     steps:
@@ -24,6 +24,36 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: 🔐 Install Apple Certificate and Provisioning Profile
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || 'temporary_keychain_password' }}
+        run: |
+          # Create variables
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # Import certificate and provisioning profile from secrets
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Import certificate to keychain
+          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          # Apply provisioning profile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/9bed1ba2-7e5d-49fa-a446-0436708bbc6c.mobileprovision
+
       - name: 📦 Install Flutter Dependencies
         run: flutter pub get
 
@@ -32,12 +62,21 @@ jobs:
           cd ios
           pod install --repo-update
 
-      - name: 🔨 Build iOS IPA (Release)
+      - name: 🔨 Build iOS IPA (App Store Signed)
         run: |
-          flutter build ipa --release --no-codesign
+          flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
 
-      - name: 🚀 Upload Build Artifacts
+      - name: 🚀 Upload to App Store Connect / TestFlight
+        uses: apple-actions/upload-testflight-build@v1
+        with:
+          app-path: 'build/ios/ipa/*.ipa'
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+
+      - name: 💾 Save IPA Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: BeachMatch-iOS-Build
-          path: build/ios/archive/
+          name: BeachMatch-iOS-IPA
+          path: build/ios/ipa/
