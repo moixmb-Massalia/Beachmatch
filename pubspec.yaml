@@ -2,7 +2,7 @@ name: beachmatch_mobile
 description: A new Flutter project for BeachMatch.
 publish_to: 'none'
 
-version: 1.0.84+184
+version: 1.0.89+189
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -56,15 +56,21 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
+  web: false
   image_path: "C:\\Users\\Medha\\.gemini\\antigravity\\brain\\df77c3d2-ff8d-4da1-bda8-3589d424880d\\icon_cropped.png"
   adaptive_icon_background: "#212121"
   adaptive_icon_foreground: "C:\\Users\\Medha\\.gemini\\antigravity\\brain\\df77c3d2-ff8d-4da1-bda8-3589d424880d\\icon_cropped.png"
 
 flutter_native_splash:
-  color: "#212121"
-  image: "C:\\Users\\Medha\\.gemini\\antigravity\\brain\\df77c3d2-ff8d-4da1-bda8-3589d424880d\\icon_cropped.png"
+  color: "#0F141E"
+  background_image: "assets/images/splash_bg.png"
+  image: "assets/images/icon_cropped.png"
   android: true
   ios: true
+  web: false
+  android_12:
+    color: "#0F141E"
+    image: "assets/images/icon_cropped.png"
 
 flutter:
   generate: true
