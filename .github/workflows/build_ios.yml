@@ -39,6 +39,10 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: 🛑 Disable Flutter Swift Package Manager
+        run: |
+          flutter config --no-enable-swift-package-manager
+
       - name: Install Apple Certificate and Provisioning Profile
         env:
           CERTIFICATE_KEY_BASE64: ${{ secrets.CERTIFICATE_KEY_BASE64 }}
