@@ -26,19 +26,34 @@ jobs:
 
       - name: 🔐 Install Apple Certificate and Provisioning Profile
         env:
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          CERTIFICATE_KEY_BASE64: ${{ secrets.CERTIFICATE_KEY_BASE64 }}
+          CERTIFICATE_CER_BASE64: ${{ secrets.CERTIFICATE_CER_BASE64 }}
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || 'temporary_keychain_password' }}
         run: |
-          # Create variables
-          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          # Create paths
+          KEY_PATH=$RUNNER_TEMP/private.key
+          CER_PATH=$RUNNER_TEMP/distribution.cer
+          PEM_PATH=$RUNNER_TEMP/distribution.pem
+          P12_PATH=$RUNNER_TEMP/build_certificate.p12
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
-          # Import certificate and provisioning profile from secrets
-          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          # Decode private key and Apple DER certificate
+          echo -n "$CERTIFICATE_KEY_BASE64" | base64 --decode -o $KEY_PATH
+          echo -n "$CERTIFICATE_CER_BASE64" | base64 --decode -o $CER_PATH
           echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+
+          # Convert DER cert to PEM format
+          openssl x509 -inform DER -in $CER_PATH -out $PEM_PATH
+
+          # Export PKCS12 using macOS native OpenSSL/LibreSSL (guarantees Apple keychain compatibility)
+          openssl pkcs12 -export \
+            -inkey $KEY_PATH \
+            -in $PEM_PATH \
+            -out $P12_PATH \
+            -passout pass:"$P12_PASSWORD"
 
           # Create temporary keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
@@ -46,7 +61,7 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
           # Import certificate to keychain
-          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security import $P12_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
 
@@ -65,11 +80,14 @@ jobs:
       - name: 🔨 Build iOS IPA (App Store Signed)
         run: |
           flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+          IPA_FILE=$(find build/ios/ipa -name "*.ipa" | head -n 1)
+          echo "Found IPA: $IPA_FILE"
+          echo "IPA_FILE_PATH=$IPA_FILE" >> $GITHUB_ENV
 
       - name: 🚀 Upload to App Store Connect / TestFlight
         uses: apple-actions/upload-testflight-build@v1
         with:
-          app-path: 'build/ios/ipa/*.ipa'
+          app-path: ${{ env.IPA_FILE_PATH }}
           issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
           api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
           api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
