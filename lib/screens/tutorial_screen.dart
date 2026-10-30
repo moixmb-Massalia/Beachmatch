@@ -36,6 +36,16 @@ class _TutorialScreenState extends State<TutorialScreen> {
 
   String _detectLanguage(BuildContext context) {
     final appState = context.watch<AppState>();
+    // 1. Explicit app locale chosen by user in settings
+    if (appState.currentLocale != null) {
+      final code = appState.currentLocale!.languageCode.toLowerCase();
+      if (['pt', 'it', 'es', 'fr', 'en'].contains(code)) return code;
+    }
+    final activeLoc = Localizations.maybeLocaleOf(context);
+    if (activeLoc != null && ['pt', 'it', 'es', 'fr', 'en'].contains(activeLoc.languageCode.toLowerCase())) {
+      return activeLoc.languageCode.toLowerCase();
+    }
+    // 2. User profile country / isBrazilian
     final user = appState.currentUser;
     if (user != null && (user.isBrazilian || user.country.toUpperCase() == 'BR')) {
       return 'pt';
@@ -46,12 +56,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
       if (c == 'ES') return 'es';
       if (c == 'FR' || c == 'RE' || c == 'ANT') return 'fr';
     }
-    if (appState.currentLocale != null) {
-      final code = appState.currentLocale!.languageCode.toLowerCase();
-      if (['pt', 'it', 'es', 'fr', 'en'].contains(code)) return code;
-    }
-    final devLocale = Localizations.maybeLocaleOf(context) ??
-        WidgetsBinding.instance.platformDispatcher.locale;
+    final devLocale = WidgetsBinding.instance.platformDispatcher.locale;
     final devLang = devLocale.languageCode.toLowerCase();
     if (['pt', 'it', 'es', 'fr', 'en'].contains(devLang)) return devLang;
     return 'en';
@@ -454,9 +459,6 @@ class _TutorialScreenState extends State<TutorialScreen> {
         if (mounted) Navigator.of(context).pop();
       } else {
         await context.read<AppState>().markTutorialAsSeen();
-        if (mounted && Navigator.of(context).canPop()) {
-          Navigator.of(context).pop();
-        }
       }
 
       if (openProfileEdit && mounted) {

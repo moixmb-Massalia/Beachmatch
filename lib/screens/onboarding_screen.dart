@@ -446,7 +446,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 }
                                 
                                 if (context.mounted) {
-                                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const MainNavigationScreen()));
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
+                                    (route) => false,
+                                  );
                                 }
                               } catch (e) {
                                 if (context.mounted) {
