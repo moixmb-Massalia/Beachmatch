@@ -31,8 +31,10 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKee
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final user = context.read<AppState>().currentUser;
-      if (user != null && user.isBrazilian) {
+      final appState = context.read<AppState>();
+      final user = appState.currentUser;
+      final isPt = appState.currentLocale?.languageCode == 'pt';
+      if ((user != null && user.isBrazilian) || isPt) {
         setState(() {
           _selectedCircuit = 1;
         });
@@ -92,8 +94,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKee
 
     final Map<String, Map<String, dynamic>> resultMap = {};
     void addCandidate(Map<String, dynamic> data, String docId) {
-      if (data['gender'] != null && data['gender'] != gender) return;
-
+      // Inclusif : Accepte tous les joueurs Hommes et Femmes correspondant a la recherche
       final fName = (data['firstName'] ?? '').toString().trim();
       final lName = (data['lastName'] ?? '').toString().trim();
       final rawName = (data['name'] ?? '$fName $lName').toString().trim();
@@ -115,7 +116,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKee
 
     final colName = _selectedCircuit == 1 ? 'itf_rankings' : 'fft_rankings';
 
-    // 1. Recherche directe par numéro de licence / rang
+    // 1. Recherche directe par numero de licence ou identifiant
     if (digits.isNotEmpty) {
       if (_selectedCircuit == 0 && digits.length >= 3) {
         final doc = await FirebaseFirestore.instance.collection(colName).doc(digits).get();
@@ -127,7 +128,6 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKee
       final licSnap = await FirebaseFirestore.instance
           .collection(colName)
           .where('searchTokens', arrayContains: digits)
-          .where('gender', isEqualTo: gender)
           .limit(40)
           .get();
       for (var d in licSnap.docs) {
@@ -135,12 +135,11 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKee
       }
     }
 
-    // 2. Recherche rapide par searchTokens (insensible aux accents et à la casse)
+    // 2. Recherche par searchTokens sans restriction de genre (trouve H et F)
     for (var tok in tokens) {
       final snap = await FirebaseFirestore.instance
           .collection(colName)
           .where('searchTokens', arrayContains: tok)
-          .where('gender', isEqualTo: gender)
           .limit(80)
           .get();
       for (var d in snap.docs) {
@@ -148,7 +147,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKee
       }
     }
 
-    // 3. Fallback range queries si peu de résultats
+    // 3. Fallback range queries si necessaire (nom / prenom)
     if (resultMap.length < 10) {
       final upperQ = cleanQ.toUpperCase();
       final titleQ = cleanQ[0].toUpperCase() + cleanQ.substring(1).toLowerCase();
@@ -158,21 +157,18 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKee
             .collection(colName)
             .where('lastName', isGreaterThanOrEqualTo: upperQ)
             .where('lastName', isLessThanOrEqualTo: '$upperQ\uf8ff')
-            .where('gender', isEqualTo: gender)
             .limit(30)
             .get(),
         FirebaseFirestore.instance
             .collection(colName)
             .where('firstName', isGreaterThanOrEqualTo: upperQ)
             .where('firstName', isLessThanOrEqualTo: '$upperQ\uf8ff')
-            .where('gender', isEqualTo: gender)
             .limit(30)
             .get(),
         FirebaseFirestore.instance
             .collection(colName)
             .where('firstName', isGreaterThanOrEqualTo: titleQ)
             .where('firstName', isLessThanOrEqualTo: '$titleQ\uf8ff')
-            .where('gender', isEqualTo: gender)
             .limit(30)
             .get(),
       ]);
@@ -184,7 +180,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKee
       }
     }
 
-    // Filtrage multi-tokens en mémoire
+    // Filtrage multi-tokens en memoire pour precision maximale
     final filtered = resultMap.values.where((data) {
       if (tokens.isEmpty) return true;
       final f = _normalize((data['firstName'] ?? '').toString());
@@ -201,11 +197,17 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKee
           lic.contains(tok));
     }).toList();
 
+    // Tri prioritaire : d'abord le genre actif selectionne, puis le rang
     filtered.sort((a, b) {
       final aLic = (a['licenceNumber'] ?? '').toString();
       final bLic = (b['licenceNumber'] ?? '').toString();
       if (aLic == cleanQ && bLic != cleanQ) return -1;
       if (aLic != cleanQ && bLic == cleanQ) return 1;
+
+      final aGender = (a['gender'] ?? '').toString();
+      final bGender = (b['gender'] ?? '').toString();
+      if (aGender == gender && bGender != gender) return -1;
+      if (aGender != gender && bGender == gender) return 1;
 
       final rankA = _parseRank(a['rank'] ?? a['level']);
       final rankB = _parseRank(b['rank'] ?? b['level']);
@@ -220,7 +222,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKee
     super.build(context);
     final String currentGender = _selectedTabIndex == 0 ? 'M' : 'F';
     final user = context.watch<AppState>().currentUser;
-    final isBr = user?.isBrazilian == true;
+    final isBr = user?.isBrazilian == true || Localizations.localeOf(context).languageCode == 'pt';
 
     return Scaffold(
       body: Stack(
@@ -651,7 +653,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKee
     }
 
     if (uniqueItems.isEmpty) {
-      final isBr = Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian ?? false;
+      final isBr = (Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian ?? false) || Localizations.localeOf(context).languageCode == 'pt';
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -696,7 +698,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKee
       final last = (data['lastName'] ?? '').toString().trim();
       name = "$first $last".trim();
     }
-    final isBr = Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian ?? false;
+    final isBr = (Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian ?? false) || Localizations.localeOf(context).languageCode == 'pt';
     if (name.isEmpty) {
       name = isBr ? "Atleta Desconhecido" : "Joueur Inconnu";
     }
@@ -838,7 +840,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKee
     String flag,
     String nationality,
   ) {
-    final isBr = Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian ?? false;
+    final isBr = (Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian ?? false) || Localizations.localeOf(context).languageCode == 'pt';
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1101,7 +1103,7 @@ class _FftRankingsScreenState extends State<FftRankingsScreen> with AutomaticKee
   }
 
   Widget _buildEmptyState() {
-    final isBr = Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian ?? false;
+    final isBr = (Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian ?? false) || Localizations.localeOf(context).languageCode == 'pt';
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
