@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
@@ -34,6 +35,7 @@ class _MapScreenState extends State<MapScreen> {
   List<dynamic> _searchResults = [];
   bool _isSearching = false;
   bool _showListView = false;
+  bool _isDetailsOpen = false;
   MapType _currentMapType = MapType.normal;
   Timer? _searchDebounce;
   
@@ -64,6 +66,13 @@ class _MapScreenState extends State<MapScreen> {
         if (mounted) {
           setState(() => _currentCenter = userLatLng);
           _mapController?.animateCamera(CameraUpdate.newLatLngZoom(userLatLng, 14.5));
+        }
+        return;
+      }
+
+      if (kIsWeb) {
+        if (mounted && _currentCenter == null) {
+          setState(() => _currentCenter = fallbackCenter);
         }
         return;
       }
@@ -231,12 +240,7 @@ class _MapScreenState extends State<MapScreen> {
         position: LatLng(court.latitude, court.longitude),
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange), // Coral like color
         onTap: () {
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (context) => _buildCourtDetails(context, court),
-          );
+          _openCourtDetails(context, court);
         },
       );
     }).toSet();
@@ -339,12 +343,7 @@ class _MapScreenState extends State<MapScreen> {
                   controller.animateCamera(CameraUpdate.newLatLngZoom(target, 15.5));
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (mounted) {
-                      showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: true,
-                        backgroundColor: Colors.transparent,
-                        builder: (ctx) => _buildCourtDetails(ctx, widget.initialCourt!),
-                      );
+                      _openCourtDetails(context, widget.initialCourt!);
                     }
                   });
                 } else {
@@ -378,10 +377,13 @@ class _MapScreenState extends State<MapScreen> {
                         : _defaultWideZoom),
               ),
               markers: markers,
-              myLocationEnabled: true,
+              myLocationEnabled: !kIsWeb,
               myLocationButtonEnabled: false,
               mapToolbarEnabled: false,
               zoomControlsEnabled: false,
+              webGestureHandling: WebGestureHandling.cooperative,
+              scrollGesturesEnabled: !kIsWeb || !_isDetailsOpen,
+              zoomGesturesEnabled: !kIsWeb || !_isDetailsOpen,
               onCameraMove: (position) {
                 _currentCenter = position.target;
               },
@@ -496,12 +498,7 @@ class _MapScreenState extends State<MapScreen> {
                                 if (matchingCourts.isNotEmpty) {
                                   final court = matchingCourts.first;
                                   _goToLocation(court.latitude, court.longitude);
-                                  showModalBottomSheet(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    backgroundColor: Colors.transparent,
-                                    builder: (context) => _buildCourtDetails(context, court),
-                                  );
+                                  _openCourtDetails(context, court);
                                 } else {
                                   _searchExternalCity(query);
                                 }
@@ -751,12 +748,7 @@ class _MapScreenState extends State<MapScreen> {
                                       trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white38, size: 18),
                                       onTap: () {
                                         _goToLocation(court.latitude, court.longitude);
-                                        showModalBottomSheet(
-                                          context: context,
-                                          isScrollControlled: true,
-                                          backgroundColor: Colors.transparent,
-                                          builder: (context) => _buildCourtDetails(context, court),
-                                        );
+                                        _openCourtDetails(context, court);
                                       },
                                     );
                                   },
@@ -866,12 +858,7 @@ class _MapScreenState extends State<MapScreen> {
             ),
             child: InkWell(
               onTap: () {
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (ctx) => _buildCourtDetails(ctx, court),
-                );
+                _openCourtDetails(context, court);
               },
               borderRadius: BorderRadius.circular(18),
               child: Padding(
@@ -989,7 +976,38 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Widget _buildCourtDetails(BuildContext context, CourtModel court) {
+  void _openCourtDetails(BuildContext context, CourtModel court) {
+    if (kIsWeb) {
+      setState(() => _isDetailsOpen = true);
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        barrierColor: Colors.black.withValues(alpha: 0.65),
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 580,
+              maxHeight: MediaQuery.of(ctx).size.height * 0.88,
+            ),
+            child: _buildCourtDetails(ctx, court, isWebDialog: true),
+          ),
+        ),
+      ).then((_) {
+        if (mounted) setState(() => _isDetailsOpen = false);
+      });
+    } else {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => _buildCourtDetails(ctx, court, isWebDialog: false),
+      );
+    }
+  }
+
+  Widget _buildCourtDetails(BuildContext context, CourtModel court, {bool isWebDialog = false}) {
     // Flags
     final String flag = _getCourtFlag(court);
 
@@ -1017,7 +1035,7 @@ class _MapScreenState extends State<MapScreen> {
 
     return SafeArea(
       child: ClipRRect(
-        borderRadius: const BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
+        borderRadius: isWebDialog ? BorderRadius.circular(28) : const BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Container(
@@ -1027,7 +1045,7 @@ class _MapScreenState extends State<MapScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.88),
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
+              borderRadius: isWebDialog ? BorderRadius.circular(28) : const BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
               border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.5),
             ),
             child: SingleChildScrollView(
@@ -1035,13 +1053,35 @@ class _MapScreenState extends State<MapScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 5,
-                    decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(10)),
+                if (isWebDialog) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Text("FICHE SPOT BEACH TENNIS", style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                        onPressed: () => Navigator.pop(context),
+                        splashRadius: 20,
+                        tooltip: "Fermer",
+                      ),
+                    ],
                   ),
-                ),
+                ] else ...[
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 
                 // En-tête : Nom + Drapeau & Ville

@@ -208,29 +208,31 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
       }
     }
 
+    final isPt = Localizations.localeOf(context).languageCode == 'pt';
+
     // Calcul dynamique de l'état temporel & compte à rebours
-    String countdownText = "Bientôt";
+    String countdownText = isPt ? "Em breve" : "Bientôt";
     Color countdownColor = const Color(0xFF38BDF8);
     final start = widget.tournament.startDate;
     final end = widget.tournament.endDate ?? start;
     final now = DateTime.now();
 
     if (widget.tournament.isPassed) {
-      countdownText = "Terminé";
+      countdownText = isPt ? "Finalizado" : "Terminé";
       countdownColor = Colors.white54;
     } else if (start != null && end != null && now.isAfter(start) && now.isBefore(end.add(const Duration(days: 1)))) {
-      countdownText = "En direct 🔴";
+      countdownText = isPt ? "Ao vivo 🔴" : "En direct 🔴";
       countdownColor = const Color(0xFFEF4444);
     } else if (start != null) {
       final diffDays = start.difference(DateTime(now.year, now.month, now.day)).inDays;
       if (diffDays == 0) {
-        countdownText = "Aujourd'hui !";
+        countdownText = isPt ? "Hoje !" : "Aujourd'hui !";
         countdownColor = const Color(0xFF10B981);
       } else if (diffDays == 1) {
-        countdownText = "Demain !";
+        countdownText = isPt ? "Amanhã !" : "Demain !";
         countdownColor = AppColors.gold;
       } else if (diffDays > 1) {
-        countdownText = "J-$diffDays";
+        countdownText = isPt ? "D-$diffDays" : "J-$diffDays";
         countdownColor = AppColors.gold;
       }
     }
@@ -275,7 +277,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                 elevation: 0,
                 leading: IconButton(
                   icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-                  tooltip: "Retour",
+                  tooltip: isPt ? "Voltar" : "Retour",
                   onPressed: () => Navigator.pop(context),
                 ),
                 title: Text(
@@ -289,18 +291,18 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                     if ((FirebaseAuth.instance.currentUser?.email ?? '').toLowerCase().trim() == 'moixmb@gmail.com')
                       IconButton(
                         icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 22),
-                        tooltip: "Supprimer le tournoi",
+                        tooltip: isPt ? "Excluir torneio" : "Supprimer le tournoi",
                         onPressed: () => _confirmDeleteTournament(context),
                       ),
                     IconButton(
                       icon: const Icon(Icons.admin_panel_settings_rounded, color: AppColors.gold, size: 22),
-                      tooltip: "Gestion Tournoi",
+                      tooltip: isPt ? "Gerenciar Torneio" : "Gestion Tournoi",
                       onPressed: () => _showAdminManagementModal(context),
                     ),
                   ],
                   IconButton(
                     icon: const Icon(Icons.share_rounded, color: Colors.white, size: 22),
-                    tooltip: "Partager sur WhatsApp",
+                    tooltip: isPt ? "Compartilhar no WhatsApp" : "Partager sur WhatsApp",
                     onPressed: () {
                       HapticFeedback.lightImpact();
                       _shareTournament(widget.tournament);
@@ -856,6 +858,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
 
   /// 📋 ONGLET 1 : INFOS & INSCRIPTIONS
   Widget _buildInfosTab(BuildContext context, String locationWithDistance) {
+    final isPt = Localizations.localeOf(context).languageCode == 'pt';
     return Column(
       key: const ValueKey('tab_infos'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -876,13 +879,15 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "INSCRIPTIONS OUVERTES",
-                      style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                    Text(
+                      isPt ? "INSCRIÇÕES ABERTAS" : "INSCRIPTIONS OUVERTES",
+                      style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      "Pensez à contacter le JAT pour valider l'inscription de votre paire avant la clôture officielle.",
+                      isPt
+                          ? "Lembre-se de entrar em contato com a organização para confirmar sua inscrição antes do encerramento."
+                          : "Pensez à contacter le JAT pour valider l'inscription de votre paire avant la clôture officielle.",
                       style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12, height: 1.3),
                     ),
                   ],
@@ -979,7 +984,10 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
               backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.1),
             ),
             icon: const Icon(Icons.share_rounded, color: Color(0xFF25D366), size: 20),
-            label: const Text("Partager ce tournoi (WhatsApp / Amis)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            label: Text(
+              isPt ? "Compartilhar torneio (WhatsApp / Amigos)" : "Partager ce tournoi (WhatsApp / Amis)",
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
             onPressed: () => _shareTournament(widget.tournament),
           ),
         ),
@@ -988,8 +996,11 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   }
 
   Widget _buildJatClaimCard(BuildContext context) {
+    final isPt = Localizations.localeOf(context).languageCode == 'pt';
     final referee = widget.tournament.referee;
-    final displayName = referee != null && referee.trim().isNotEmpty ? referee : "Juge-Arbitre (JAT)";
+    final displayName = referee != null && referee.trim().isNotEmpty
+        ? referee
+        : (isPt ? "Árbitro Geral" : "Juge-Arbitre (JAT)");
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
@@ -1014,14 +1025,14 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
                     Text(
-                      "Juge-Arbitre Référent (JAT)",
-                      style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 12),
+                      isPt ? "Árbitro Geral (JAT)" : "Juge-Arbitre Référent (JAT)",
+                      style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 12),
                     ),
-                    SizedBox(width: 4),
-                    Icon(Icons.lock_outline, color: Colors.white54, size: 12),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.lock_outline, color: Colors.white54, size: 12),
                   ],
                 ),
                 Text(
@@ -1036,27 +1047,35 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
           const SizedBox(width: 8),
           OutlinedButton(
             onPressed: () {
-              final authEmail = FirebaseAuth.instance.currentUser?.email ?? 'Non connecté';
+              final authEmail = FirebaseAuth.instance.currentUser?.email ?? (isPt ? 'Não conectado' : 'Non connecté');
               showDialog(
                 context: context,
                 builder: (ctx) => AlertDialog(
                   backgroundColor: const Color(0xFF0F172A),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  title: const Row(
+                  title: Row(
                     children: [
-                      Icon(Icons.shield_outlined, color: AppColors.gold, size: 22),
-                      SizedBox(width: 8),
-                      Text("Accès JAT Protégé", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      const Icon(Icons.shield_outlined, color: AppColors.gold, size: 22),
+                      const SizedBox(width: 8),
+                      Text(
+                        isPt ? "Acesso de Árbitro Protegido" : "Accès JAT Protégé",
+                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
                   content: Text(
-                    "Ce tournoi est officiellement sous la responsabilité de $displayName.\n\nPour garantir l'intégrité de la compétition et respecter le règlement fédéral, seuls les Juges-Arbitres répertoriés dans notre base de données ont le droit de modifier, alimenter et arbitrer ce tournoi.\n\nCompte actuel : $authEmail\nSi vous êtes l'arbitre officiel, connectez-vous avec votre adresse email accréditée pour activer vos droits automatiquement.",
+                    isPt
+                        ? "Este torneio está oficialmente sob a responsabilidade de $displayName.\n\nPara garantir a integridade da competição e respeitar o regulamento, apenas árbitros credenciados em nossa base podem gerenciar este torneio.\n\nConta atual: $authEmail\nSe você é o árbitro oficial, faça login com seu e-mail cadastrado para ativar seu acesso automaticamente."
+                        : "Ce tournoi est officiellement sous la responsabilité de $displayName.\n\nPour garantir l'intégrité de la compétition et respecter le règlement fédéral, seuls les Juges-Arbitres répertoriés dans notre base de données ont le droit de modifier, alimenter et arbitrer ce tournoi.\n\nCompte actuel : $authEmail\nSi vous êtes l'arbitre officiel, connectez-vous avec votre adresse email accréditée pour activer vos droits automatiquement.",
                     style: const TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
-                      child: const Text("Compris", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        isPt ? "Entendido" : "Compris",
+                        style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ],
                 ),
@@ -1067,9 +1086,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Text(
-              "Infos JAT",
-              style: TextStyle(color: Colors.white70, fontSize: 11),
+            child: Text(
+              isPt ? "Info Árbitro" : "Infos JAT",
+              style: const TextStyle(color: Colors.white70, fontSize: 11),
             ),
           ),
         ],
@@ -1185,6 +1204,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
 
   /// 💬 ONGLET 3 : SALON & AMBIANCE DU TOURNOI
   Widget _buildChatTab(BuildContext context) {
+    final isPt = Localizations.localeOf(context).languageCode == 'pt';
     return Column(
       key: const ValueKey('tab_chat'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1197,19 +1217,21 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.photo_library_rounded, color: AppColors.gold, size: 20),
-                  SizedBox(width: 8),
+                  const Icon(Icons.photo_library_rounded, color: AppColors.gold, size: 20),
+                  const SizedBox(width: 8),
                   Text(
-                    "Photos & Ambiance du Tournoi",
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    isPt ? "Fotos e Momentos do Torneio" : "Photos & Ambiance du Tournoi",
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
-                "Partagez vos photos sur le sable, vos victoires et les temps forts du tournoi directement dans le salon !",
+                isPt
+                    ? "Compartilhe suas fotos na quadra, suas vitórias e os melhores momentos do torneio diretamente no chat!"
+                    : "Partagez vos photos sur le sable, vos victoires et les temps forts du tournoi directement dans le salon !",
                 style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12.5, height: 1.4),
               ),
               const SizedBox(height: 16),
@@ -1223,7 +1245,10 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   icon: const Icon(Icons.chat_bubble_rounded, size: 18),
-                  label: const Text("Ouvrir le Salon de Discussion", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                  label: Text(
+                    isPt ? "Abrir o Chat do Torneio" : "Ouvrir le Salon de Discussion",
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                  ),
                   onPressed: () {
                     HapticFeedback.selectionClick();
                     Navigator.push(
@@ -1244,6 +1269,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
 
   /// 👑 CARTE D'ADMINISTRATION & GESTION JAT
   Widget _buildAdminControlsCard(BuildContext context) {
+    final isPt = Localizations.localeOf(context).languageCode == 'pt';
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -1254,17 +1280,22 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.admin_panel_settings_rounded, color: AppColors.gold, size: 20),
-              SizedBox(width: 8),
-              Text("Gestion Officielle du Tournoi", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 15)),
+              const Icon(Icons.admin_panel_settings_rounded, color: AppColors.gold, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                isPt ? "Gestão Oficial do Torneio" : "Gestion Officielle du Tournoi",
+                style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 15),
+              ),
             ],
           ),
           const SizedBox(height: 6),
-          const Text(
-            "En tant que JAT, Président ou Administrateur, vous pouvez piloter les matches et modifier l'événement.",
-            style: TextStyle(color: Colors.white70, fontSize: 12),
+          Text(
+            isPt
+                ? "Como Árbitro ou Administrador, você pode gerenciar as partidas e atualizar o evento."
+                : "En tant que JAT, Président ou Administrateur, vous pouvez piloter les matches et modifier l'événement.",
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
           ),
           const SizedBox(height: 14),
           SizedBox(
@@ -1279,7 +1310,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
               ),
               icon: const Icon(Icons.account_tree_rounded, size: 20),
               label: Text(
-                _isAuthorized ? "Gérer le Tableau (JAT)" : "Voir le Tableau Officiel",
+                isPt
+                    ? (_isAuthorized ? "Gerenciar Chave (Árbitro)" : "Ver Chave Oficial")
+                    : (_isAuthorized ? "Gérer le Tableau (JAT)" : "Voir le Tableau Officiel"),
                 style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
               ),
               onPressed: () => Navigator.push(
@@ -1305,9 +1338,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               icon: const Icon(Icons.stadium_rounded, size: 20),
-              label: const Text(
-                "📅 Répartition des Terrains & Rotations",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              label: Text(
+                isPt ? "📅 Escala de Quadras e Rotações" : "📅 Répartition des Terrains & Rotations",
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
               onPressed: _showCourtScheduleConfigDialog,
             ),
@@ -1324,7 +1357,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   icon: const Icon(Icons.edit_rounded, size: 18),
-                  label: const Text("Modifier", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  label: Text(isPt ? "Editar" : "Modifier", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   onPressed: _openEditScreen,
                 ),
               ),
@@ -1338,7 +1371,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                  label: const Text("Supprimer", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  label: Text(isPt ? "Excluir" : "Supprimer", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   onPressed: _confirmDelete,
                 ),
               ),

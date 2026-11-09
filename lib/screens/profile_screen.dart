@@ -25,9 +25,13 @@ import 'tutorial_screen.dart';
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
+  bool _isBr(BuildContext context, UserModel? user) =>
+      (user?.isBrazilian == true) || (Localizations.localeOf(context).languageCode == 'pt');
+
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AppState>().currentUser;
+    final isBr = (user?.isBrazilian == true) || (Localizations.localeOf(context).languageCode == 'pt');
     if (user == null) {
       return Scaffold(
         backgroundColor: const Color(0xFF0F141E),
@@ -115,7 +119,7 @@ class ProfileScreen extends StatelessWidget {
                               const Icon(Icons.edit_rounded, color: AppColors.gold, size: 16),
                               const SizedBox(width: 5),
                               Text(
-                                user.isBrazilian ? "Editar" : "Modifier",
+                                isBr ? "Editar" : "Modifier",
                                 style: const TextStyle(
                                   color: AppColors.gold,
                                   fontWeight: FontWeight.w900,
@@ -190,6 +194,7 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _buildProfileHeader(BuildContext context, user) {
+    final isBr = _isBr(context, user is UserModel ? user : null);
     return _buildGlassCard(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -299,7 +304,7 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
           ],
-          if (user.isBrazilian) ...[
+          if (isBr) ...[
             const SizedBox(height: 10),
             GestureDetector(
               onTap: () {
@@ -410,7 +415,7 @@ class ProfileScreen extends StatelessWidget {
                     const SizedBox(width: 7),
                     Flexible(
                       child: Text(
-                        user.isBrazilian ? "Arena : ${user.clubName}" : "Club : ${user.clubName}",
+                        isBr ? "Arena : ${user.clubName}" : "Club : ${user.clubName}",
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -458,7 +463,7 @@ class ProfileScreen extends StatelessWidget {
                   const Icon(Icons.edit_rounded, color: Colors.white, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    user.isBrazilian ? "Editar meu perfil & informações" : "Modifier mon profil & mes infos",
+                    isBr ? "Editar meu perfil & informações" : "Modifier mon profil & mes infos",
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w900,
@@ -490,25 +495,26 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _buildStatsGrid(BuildContext context, UserModel user) {
+    final isBr = _isBr(context, user);
     final matches = context.watch<AppState>().matches;
     final userMatchesCount = matches.where((m) => m.participantsIds.contains(user.id) || m.hostId == user.id).length;
     final totalMatches = user.totalMatches > userMatchesCount ? user.totalMatches : userMatchesCount;
 
-    final rankingLabel = user.isBrazilian
+    final rankingLabel = isBr
         ? "Cat. CBT 🇧🇷"
         : AppLocalizations.of(context).profileFftRanking;
-    final rankingVal = user.isBrazilian && user.cbtCategory != null && user.cbtCategory!.isNotEmpty
+    final rankingVal = isBr && user.cbtCategory != null && user.cbtCategory!.isNotEmpty
         ? user.cbtCategory!
         : _formatRanking(context, user.ranking);
 
     return Row(
       children: [
-        Expanded(child: _buildStatCard(user.isBrazilian ? "Partidas 🎾" : "Matchs joués 🎾", totalMatches.toString())), 
+        Expanded(child: _buildStatCard(isBr ? "Partidas 🎾" : "Matchs joués 🎾", totalMatches.toString(), isBr: isBr)), 
         const SizedBox(width: 14),
         Expanded(
           child: GestureDetector(
             onTap: () {
-              if (user.isBrazilian) {
+              if (isBr) {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const ProfileEditScreen()),
@@ -526,6 +532,7 @@ class ProfileScreen extends StatelessWidget {
               isHighlight: true, 
               progression: user.rankingProgression,
               isClickable: true,
+              isBr: isBr,
             ),
           ),
         ),
@@ -533,7 +540,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard(String label, String value, {bool isHighlight = false, int? progression, bool isClickable = false}) {
+  Widget _buildStatCard(String label, String value, {bool isHighlight = false, int? progression, bool isClickable = false, bool isBr = false}) {
     return _buildGlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       child: Column(
@@ -591,9 +598,9 @@ class ProfileScreen extends StatelessWidget {
           ),
           if (isClickable) ...[
             const SizedBox(height: 4),
-            const Text(
-              "Voir le classement ›",
-              style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.w600),
+            Text(
+              isBr ? "Ver o ranking ›" : "Voir le classement ›",
+              style: const TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.w600),
             ),
           ],
         ],
@@ -602,6 +609,7 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _buildFriendsSection(BuildContext context, UserModel user) {
+    final isBr = _isBr(context, user);
     return _buildGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -614,7 +622,7 @@ class ProfileScreen extends StatelessWidget {
                   const Icon(Icons.people_alt_rounded, color: AppColors.gold, size: 22),
                   const SizedBox(width: 8),
                   Text(
-                    user.isBrazilian ? "Meus Amigos" : "Mes Amis",
+                    isBr ? "Meus Amigos" : "Mes Amis",
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
                   ),
                   const SizedBox(width: 8),
@@ -635,7 +643,7 @@ class ProfileScreen extends StatelessWidget {
                 GestureDetector(
                   onTap: () => _showFriendsBottomSheet(context, user),
                   child: Text(
-                    user.isBrazilian ? "Ver todos →" : "Voir tout →",
+                    isBr ? "Ver todos →" : "Voir tout →",
                     style: const TextStyle(color: AppColors.coral, fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ),
@@ -644,7 +652,7 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 12),
           if (user.friendsIds.isEmpty)
             Text(
-              user.isBrazilian
+              isBr
                   ? "Você ainda não adicionou amigos. Encontre atletas na aba Comunidade !"
                   : "Vous n'avez pas encore ajouté d'amis. Retrouvez des joueurs dans l'onglet Communauté !",
               style: const TextStyle(color: Colors.white60, fontSize: 13),
@@ -739,7 +747,7 @@ class ProfileScreen extends StatelessWidget {
                         const Icon(Icons.people_alt_rounded, color: AppColors.gold, size: 22),
                         const SizedBox(width: 10),
                         Text(
-                          "${user.isBrazilian ? 'Meus Amigos' : 'Mes Amis'} (${user.friendsIds.length})",
+                          "${_isBr(context, user) ? 'Meus Amigos' : 'Mes Amis'} (${user.friendsIds.length})",
                           style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         const Spacer(),
@@ -757,7 +765,7 @@ class ProfileScreen extends StatelessWidget {
                             child: Padding(
                               padding: const EdgeInsets.all(24.0),
                               child: Text(
-                                user.isBrazilian ? "Nenhum amigo encontrado na lista." : "Aucun ami trouvé dans la liste.",
+                                _isBr(context, user) ? "Nenhum amigo encontrado na lista." : "Aucun ami trouvé dans la liste.",
                                 style: const TextStyle(color: Colors.white60),
                               ),
                             ),
@@ -786,7 +794,7 @@ class ProfileScreen extends StatelessWidget {
                                         : null,
                                   ),
                                   title: Text(friend.displayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                  subtitle: Text("${user.isBrazilian ? 'Nível' : 'Niveau'} ${friend.level} · ${friend.location}", style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                                  subtitle: Text("${_isBr(context, user) ? 'Nível' : 'Niveau'} ${friend.level} · ${friend.location}", style: const TextStyle(color: Colors.white60, fontSize: 12)),
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
@@ -860,6 +868,7 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _buildPresidentClubSection(BuildContext context, UserModel user) {
+    final isBr = _isBr(context, user);
     final firebaseEmail = FirebaseAuth.instance.currentUser?.email?.toLowerCase().trim() ?? '';
 
     return StreamBuilder<QuerySnapshot>(
@@ -903,12 +912,12 @@ class ProfileScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            user.isBrazilian ? "Espaço Presidente de Arena" : "Espace Président de Club",
+                            isBr ? "Espaço Presidente de Arena" : "Espace Président de Club",
                             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.white),
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            user.isBrazilian ? "Gerencie sua arena e seus torneios" : "Gérez votre club et vos tournois",
+                            isBr ? "Gerencie sua arena e seus torneios" : "Gérez votre club et vos tournois",
                             style: const TextStyle(color: Colors.white70, fontSize: 12),
                           ),
                         ],
@@ -951,7 +960,7 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     icon: const Icon(Icons.dashboard_customize, size: 18),
                     label: Text(
-                      user.isBrazilian ? "Abrir Painel da Arena" : "Ouvrir le Tableau de Bord Club",
+                      isBr ? "Abrir Painel da Arena" : "Ouvrir le Tableau de Bord Club",
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     onPressed: () {
@@ -1047,7 +1056,7 @@ class ProfileScreen extends StatelessWidget {
               ),
               icon: const Icon(Icons.radar_rounded, size: 18, color: AppColors.coral),
               label: Text(
-                user.isBrazilian ? "Abrir o Radar 360°" : "Ouvrir le Radar 360°",
+                _isBr(context, user) ? "Abrir o Radar 360°" : "Ouvrir le Radar 360°",
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
               onPressed: () {
@@ -1131,7 +1140,7 @@ class ProfileScreen extends StatelessWidget {
                       const Icon(Icons.edit, color: Colors.white, size: 13),
                       const SizedBox(width: 4),
                       Text(
-                        user.isBrazilian ? "Editar" : "Modifier",
+                        _isBr(context, user) ? "Editar" : "Modifier",
                         style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -1155,10 +1164,10 @@ class ProfileScreen extends StatelessWidget {
           Divider(color: Colors.white.withValues(alpha: 0.2)),
           _buildListTile(
             Icons.handshake_rounded,
-            user.isBrazilian ? "Procurando parceiro(a)" : "Recherche partenaire",
+            _isBr(context, user) ? "Procurando parceiro(a)" : "Recherche partenaire",
             user.isLookingForPartner
-                ? (user.isBrazilian ? "Ativo 🤝" : "Actif 🤝")
-                : (user.isBrazilian ? "Não" : "Non"),
+                ? (_isBr(context, user) ? "Ativo 🤝" : "Actif 🤝")
+                : (_isBr(context, user) ? "Não" : "Non"),
           ),
         ],
       ),
@@ -1170,7 +1179,7 @@ class ProfileScreen extends StatelessWidget {
     String? selectedAvail = user.availability;
     int selectedLevel = user.level;
     bool isLooking = user.isLookingForPartner;
-    final isBr = user.isBrazilian;
+    final isBr = user.isBrazilian || Localizations.localeOf(context).languageCode == 'pt';
 
     final positions = isBr
         ? ["Esquerda", "Direita", "Polivalente"]
@@ -1518,11 +1527,11 @@ class ProfileScreen extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.explore_rounded, color: AppColors.gold),
             title: Text(
-              user.isBrazilian ? "Guia do App · Tour das Funcionalidades 🇧🇷" : "Guide de l'App · Tour complet",
+              _isBr(context, user) ? "Guia do App · Tour das Funcionalidades 🇧🇷" : "Guide de l'App · Tour complet",
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
             subtitle: Text(
-              user.isBrazilian 
+              _isBr(context, user) 
                   ? "Conheça todos os menus e recursos do app em uma só passada" 
                   : "Découvrez toutes les fonctionnalités et onglets de l'application",
               style: const TextStyle(color: Colors.white60, fontSize: 12),
@@ -1540,11 +1549,11 @@ class ProfileScreen extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.policy_rounded, color: AppColors.gold),
             title: Text(
-              user.isBrazilian ? "Termos Gerais & Privacidade" : "Conditions Générales & Confidentialité",
+              _isBr(context, user) ? "Termos Gerais & Privacidade" : "Conditions Générales & Confidentialité",
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
             subtitle: Text(
-              user.isBrazilian ? "Regras de uso e proteção dos seus dados" : "Règles d'utilisation et protection de vos données",
+              _isBr(context, user) ? "Regras de uso e proteção dos seus dados" : "Règles d'utilisation et protection de vos données",
               style: const TextStyle(color: Colors.white60, fontSize: 12),
             ),
             trailing: const Icon(Icons.chevron_right, color: Colors.white54),
@@ -1588,11 +1597,11 @@ class ProfileScreen extends StatelessWidget {
                     backgroundColor: const Color(0xFF1E293B),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     title: Text(
-                      user.isBrazilian ? "Sair da conta ?" : "Se déconnecter ?",
+                      _isBr(context, user) ? "Sair da conta ?" : "Se déconnecter ?",
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                     ),
                     content: Text(
-                      user.isBrazilian
+                      _isBr(context, user)
                           ? "Deseja realmente sair da sua conta BeachMatch ?"
                           : "Voulez-vous vraiment vous déconnecter de votre compte BeachMatch ?",
                       style: const TextStyle(color: Colors.white70),
@@ -1601,7 +1610,7 @@ class ProfileScreen extends StatelessWidget {
                       TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
                         child: Text(
-                          user.isBrazilian ? "Cancelar" : "Annuler",
+                          _isBr(context, user) ? "Cancelar" : "Annuler",
                           style: const TextStyle(color: Colors.white60),
                         ),
                       ),
@@ -1609,7 +1618,7 @@ class ProfileScreen extends StatelessWidget {
                         style: ElevatedButton.styleFrom(backgroundColor: AppColors.coral, foregroundColor: Colors.white),
                         onPressed: () => Navigator.pop(ctx, true),
                         child: Text(
-                          user.isBrazilian ? "Sair" : "Déconnexion",
+                          _isBr(context, user) ? "Sair" : "Déconnexion",
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),

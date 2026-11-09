@@ -124,6 +124,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isPt = Localizations.localeOf(context).languageCode == 'pt';
     if (_isLoading || _resolvedPlayer == null) {
       return Scaffold(
         body: Stack(
@@ -151,7 +152,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          widget.fallbackDisplayName ?? "Profil du Joueur",
+                          widget.fallbackDisplayName ?? (isPt ? "Perfil do Atleta" : "Profil du Joueur"),
                           style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                         ),
                       ],
@@ -174,6 +175,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     final currentUser = context.watch<AppState>().currentUser;
     final bool isMe = currentUser != null && currentUser.id == player.id;
     final bool isFriend = currentUser != null && currentUser.friendsIds.contains(player.id);
+    final bool isBrView = player.isBrazilian || isPt;
 
     return Scaffold(
       body: Stack(
@@ -205,7 +207,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                         onPressed: () => Navigator.pop(context),
                       ),
                       const SizedBox(width: 8),
-                      const Text("Profil du Joueur", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      Text(isPt ? "Perfil do Atleta" : "Profil du Joueur", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                       const Spacer(),
                       if (currentUser?.isAdmin == true && !isMe)
                         InkWell(
@@ -301,14 +303,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: Colors.red, width: 1.2),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.block_rounded, color: Colors.red, size: 16),
-                                SizedBox(width: 6),
+                                const Icon(Icons.block_rounded, color: Colors.red, size: 16),
+                                const SizedBox(width: 6),
                                 Text(
-                                  "COMPTE BANNI PAR L'ADMINISTRATION",
-                                  style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.w900),
+                                  isBrView ? "CONTA SUSPENSA PELA ADMINISTRAÇÃO" : "COMPTE BANNI PAR L'ADMINISTRATION",
+                                  style: const TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.w900),
                                 ),
                               ],
                             ),
@@ -329,7 +331,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                 const Icon(Icons.gavel_rounded, color: AppColors.gold, size: 15),
                                 const SizedBox(width: 6),
                                 Text(
-                                  player.isBrazilian ? "Árbitro Oficial CBT ⚖️" : "Arbitre Officiel JAT FFT ⚖️",
+                                  isBrView ? "Árbitro Oficial CBT ⚖️" : "Arbitre Officiel JAT FFT ⚖️",
                                   style: const TextStyle(color: AppColors.gold, fontSize: 11.5, fontWeight: FontWeight.w900),
                                 ),
                               ],
@@ -362,7 +364,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                 const Icon(Icons.star_rounded, color: Colors.black, size: 16),
                                 const SizedBox(width: 6),
                                 Text(
-                                  player.ambassadorTitle ?? "Embaixador Oficial · BeachMatch 🇧🇷",
+                                  player.ambassadorTitle ?? (isBrView ? "Embaixador Oficial · BeachMatch 🇧🇷" : "Ambassadeur Officiel · BeachMatch 🇫🇷"),
                                   style: const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.w900),
                                 ),
                               ],
@@ -423,7 +425,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                   const SizedBox(width: 7),
                                   Flexible(
                                     child: Text(
-                                      (player.isBrazilian ? "Arena : " : "Club : ") + player.clubName!,
+                                      (isBrView ? "Arena : " : "Club : ") + player.clubName!,
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 12,
@@ -456,7 +458,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                 const Icon(Icons.handshake_rounded, color: AppColors.coral, size: 16),
                                 const SizedBox(width: 6),
                                 Text(
-                                  player.isBrazilian ? "Procurando parceiro(a)" : "Recherche activement un partenaire",
+                                  isBrView ? "Procurando parceiro(a)" : "Recherche activement un partenaire",
                                   style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                                 ),
                               ],
@@ -468,11 +470,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                         // Stats Grid (Niveau · Classement FFT / CBT)
                         Row(
                           children: [
-                            Expanded(child: _buildStatCard(player.isBrazilian ? "Nível" : "Niveau", "Niv. ${player.level}", Icons.star, AppColors.gold)),
+                            Expanded(child: _buildStatCard(isBrView ? "Nível" : "Niveau", "Niv. ${player.level}", Icons.star, AppColors.gold)),
                             const SizedBox(width: 12),
                             Expanded(child: _buildStatCard(
-                              player.isBrazilian ? "Cat. CBT 🇧🇷" : "Rang FFT",
-                              player.isBrazilian
+                              isBrView ? "Cat. CBT 🇧🇷" : "Rang FFT",
+                              isBrView
                                   ? ((player.cbtCategory != null && player.cbtCategory!.isNotEmpty)
                                       ? player.cbtCategory!
                                       : ((player.ranking != null && player.ranking!.isNotEmpty && player.ranking != 'NC')
@@ -494,15 +496,15 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text("PRÉFÉRENCES DE JEU", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.gold, letterSpacing: 1.1)),
+                                Text(isPt ? "PREFERÊNCIAS DE JOGO" : "PRÉFÉRENCES DE JEU", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.gold, letterSpacing: 1.1)),
                                 const SizedBox(height: 14),
                                 if (player.preferredPosition != null && player.preferredPosition!.isNotEmpty)
-                                  _buildInfoRow(Icons.sports_tennis, "Côté préféré", player.preferredPosition!),
+                                  _buildInfoRow(Icons.sports_tennis, isPt ? "Posição preferida" : "Côté préféré", player.preferredPosition!),
                                 if (player.preferredPosition != null && player.preferredPosition!.isNotEmpty &&
                                     player.availability != null && player.availability!.isNotEmpty)
                                   const Divider(color: Colors.white24, height: 20),
                                 if (player.availability != null && player.availability!.isNotEmpty)
-                                  _buildInfoRow(Icons.access_time_rounded, "Disponibilités", player.availability!),
+                                  _buildInfoRow(Icons.access_time_rounded, isPt ? "Disponibilidade" : "Disponibilités", player.availability!),
                               ],
                             ),
                           ),
@@ -515,10 +517,10 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                player.isBrazilian ? "INFORMAÇÕES DO ATLETA 🇧🇷" : "INFORMATIONS JOUEUR",
+                                isBrView ? "INFORMAÇÕES DO ATLETA 🇧🇷" : "INFORMATIONS JOUEUR",
                                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.gold, letterSpacing: 1.1),
                               ),
-                              if (player.isBrazilian) ...[
+                              if (isBrView) ...[
                                 _buildInfoRow(
                                   Icons.badge_rounded,
                                   "ID / Filiação CBT",
@@ -585,7 +587,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                     );
                                   },
                                   icon: const Icon(Icons.chat_bubble_rounded, size: 18),
-                                  label: const Text("Message", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                  label: Text(isPt ? "Mensagem" : "Message", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.gold,
                                     foregroundColor: Colors.black,
@@ -606,7 +608,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                     }
                                   },
                                   icon: Icon(isFriend ? Icons.check_circle_rounded : Icons.person_add_rounded, size: 18),
-                                  label: Text(isFriend ? "Ami ✓" : "Ajouter", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                  label: Text(isFriend ? (isPt ? "Amigo(a) ✓" : "Ami ✓") : (isPt ? "Adicionar" : "Ajouter"), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: isFriend ? Colors.white.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.12),
                                     foregroundColor: isFriend ? Colors.greenAccent : Colors.white,
@@ -627,7 +629,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                     );
                                   },
                                   icon: const Icon(Icons.sports_tennis_rounded, size: 18),
-                                  label: const Text("Inviter", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                  label: Text(isPt ? "Convidar" : "Inviter", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.coral,
                                     foregroundColor: Colors.white,

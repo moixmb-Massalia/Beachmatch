@@ -16,7 +16,6 @@ import 'create_match_screen.dart';
 import '../services/chat_service.dart';
 import '../services/beachy_service.dart';
 import '../widgets/beachy_floating_bubble.dart';
-import '../widgets/choose_pseudo_modal.dart';
 import '../l10n/app_localizations.dart';
 import '../services/app_update_service.dart';
 
@@ -39,7 +38,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
     _currentIndex = widget.initialIndex.clamp(0, 4);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ChoosePseudoModal.showIfNeeded(context);
         AppUpdateService.checkUpdate(context);
       }
     });
@@ -67,13 +65,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
     } else if (currentUser == null) {
       _unreadCountStream = null;
     }
-    if (currentUser != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          ChoosePseudoModal.showIfNeeded(context);
-        }
-      });
-    }
+
   }
 
   final List<Widget> _screens = [

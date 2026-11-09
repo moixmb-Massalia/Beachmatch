@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -357,7 +358,12 @@ class AppState extends ChangeNotifier {
           rethrow;
         }
       } else {
-        final googleSignIn = GoogleSignIn();
+        final googleSignIn = GoogleSignIn(
+          clientId: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
+              ? '975202518106-qijjobo87h14c619mqt4861ms7u6lcph.apps.googleusercontent.com'
+              : null,
+          serverClientId: '975202518106-h4h5ea4dghlgv258n1pg4t1dl8p5vhfp.apps.googleusercontent.com',
+        );
         await googleSignIn.signOut().catchError((_) => null); // Force account picker safely
         
         final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
@@ -417,6 +423,16 @@ class AppState extends ChangeNotifier {
     } on FirebaseAuthException catch (e) {
       debugPrint("Erreur FirebaseAuth Google : ${e.code} - ${e.message}");
       throw translateAuthError(e.code);
+    } on PlatformException catch (e) {
+      debugPrint("PlatformException Google Sign-In : ${e.code} - ${e.message}");
+      if (e.code == 'sign_in_canceled') {
+        throw "Connexion Google annulée";
+      } else if (e.code == 'sign_in_failed' || (e.message != null && e.message!.contains('10'))) {
+        throw "Configuration Google Play requise (Erreur 10) : L'empreinte SHA-1 de signature Google Play Store doit être ajoutée dans Firebase Console.";
+      } else if (e.code == 'network_error' || (e.message != null && e.message!.contains('7'))) {
+        throw "Erreur réseau Google Play Services. Vérifiez votre connexion internet.";
+      }
+      throw "Échec de l'authentification Google (${e.code}).";
     } catch (e) {
       debugPrint("Erreur de connexion : $e");
       rethrow; // Rethrow to let the UI know it failed
@@ -671,7 +687,63 @@ class AppState extends ChangeNotifier {
     userData['searchTokens'] = _generateSearchTokens(pseudo, isBr ? cbtIdVal : frenchLicence);
     await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set(userData);
     await _checkAndApplyPreauthorizedRoles(_currentUser!.id, FirebaseAuth.instance.currentUser?.email);
+    if (isBr) {
+      await _ensureBrazilianWelcomeChat(_currentUser!);
+    }
     await loadData();
+  }
+
+  Future<void> _ensureBrazilianWelcomeChat(UserModel user) async {
+    try {
+      final isBr = user.isBrazilian || user.country.toUpperCase() == 'BR';
+      if (!isBr) return;
+
+      final chatId = 'support_beachmatch_${user.id}';
+      final chatDoc = await FirebaseFirestore.instance.collection('chats').doc(chatId).get();
+      if (chatDoc.exists) return;
+
+      final firstName = user.displayName.isNotEmpty ? user.displayName.split(' ')[0] : 'Atleta';
+      final welcomeMessage =
+          "Olá $firstName! 🇧🇷🎾 Bem-vindo(a) ao BeachMatch Brasil!\n\n"
+          "Estamos muito felizes em ter você na comunidade oficial de Beach Tennis no país!\n\n"
+          "✨ O que você encontra no BeachMatch :\n"
+          "• 🇧🇷 Tour Guiado Completo : Disponível na tela inicial e no seu Perfil para conhecer todas as funcionalidades de uma vez só!\n"
+          "• 🏆 Perfil & Ranking CBT : Vincule sua categoria oficial (Iniciante, D, C, B, A, PRO) e acompanhe seu nível.\n"
+          "• 🏖️ Arenas & Vento ao Vivo : Encontre quadras públicas e arenas privadas com previsão de vento em tempo real.\n"
+          "• 💸 Rei da Praia & Divisão PIX : Crie partidas na sua arena favorita e divida o valor da locação via Pix em segundos.\n"
+          "• 👥 SOS Parceiro : Encontre duplas para treinos ou torneios sem complicação.\n\n"
+          "🎁 CONVIDE SEUS AMIGOS E PARCEIROS DE TREINO :\n"
+          "O BeachMatch fica ainda melhor quando a sua galera está conectada! Chame seus amigos e parceiros de arena para baixarem o app e jogarem juntos.\n\n"
+          "💬 Dúvidas, feedback ou quer cadastrar sua arena ?\n"
+          "Basta responder diretamente aqui neste chat oficial da nossa equipe. Bom jogo e nos vemos na areia! ☀️🏖️🎾";
+
+      await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
+        'participants': [user.id, 'beachmatch_support'],
+        'participantNames': {
+          user.id: user.displayName,
+          'beachmatch_support': 'BeachMatch Suporte 🇧🇷',
+        },
+        'participantPhotos': {
+          user.id: user.photoUrl,
+          'beachmatch_support': 'https://firebasestorage.googleapis.com/v0/b/beach-tennis-216f4.firebasestorage.app/o/app_assets%2Fsupport_icon.png?alt=media',
+        },
+        'lastMessage': welcomeMessage,
+        'lastMessageSenderId': 'beachmatch_support',
+        'updatedAt': FieldValue.serverTimestamp(),
+        'unreadBy': [user.id],
+        'isSupportChat': true,
+      }, SetOptions(merge: true));
+
+      await FirebaseFirestore.instance.collection('chats').doc(chatId).collection('messages').add({
+        'senderId': 'beachmatch_support',
+        'senderName': 'BeachMatch Suporte 🇧🇷',
+        'text': welcomeMessage,
+        'timestamp': FieldValue.serverTimestamp(),
+        'readBy': ['beachmatch_support'],
+      });
+    } catch (e) {
+      debugPrint("Erreur bienvenue support brésil: $e");
+    }
   }
   
   StreamSubscription<String>? _tokenRefreshSub;

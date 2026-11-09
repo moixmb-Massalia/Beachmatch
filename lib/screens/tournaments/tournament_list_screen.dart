@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -101,7 +102,7 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
     try {
       final user = context.read<AppState>().currentUser;
       if (user != null) {
-        if (user.isBrazilian || user.country.toUpperCase() == 'BR') return 'BR';
+        if (user.isBrazilian || user.country.toUpperCase() == 'BR' || (context.mounted && Localizations.localeOf(context).languageCode == 'pt')) return 'BR';
         if (user.country.toUpperCase() == 'RE') return 'RE';
         if (user.country.toUpperCase() == 'IT') return 'IT';
         if (user.country.toUpperCase() == 'ES') return 'ES';
@@ -320,7 +321,7 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AppState>().currentUser;
-    final isBr = user?.isBrazilian == true || _userDetectedCountry == 'BR';
+    final isBr = user?.isBrazilian == true || _userDetectedCountry == 'BR' || Localizations.localeOf(context).languageCode == 'pt';
     final allTournaments = context.watch<AppState>().tournaments;
     
     // Filtering logic
@@ -472,9 +473,12 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
             ),
           ),
           SafeArea(
-            child: Column(
-              children: [
-                if (widget.showHeader)
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: kIsWeb ? 960 : double.infinity),
+                child: Column(
+                  children: [
+                    if (widget.showHeader)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     child: Row(
@@ -698,7 +702,9 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
                         ),
                   ),
                 ),
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
         ],

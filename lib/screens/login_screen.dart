@@ -55,11 +55,11 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (context) => const OnboardingScreen()),
       );
     } else {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
-        (route) => false,
-      );
+      // Le StreamBuilder dans main.dart bascule automatiquement vers MainNavigationScreen.
+      // Si une route enfant est ouverte par-dessus, on la dépile en douceur.
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     }
   }
 
@@ -411,12 +411,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                 _onLoginSuccess(isNewUser);
                               } catch (e) {
                                 if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(e.toString().replaceAll('Exception: ', '')),
-                                      backgroundColor: Colors.redAccent,
-                                    ),
-                                  );
+                                  final msg = e.toString().replaceAll('Exception: ', '');
+                                  if (!msg.toLowerCase().contains('annul')) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(msg),
+                                        backgroundColor: Colors.redAccent,
+                                        behavior: SnackBarBehavior.floating,
+                                        duration: const Duration(seconds: 4),
+                                      ),
+                                    );
+                                  }
                                 }
                               }
                             },

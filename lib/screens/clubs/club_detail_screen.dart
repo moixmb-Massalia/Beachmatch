@@ -81,14 +81,26 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
       });
 
       if (mounted) {
+        final isPt = Localizations.localeOf(context).languageCode == 'pt';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Photo du club mise à jour avec succès ! 📸")),
+          SnackBar(
+            content: Text(
+              isPt
+                  ? "Foto do clube atualizada com sucesso! 📸"
+                  : "Photo du club mise à jour avec succès ! 📸",
+            ),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
+        final isPt = Localizations.localeOf(context).languageCode == 'pt';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erreur lors de la mise à jour : $e")),
+          SnackBar(
+            content: Text(
+              isPt ? "Erro ao atualizar: $e" : "Erreur lors de la mise à jour : $e",
+            ),
+          ),
         );
       }
     } finally {
@@ -97,6 +109,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
   }
 
   void _showChangePhotoBottomSheet() {
+    final isPt = Localizations.localeOf(context).languageCode == 'pt';
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -115,9 +128,9 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              "Photo de profil du club",
-              style: TextStyle(color: Color(0xFF0F172A), fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              isPt ? "Foto de perfil da arena/clube" : "Photo de profil du club",
+              style: const TextStyle(color: Color(0xFF0F172A), fontSize: 18, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
@@ -127,7 +140,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                 decoration: BoxDecoration(color: AppColors.coral.withValues(alpha: 0.15), shape: BoxShape.circle),
                 child: const Icon(Icons.photo_library, color: AppColors.coral),
               ),
-              title: const Text("Choisir dans la galerie", style: TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(isPt ? "Escolher da galeria" : "Choisir dans la galerie", style: const TextStyle(fontWeight: FontWeight.bold)),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickAndUploadPhoto(ImageSource.gallery);
@@ -139,7 +152,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                 decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.15), shape: BoxShape.circle),
                 child: const Icon(Icons.camera_alt, color: AppColors.primary),
               ),
-              title: const Text("Prendre une photo", style: TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(isPt ? "Tirar uma foto" : "Prendre une photo", style: const TextStyle(fontWeight: FontWeight.bold)),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickAndUploadPhoto(ImageSource.camera);
@@ -235,6 +248,7 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
   Widget build(BuildContext context) {
     final currentUser = context.watch<AppState>().currentUser;
     if (currentUser == null) {
+      final isPt = Localizations.localeOf(context).languageCode == 'pt';
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
@@ -254,14 +268,23 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
               children: [
                 const Icon(Icons.sports_tennis, size: 48, color: AppColors.gold),
                 const SizedBox(height: 16),
-                const Text("Connexion requise", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(
+                  isPt ? "Login necessário" : "Connexion requise",
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
-                const Text("Connectez-vous pour voir les membres et activités du club.", style: TextStyle(color: Colors.white70, fontSize: 14), textAlign: TextAlign.center),
+                Text(
+                  isPt
+                      ? "Faça login para ver os membros e atividades do clube."
+                      : "Connectez-vous pour voir les membres et activités du club.",
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: 20),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.coral, foregroundColor: Colors.white),
                   onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
-                  child: const Text("Se connecter"),
+                  child: Text(isPt ? "Entrar" : "Se connecter"),
                 ),
               ],
             ),
@@ -815,13 +838,16 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
                         }
                         final members = snapshot.data ?? [];
                         if (members.isEmpty) {
-                          return const Center(
+                          final isPt = Localizations.localeOf(context).languageCode == 'pt';
+                          return Center(
                             child: Padding(
-                              padding: EdgeInsets.all(24.0),
+                              padding: const EdgeInsets.all(24.0),
                               child: Text(
-                                "Aucun membre inscrit dans ce club pour l'instant.",
+                                isPt
+                                    ? "Nenhum membro cadastrado neste clube no momento."
+                                    : "Aucun membre inscrit dans ce club pour l'instant.",
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.white60, fontSize: 14),
+                                style: const TextStyle(color: Colors.white60, fontSize: 14),
                               ),
                             ),
                           );

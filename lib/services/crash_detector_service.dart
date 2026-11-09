@@ -78,7 +78,7 @@ class CrashDetectorService {
       'context': context ?? 'Général',
       'library': library,
       'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
-      'version': '1.0.69+169',
+      'version': '1.0.90+190',
       'status': 'NEW',
     };
 

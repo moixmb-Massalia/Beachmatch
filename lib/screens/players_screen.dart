@@ -81,7 +81,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
           pLoc.contains(tok));
     }).toList();
 
-    final isBr = currentUser?.isBrazilian == true;
+    final isBr = (currentUser?.isBrazilian == true) || (Localizations.localeOf(context).languageCode == 'pt');
     final levelFilters = isBr
         ? [
             {'id': 'ALL', 'label': 'Todos'},
@@ -380,7 +380,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
 
   Widget _buildLocalPlayerCard(BuildContext context, UserModel player, {bool isFriend = false}) {
     final String initial = player.displayName.isNotEmpty ? player.displayName[0].toUpperCase() : "?";
-    final isBr = player.isBrazilian || (context.read<AppState>().currentUser?.isBrazilian ?? false);
+    final isBr = player.isBrazilian || (context.read<AppState>().currentUser?.isBrazilian ?? false) || (Localizations.localeOf(context).languageCode == 'pt');
     
     return GestureDetector(
       onTap: () {
@@ -677,7 +677,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
 
   Widget _buildLookingForPartnerCarousel(BuildContext context, List<UserModel> lookingPlayers) {
     if (lookingPlayers.isEmpty) return const SizedBox.shrink();
-    final isBr = context.read<AppState>().currentUser?.isBrazilian ?? false;
+    final isBr = (context.read<AppState>().currentUser?.isBrazilian ?? false) || (Localizations.localeOf(context).languageCode == 'pt');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -830,7 +830,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
 
   Widget _buildMyPartnerStatusCard(BuildContext context, UserModel currentUser) {
     final bool isLooking = currentUser.isLookingForPartner;
-    final bool isBr = currentUser.isBrazilian;
+    final bool isBr = currentUser.isBrazilian || (Localizations.localeOf(context).languageCode == 'pt');
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),

@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
@@ -130,7 +131,7 @@ class HomeRadarCard extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.symmetric(horizontal: kIsWeb ? 26 : 18, vertical: kIsWeb ? 22 : 18),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -211,7 +212,7 @@ class HomeRadarCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: kIsWeb ? 16 : 14),
 
                 // Info Spot le plus proche (Cliquable -> Maps ou Fiche Club)
                 GestureDetector(
@@ -221,7 +222,7 @@ class HomeRadarCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           nearestCourt.name,
-                          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          style: const TextStyle(color: Colors.white, fontSize: kIsWeb ? 18 : 16, fontWeight: FontWeight.bold),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -249,7 +250,7 @@ class HomeRadarCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: kIsWeb ? 12 : 8),
 
                 // 3 Puces métriques
                 Wrap(
@@ -279,7 +280,7 @@ class HomeRadarCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: kIsWeb ? 20 : 16),
 
                 // Bouton Action Radar
                 SizedBox(
@@ -289,14 +290,14 @@ class HomeRadarCard extends StatelessWidget {
                     icon: const Icon(Icons.radar, size: 18, color: Colors.white),
                     label: Text(
                       isBr ? "Explorar quadras e arenas perto de mim" : "Explorer les terrains autour de moi",
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: kIsWeb ? 14 : 13),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.coral,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: kIsWeb ? 15 : 12),
                     ),
                   ),
                 ),
@@ -404,7 +405,7 @@ class HomeRadarCard extends StatelessWidget {
                     decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(2)),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: kIsWeb ? 20 : 16),
                 Row(
                   children: [
                     const PulsingRadarDot(color: Color(0xFF00D2FF), size: 12),
@@ -422,7 +423,7 @@ class HomeRadarCard extends StatelessWidget {
                       : "Spots de beach tennis classés par proximité immédiate (cliquez pour ouvrir)",
                   style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: kIsWeb ? 20 : 16),
                 Expanded(
                   child: ListView.builder(
                     itemCount: courtsWithDist.take(6).length,

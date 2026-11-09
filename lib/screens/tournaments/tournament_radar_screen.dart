@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -229,24 +230,182 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
           ),
 
           SafeArea(
+            child: kIsWeb && MediaQuery.of(context).size.width >= 720
+                ? _buildDesktopCockpit(context, validTournaments, centerLabel, userLat, userLng)
+                : _buildMobileLayout(context, validTournaments, centerLabel, userLat, userLng),
+          ),
+        ],
+      ),
+    );
+  }
+  Widget _buildMobileLayout(
+    BuildContext context,
+    List<TournamentModel> validTournaments,
+    String centerLabel,
+    double userLat,
+    double userLng,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableHeight = constraints.maxHeight;
+        final availableWidth = constraints.maxWidth;
+        final isVeryTight = availableHeight < 560;
+        final isCompact = availableHeight < 680;
+
+        Widget buildRadarCanvas(double size) {
+          return GestureDetector(
+            onTapDown: (details) => _handleRadarTap(details.localPosition, size, userLat, userLng, validTournaments),
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.gold.withValues(alpha: 0.12),
+                    blurRadius: 30,
+                    spreadRadius: 2,
+                  ),
+                  BoxShadow(
+                    color: Colors.cyanAccent.withValues(alpha: 0.08),
+                    blurRadius: 50,
+                    spreadRadius: 10,
+                  ),
+                ],
+              ),
+              child: AnimatedBuilder(
+                animation: Listenable.merge([_sweepController, _pulseController]),
+                builder: (context, child) {
+                  return CustomPaint(
+                    size: Size(size, size),
+                    painter: TacticalRadarPainter(
+                      sweepAngle: _sweepController.value * 2 * math.pi,
+                      pulseProgress: _pulseController.value,
+                      rangeKm: _selectedRangeKm,
+                      userLat: userLat,
+                      userLng: userLng,
+                      tournaments: validTournaments,
+                      selectedTournament: _selectedTournament,
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        }
+
+        final bottomWidget = AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          transitionBuilder: (child, animation) => SlideTransition(
+            position: Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero).animate(animation),
+            child: FadeTransition(opacity: animation, child: child),
+          ),
+          child: _selectedTournament != null
+              ? _buildSelectedTournamentHUDCard(_selectedTournament!, userLat, userLng, isCompact: isCompact)
+              : _buildDetectedTournamentsCarousel(validTournaments, userLat, userLng, isCompact: isCompact),
+        );
+
+        if (isVeryTight) {
+          // Sur les écrans plus compacts ou anciens Android avec barre d'onglets,
+          // on utilise un défilement fluide pour garantir que le radar garde une belle
+          // taille généreuse (min 260px) sans jamais déborder de l'écran.
+          final radarSize = math.min(availableWidth * 0.86, 265.0);
+          return SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // En-tête HUD Tactique avec sélecteur de ville
-                _buildTacticalHeader(validTournaments.length, centerLabel),
+                _buildTacticalHeader(validTournaments.length, centerLabel, isCompact: true),
+                _buildSearchBar(isCompact: true),
+                _buildRangeSelector(isCompact: true),
+                _buildCategorySelector(isCompact: true),
+                const SizedBox(height: 6),
+                Center(child: buildRadarCanvas(radarSize)),
+                const SizedBox(height: 6),
+                bottomWidget,
+                const SizedBox(height: kIsWeb ? 16 : 80),
+              ],
+            ),
+          );
+        }
 
-                // Barre de recherche textuelle rapide
-                _buildSearchBar(),
+        return Column(
+          children: [
+            _buildTacticalHeader(validTournaments.length, centerLabel, isCompact: isCompact),
+            _buildSearchBar(isCompact: isCompact),
+            _buildRangeSelector(isCompact: isCompact),
+            _buildCategorySelector(isCompact: isCompact),
+            Expanded(
+              child: Center(
+                child: LayoutBuilder(
+                  builder: (context, radarConstraints) {
+                    final size = math.min(radarConstraints.maxWidth, radarConstraints.maxHeight) * 0.94;
+                    return buildRadarCanvas(size);
+                  },
+                ),
+              ),
+            ),
+            bottomWidget,
+            SizedBox(height: kIsWeb ? 16 : (isCompact ? 72 : 84)),
+          ],
+        );
+      },
+    );
+  }
 
-                // Sélecteurs de filtres (Portée + Catégorie)
-                _buildRangeSelector(),
-                _buildCategorySelector(),
+  Widget _buildDesktopCockpit(
+    BuildContext context,
+    List<TournamentModel> validTournaments,
+    String centerLabel,
+    double userLat,
+    double userLng,
+  ) {
+    return Column(
+      children: [
+        // 1. Barre supérieure compacte : Titre + Ville + Audio/Recenter + Recherche rapide
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildTacticalHeader(validTournaments.length, centerLabel, isCompact: true),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(
+                width: 320,
+                child: _buildSearchBar(isCompact: true),
+              ),
+            ],
+          ),
+        ),
 
-                // Écran Radar 360°
+        // 2. Barre de filtres unifiée : Portée + Catégorie sur la même ligne
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          child: Row(
+            children: [
+              Expanded(child: _buildRangeSelector()),
+              const SizedBox(width: 12),
+              SizedBox(width: 380, child: _buildCategorySelector()),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // 3. Espace principal Cockpit 2 colonnes : Radar géant à gauche, Cibles & Détails à droite
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Colonne Gauche : Radar 360° généreux et aéré
                 Expanded(
+                  flex: 6,
                   child: Center(
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        final size = math.min(constraints.maxWidth, constraints.maxHeight) * 0.94;
+                        final size = math.min(constraints.maxWidth, constraints.maxHeight) * 0.96;
                         return GestureDetector(
                           onTapDown: (details) => _handleRadarTap(details.localPosition, size, userLat, userLng, validTournaments),
                           child: Container(
@@ -256,14 +415,14 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppColors.gold.withValues(alpha: 0.12),
-                                  blurRadius: 30,
-                                  spreadRadius: 2,
+                                  color: AppColors.gold.withValues(alpha: 0.16),
+                                  blurRadius: 36,
+                                  spreadRadius: 3,
                                 ),
                                 BoxShadow(
-                                  color: Colors.cyanAccent.withValues(alpha: 0.08),
-                                  blurRadius: 50,
-                                  spreadRadius: 10,
+                                  color: Colors.cyanAccent.withValues(alpha: 0.12),
+                                  blurRadius: 60,
+                                  spreadRadius: 12,
                                 ),
                               ],
                             ),
@@ -290,20 +449,211 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
                     ),
                   ),
                 ),
+                const SizedBox(width: 20),
 
-                // Carte rétractable du tournoi sélectionné OU Carousel des échos détectés
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  transitionBuilder: (child, animation) => SlideTransition(
-                    position: Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero).animate(animation),
-                    child: FadeTransition(opacity: animation, child: child),
-                  ),
-                  child: _selectedTournament != null
-                      ? _buildSelectedTournamentHUDCard(_selectedTournament!, userLat, userLng)
-                      : _buildDetectedTournamentsCarousel(validTournaments, userLat, userLng),
+                // Colonne Droite : Panneau des cibles détectées ou Fiche HUD verrouillée
+                Expanded(
+                  flex: 5,
+                  child: _buildDesktopTargetsPanel(validTournaments, userLat, userLng),
                 ),
-                const SizedBox(height: 92),
               ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildDesktopTargetsPanel(List<TournamentModel> tournaments, double userLat, double userLng) {
+    if (_selectedTournament != null) {
+      return Center(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildSelectedTournamentHUDCard(_selectedTournament!, userLat, userLng),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  side: const BorderSide(color: Colors.white24),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: Text(
+                  context.watch<AppState>().currentUser?.isBrazilian == true
+                      ? "Ver todos os torneios detectados"
+                      : "Voir tous les tournois détectés",
+                ),
+                onPressed: () => setState(() => _selectedTournament = null),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
+    if (tournaments.isEmpty) {
+      return Center(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.8),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.radar, size: 48, color: Colors.amberAccent),
+              const SizedBox(height: 12),
+              Text(
+                isBr ? "0 torneio detectado neste raio" : "0 tournoi détecté à cette portée",
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                isBr
+                    ? "Aumente o raio (ex: 500 km ou Brasil 🇧🇷) ou ajuste os filtros."
+                    : "Augmentez le rayon (ex: 500 km ou France 🇫🇷) ou ajustez vos filtres.",
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A).withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.greenAccent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    isBr ? "SINAIS DETECTADOS (${tournaments.length})" : "ÉCHOS DÉTECTÉS (${tournaments.length})",
+                    style: TextStyle(
+                      color: Colors.cyanAccent.withValues(alpha: 0.9),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                isBr ? "Clique para focar" : "Cliquez pour verrouiller",
+                style: const TextStyle(color: Colors.white38, fontSize: 11),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: ListView.separated(
+              itemCount: tournaments.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final t = tournaments[index];
+                final distMeters = (t.latitude != null && t.longitude != null)
+                    ? Geolocator.distanceBetween(userLat, userLng, t.latitude!, t.longitude!)
+                    : 0.0;
+                final km = (distMeters / 1000).round();
+                final isTarget = _searchQuery.isNotEmpty &&
+                    ((t.referee ?? "").toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                        t.club.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                        t.name.toLowerCase().contains(_searchQuery.toLowerCase()));
+
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () {
+                      HapticFeedback.heavyImpact();
+                      if (_soundEnabled) SoundService.playRacketPop();
+                      _lockController.forward(from: 0.0);
+                      setState(() {
+                        _selectedTournament = t;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isTarget ? const Color(0xFF132238) : Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isTarget ? AppColors.gold : Colors.white.withValues(alpha: 0.12),
+                          width: isTarget ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _getCategoryColor(t.category),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              t.category,
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  t.name,
+                                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  "${t.location} (${t.club})",
+                                  style: const TextStyle(color: Colors.white60, fontSize: 11),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            "📍 $km km",
+                            style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.chevron_right_rounded, color: Colors.white38, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -311,9 +661,9 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
     );
   }
 
-  Widget _buildTacticalHeader(int count, String centerLabel) {
+  Widget _buildTacticalHeader(int count, String centerLabel, {bool isCompact = false}) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+      padding: isCompact ? EdgeInsets.zero : const EdgeInsets.fromLTRB(16, 6, 16, 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -521,10 +871,10 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar({bool isCompact = false}) {
     final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+      margin: isCompact ? EdgeInsets.zero : const EdgeInsets.fromLTRB(16, 2, 16, 6),
       height: 38,
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.55),
@@ -566,7 +916,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
     );
   }
 
-  Widget _buildRangeSelector() {
+  Widget _buildRangeSelector({bool isCompact = false}) {
     final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
     final ranges = [
       {'label': '10 km', 'val': 10.0},
@@ -577,21 +927,22 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
     ];
 
     return SizedBox(
-      height: 38,
+      height: isCompact ? 32 : 38,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
         itemCount: ranges.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, __) => SizedBox(width: isCompact ? 6 : 8),
         itemBuilder: (context, i) {
           final r = ranges[i];
           final isSelected = _selectedRangeKm == r['val'];
           return ChoiceChip(
+            padding: isCompact ? const EdgeInsets.symmetric(horizontal: 6, vertical: 0) : null,
             label: Text(
               r['label'] as String,
               style: TextStyle(
                 color: isSelected ? Colors.black : Colors.white,
-                fontSize: 12,
+                fontSize: isCompact ? 11 : 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
               ),
             ),
@@ -618,7 +969,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
     );
   }
 
-  Widget _buildCategorySelector() {
+  Widget _buildCategorySelector({bool isCompact = false}) {
     final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
     final categories = [
       {'label': isBr ? 'Todos 🏆' : 'Tous 🏆', 'id': 'ALL'},
@@ -627,21 +978,22 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
     ];
 
     return SizedBox(
-      height: 36,
+      height: isCompact ? 30 : 36,
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: isCompact ? 0 : 2),
         scrollDirection: Axis.horizontal,
         itemCount: categories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, __) => SizedBox(width: isCompact ? 6 : 8),
         itemBuilder: (context, i) {
           final cat = categories[i];
           final isSelected = _selectedCategoryFilter == cat['id'];
           return ChoiceChip(
+            padding: isCompact ? const EdgeInsets.symmetric(horizontal: 6, vertical: 0) : null,
             label: Text(
               cat['label']!,
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 11.5,
+                fontSize: isCompact ? 10.5 : 11.5,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -709,7 +1061,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
     }
   }
 
-  Widget _buildSelectedTournamentHUDCard(TournamentModel t, double userLat, double userLng) {
+  Widget _buildSelectedTournamentHUDCard(TournamentModel t, double userLat, double userLng, {bool isCompact = false}) {
     final distanceMeters = (t.latitude != null && t.longitude != null)
         ? Geolocator.distanceBetween(userLat, userLng, t.latitude!, t.longitude!)
         : 0.0;
@@ -732,8 +1084,8 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
 
     return Container(
       key: ValueKey(t.id),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      padding: const EdgeInsets.all(16),
+      margin: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 16, vertical: isCompact ? 6 : 12),
+      padding: EdgeInsets.all(isCompact ? 10 : 16),
       decoration: BoxDecoration(
         color: const Color(0xFF0F172A).withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(20),
@@ -900,7 +1252,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
     return AppColors.gold;
   }
 
-  Widget _buildDetectedTournamentsCarousel(List<TournamentModel> tournaments, double centerLat, double centerLng) {
+  Widget _buildDetectedTournamentsCarousel(List<TournamentModel> tournaments, double centerLat, double centerLng, {bool isCompact = false}) {
     final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
     if (tournaments.isEmpty) {
       return Container(
@@ -972,7 +1324,7 @@ class _TournamentRadarScreenState extends State<TournamentRadarScreen> with Tick
           ),
         ),
         SizedBox(
-          height: 98,
+          height: isCompact ? 82 : 98,
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             scrollDirection: Axis.horizontal,

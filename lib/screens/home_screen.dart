@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -64,6 +65,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final courts = context.watch<AppState>().courts;
     final pos = context.watch<AppState>().currentPosition;
     final tournaments = context.watch<AppState>().tournaments;
+    final isPt = Localizations.localeOf(context).languageCode == 'pt';
+    final isBr = (user?.isBrazilian == true) || isPt;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F141E),
@@ -99,16 +102,19 @@ class _HomeScreenState extends State<HomeScreen> {
               onRefresh: () async {
                 await context.read<AppState>().loadData();
               },
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: kIsWeb ? 940 : double.infinity),
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
                 children: [
                   _buildHeader(user),
-                  if (user != null && (user.country.toUpperCase() == 'FR' || user.country.toUpperCase() == 'RE' || user.country.toUpperCase() == 'ANT') && (user.licenceNumber == null || user.licenceNumber!.trim().isEmpty)) ...[
+                  if (!isPt && user != null && (user.country.toUpperCase() == 'FR' || user.country.toUpperCase() == 'RE' || user.country.toUpperCase() == 'ANT') && (user.licenceNumber == null || user.licenceNumber!.trim().isEmpty)) ...[
                     const SizedBox(height: 14),
                     const HomeFftLicenceBanner(),
                   ],
-                  if (user != null && user.isBrazilian && (user.cbtCategory == null || user.cbtCategory!.isEmpty)) ...[
+                  if (user != null && isBr && (user.cbtCategory == null || user.cbtCategory!.isEmpty)) ...[
                     const SizedBox(height: 14),
                     Container(
                       padding: const EdgeInsets.all(14),
@@ -214,7 +220,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 24),
                   _buildWorldNewsSection(context),
                   const SizedBox(height: 120), // Bottom nav & FAB space
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -327,7 +335,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(width: 3),
                             Expanded(
                               child: Text(
-                                user?.location ?? ((user?.isBrazilian == true) ? 'Brasil' : 'France'),
+                                user?.location ?? (((user?.isBrazilian == true) || Localizations.localeOf(context).languageCode == 'pt') ? 'Brasil' : 'France'),
                                 style: const TextStyle(fontSize: 11.5, color: Colors.white70),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -371,7 +379,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Icon(Icons.person_rounded, color: Colors.white, size: 15),
                   const SizedBox(width: 4),
                   Text(
-                    (user?.isBrazilian == true) ? "Meu Perfil" : "Mon Profil",
+                    ((user?.isBrazilian == true) || Localizations.localeOf(context).languageCode == 'pt') ? "Meu Perfil" : "Mon Profil",
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w900,
@@ -390,7 +398,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildWeatherCard(UserModel? user, Position? pos) {
     final (lat, lon) = pos != null
         ? (pos.latitude, pos.longitude)
-        : getUserCoordinates(user?.location, isBrazilian: user?.isBrazilian == true);
+        : getUserCoordinates(user?.location, isBrazilian: (user?.isBrazilian == true) || Localizations.localeOf(context).languageCode == 'pt');
     return BeachWeatherWidget(
       latitude: lat,
       longitude: lon,
@@ -430,7 +438,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 220,
+          height: kIsWeb ? 300 : 220,
           child: StreamBuilder<List<NewsItemModel>>(
             initialData: NewsService.getCuratedNews(),
             stream: _newsStream,
@@ -473,7 +481,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return GestureDetector(
       onTap: () => _showNewsDetailModal(context, item),
       child: Container(
-        width: 260,
+        width: kIsWeb ? 380 : 260,
         margin: const EdgeInsets.only(right: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
@@ -575,7 +583,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 14,
+                        fontSize: kIsWeb ? 16 : 14,
                         fontWeight: FontWeight.bold,
                         height: 1.2,
                       ),

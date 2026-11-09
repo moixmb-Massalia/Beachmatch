@@ -13,7 +13,7 @@ class CommunityScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AppState>().currentUser;
-    final isBr = user?.isBrazilian == true;
+    final isBr = (user?.isBrazilian == true) || (Localizations.localeOf(context).languageCode == 'pt');
 
     return DefaultTabController(
       length: 2,

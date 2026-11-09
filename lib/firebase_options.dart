@@ -37,11 +37,12 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyA9QlsaelF4QrnfQlZkHJGSa7RWZQNEUT0',
-    appId: '1:975202518106:ios:67c866c34dc4ede5030463',
+    apiKey: 'AIzaSyCMyJYPhUHKJM0bGqNlj-EWhK1vV03RMEE',
+    appId: '1:975202518106:ios:83c2fa52d4176487030463',
     messagingSenderId: '975202518106',
     projectId: 'beach-tennis-216f4',
     storageBucket: 'beach-tennis-216f4.firebasestorage.app',
+    iosClientId: '975202518106-qijjobo87h14c619mqt4861ms7u6lcph.apps.googleusercontent.com',
     iosBundleId: 'com.beachmatch.mobile',
   );
 }

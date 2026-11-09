@@ -49,7 +49,7 @@ class _SmartCityAutocompleteFieldState extends State<SmartCityAutocompleteField>
 
   @override
   Widget build(BuildContext context) {
-    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
+    final isBr = (context.watch<AppState>().currentUser?.isBrazilian == true) || (Localizations.localeOf(context).languageCode == 'pt');
     return TextFormField(
       controller: widget.controller,
       readOnly: true,
@@ -129,7 +129,8 @@ class _CityPickerModalState extends State<_CityPickerModal> {
   @override
   void initState() {
     super.initState();
-    final isBr = context.read<AppState>().currentUser?.isBrazilian == true;
+    final appState = context.read<AppState>();
+    final isBr = (appState.currentUser?.isBrazilian == true) || (appState.currentLocale?.languageCode == 'pt');
     if (isBr) {
       _selectedCountryFilter = 'Brésil';
     }
@@ -162,7 +163,7 @@ class _CityPickerModalState extends State<_CityPickerModal> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
+    final isBr = (context.watch<AppState>().currentUser?.isBrazilian == true) || (Localizations.localeOf(context).languageCode == 'pt');
     final countryPills = _getCountryPills(isBr);
 
     return ClipRRect(

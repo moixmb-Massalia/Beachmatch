@@ -202,20 +202,24 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               child: const Icon(CupertinoIcons.chat_bubble_2_fill, color: Colors.white, size: 36),
                             ),
                             const SizedBox(height: 20),
-                            const Text(
-                              "Messagerie Beach Tennis",
+                            Text(
+                              Localizations.localeOf(context).languageCode == 'pt'
+                                  ? "Mensagens Beach Tennis"
+                                  : "Messagerie Beach Tennis",
                               textAlign: TextAlign.center,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             const SizedBox(height: 10),
-                            const Text(
-                              "Connectez-vous pour échanger avec vos partenaires, rejoindre les chats de clubs et suivre les discussions de tournois.",
+                            Text(
+                              Localizations.localeOf(context).languageCode == 'pt'
+                                  ? "Faça login para conversar com seus parceiros, entrar nos chats de arenas e acompanhar as discussões de torneios."
+                                  : "Connectez-vous pour échanger avec vos partenaires, rejoindre les chats de clubs et suivre les discussions de tournois.",
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                              style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
                             ),
                             const SizedBox(height: 24),
                             ElevatedButton(
@@ -257,7 +261,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
       );
     }
 
-    final isBr = currentUser.isBrazilian;
+    final isBr = currentUser.isBrazilian || Localizations.localeOf(context).languageCode == 'pt';
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -863,6 +867,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     AppState appState,
     ChatService chatService,
   ) {
+    final isBr = currentUser.isBrazilian || Localizations.localeOf(context).languageCode == 'pt';
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: ClipRRect(
@@ -931,7 +936,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               ),
                               if (lastTimestamp != null)
                                 Text(
-                                  _formatChatTimestamp(lastTimestamp, isBr: currentUser.isBrazilian),
+                                  _formatChatTimestamp(lastTimestamp, isBr: isBr),
                                   style: const TextStyle(color: Colors.white54, fontSize: 11),
                                 ),
                             ],
@@ -946,7 +951,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  currentUser.isBrazilian ? "Nív. ${otherUser.level}" : "Niv. ${otherUser.level}",
+                                  isBr ? "Nív. ${otherUser.level}" : "Niv. ${otherUser.level}",
                                   style: const TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
                                 ),
                               ),
@@ -955,7 +960,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                 child: Text(
                                   otherUser.location.isNotEmpty
                                       ? otherUser.location
-                                      : (currentUser.isBrazilian ? "Atleta de Beach Tennis" : "Joueur Beach Tennis"),
+                                      : (isBr ? "Atleta de Beach Tennis" : "Joueur Beach Tennis"),
                                   style: const TextStyle(color: Colors.white60, fontSize: 11),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -986,7 +991,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         child: Text(
                           lastMessage.isNotEmpty
                               ? lastMessage
-                              : (currentUser.isBrazilian ? "Solicitação de contato recebida." : "Demande de contact reçue."),
+                              : (isBr ? "Solicitação de contato recebida." : "Demande de contact reçue."),
                           style: const TextStyle(color: Colors.white, fontSize: 13, fontStyle: FontStyle.italic),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -1006,7 +1011,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         onPressed: () => PublicProfileScreen.open(context, player: otherUser),
                         icon: const Icon(CupertinoIcons.person_crop_circle, size: 14, color: Colors.white70),
                         label: Text(
-                          currentUser.isBrazilian ? "Perfil" : "Profil",
+                          isBr ? "Perfil" : "Profil",
                           style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                         ),
                         style: OutlinedButton.styleFrom(
@@ -1028,11 +1033,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               backgroundColor: const Color(0xFF16253B),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                               title: Text(
-                                currentUser.isBrazilian ? "Recusar solicitação ?" : "Refuser la demande ?",
+                                isBr ? "Recusar solicitação ?" : "Refuser la demande ?",
                                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                               ),
                               content: Text(
-                                currentUser.isBrazilian
+                                isBr
                                     ? "Deseja recusar a solicitação de ${otherUser.displayName} ? Esta conversa será removida."
                                     : "Voulez-vous refuser la demande de ${otherUser.displayName} ? Cette discussion sera supprimée.",
                                 style: const TextStyle(color: Colors.white70, fontSize: 14),
@@ -1041,7 +1046,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                 TextButton(
                                   onPressed: () => Navigator.pop(ctx, false),
                                   child: Text(
-                                    currentUser.isBrazilian ? "Cancelar" : "Annuler",
+                                    isBr ? "Cancelar" : "Annuler",
                                     style: const TextStyle(color: Colors.white60),
                                   ),
                                 ),
@@ -1052,7 +1057,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                   ),
                                   onPressed: () => Navigator.pop(ctx, true),
                                   child: Text(
-                                    currentUser.isBrazilian ? "Recusar" : "Refuser",
+                                    isBr ? "Recusar" : "Refuser",
                                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                                   ),
                                 ),
@@ -1066,7 +1071,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                    currentUser.isBrazilian
+                                    isBr
                                         ? "Solicitação de ${otherUser.displayName} recusada."
                                         : "Demande de ${otherUser.displayName} refusée.",
                                   ),
@@ -1078,7 +1083,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         },
                         icon: const Icon(CupertinoIcons.xmark_circle, size: 14, color: Colors.redAccent),
                         label: Text(
-                          currentUser.isBrazilian ? "Recusar" : "Refuser",
+                          isBr ? "Recusar" : "Refuser",
                           style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold),
                         ),
                         style: OutlinedButton.styleFrom(
@@ -1099,7 +1104,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  currentUser.isBrazilian
+                                  isBr
                                       ? "Solicitação de ${otherUser.displayName} aceita !"
                                       : "Demande de ${otherUser.displayName} acceptée !",
                                 ),
@@ -1114,7 +1119,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         },
                         icon: const Icon(CupertinoIcons.checkmark_alt_circle_fill, size: 14, color: Colors.black),
                         label: Text(
-                          currentUser.isBrazilian ? "Aceitar" : "Accepter",
+                          isBr ? "Aceitar" : "Accepter",
                           style: const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.w900),
                         ),
                         style: ElevatedButton.styleFrom(
@@ -1207,6 +1212,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     bool isUnread, {
     bool isPending = false,
   }) {
+    final isBr = currentUser.isBrazilian || Localizations.localeOf(context).languageCode == 'pt';
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       child: ClipRRect(
@@ -1227,13 +1233,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       const Icon(Icons.delete_outline, color: AppColors.coral),
                       const SizedBox(width: 8),
                       Text(
-                        currentUser.isBrazilian ? "Excluir conversa" : "Supprimer le chat",
+                        isBr ? "Excluir conversa" : "Supprimer le chat",
                         style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
                   content: Text(
-                    currentUser.isBrazilian
+                    isBr
                         ? "Deseja excluir sua conversa com ${otherUser.displayName} ?"
                         : "Voulez-vous supprimer votre conversation avec ${otherUser.displayName} ?",
                     style: const TextStyle(color: Colors.white70, fontSize: 14),
@@ -1242,7 +1248,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
                       child: Text(
-                        currentUser.isBrazilian ? "Cancelar" : "Annuler",
+                        isBr ? "Cancelar" : "Annuler",
                         style: const TextStyle(color: Colors.white60),
                       ),
                     ),
@@ -1253,7 +1259,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       ),
                       onPressed: () => Navigator.pop(ctx, true),
                       child: Text(
-                        currentUser.isBrazilian ? "Excluir" : "Supprimer",
+                        isBr ? "Excluir" : "Supprimer",
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -1274,7 +1280,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   const Icon(CupertinoIcons.trash_fill, color: Colors.white, size: 20),
                   const SizedBox(width: 8),
                   Text(
-                    currentUser.isBrazilian ? "Excluir" : "Supprimer",
+                    isBr ? "Excluir" : "Supprimer",
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -1285,7 +1291,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    currentUser.isBrazilian
+                    isBr
                         ? "Conversa com ${otherUser.displayName} excluída."
                         : "Conversation avec ${otherUser.displayName} supprimée.",
                   ),
@@ -1378,7 +1384,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               ),
                               if (lastTimestamp != null)
                                 Text(
-                                  _formatChatTimestamp(lastTimestamp, isBr: currentUser.isBrazilian),
+                                  _formatChatTimestamp(lastTimestamp, isBr: isBr),
                                   style: TextStyle(
                                     color: isUnread ? AppColors.gold : Colors.white60,
                                     fontSize: 11,
@@ -1398,7 +1404,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
-                                    currentUser.isBrazilian ? "Nív. ${otherUser.level}" : "Niv. ${otherUser.level}",
+                                    isBr ? "Nív. ${otherUser.level}" : "Niv. ${otherUser.level}",
                                     style: const TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
                                   ),
                                 ),
@@ -1419,7 +1425,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                       const Icon(CupertinoIcons.hourglass, color: Colors.amber, size: 9),
                                       const SizedBox(width: 3),
                                       Text(
-                                        currentUser.isBrazilian ? "Pendente" : "En attente",
+                                        isBr ? "Pendente" : "En attente",
                                         style: const TextStyle(color: Colors.amber, fontSize: 9, fontWeight: FontWeight.bold),
                                       ),
                                     ],
@@ -1430,7 +1436,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                 child: Text(
                                   lastMessage.isNotEmpty
                                       ? lastMessage
-                                      : (currentUser.isBrazilian ? "Nova conversa" : "Nouvelle discussion"),
+                                      : (isBr ? "Nova conversa" : "Nouvelle discussion"),
                                   style: TextStyle(
                                     color: isUnread ? Colors.white : Colors.white70,
                                     fontSize: 13,
@@ -1524,6 +1530,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     Timestamp? lastTimestamp,
     bool isUnread,
   ) {
+    final isBr = currentUser.isBrazilian || Localizations.localeOf(context).languageCode == 'pt';
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       child: ClipRRect(
@@ -1544,13 +1551,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       const Icon(Icons.delete_outline, color: AppColors.coral),
                       const SizedBox(width: 8),
                       Text(
-                        currentUser.isBrazilian ? "Excluir conversa" : "Supprimer la discussion",
+                        isBr ? "Excluir conversa" : "Supprimer la discussion",
                         style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
                   content: Text(
-                    currentUser.isBrazilian
+                    isBr
                         ? "Deseja remover o chat de '$groupName' de suas mensagens ?"
                         : "Voulez-vous retirer le chat de '$groupName' de votre boîte de réception ?",
                     style: const TextStyle(color: Colors.white70, fontSize: 14),
@@ -1559,7 +1566,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
                       child: Text(
-                        currentUser.isBrazilian ? "Cancelar" : "Annuler",
+                        isBr ? "Cancelar" : "Annuler",
                         style: const TextStyle(color: Colors.white60),
                       ),
                     ),
@@ -1570,7 +1577,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       ),
                       onPressed: () => Navigator.pop(ctx, true),
                       child: Text(
-                        currentUser.isBrazilian ? "Excluir" : "Supprimer",
+                        isBr ? "Excluir" : "Supprimer",
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -1591,7 +1598,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   const Icon(CupertinoIcons.trash_fill, color: Colors.white, size: 20),
                   const SizedBox(width: 8),
                   Text(
-                    currentUser.isBrazilian ? "Excluir" : "Supprimer",
+                    isBr ? "Excluir" : "Supprimer",
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -1602,7 +1609,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    currentUser.isBrazilian
+                    isBr
                         ? "Chat '$groupName' removido de suas mensagens."
                         : "Chat '$groupName' retiré de vos messages.",
                   ),
@@ -1699,7 +1706,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                   border: Border.all(color: AppColors.coral.withValues(alpha: 0.5)),
                                 ),
                                 child: Text(
-                                  currentUser.isBrazilian ? "Ver arena" : "Voir le club",
+                                  isBr ? "Ver arena" : "Voir le club",
                                   style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                                 ),
                               ),
@@ -1716,7 +1723,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                currentUser.isBrazilian ? "CHAT ARENA" : "CHAT CLUB",
+                                isBr ? "CHAT ARENA" : "CHAT CLUB",
                                 style: const TextStyle(color: AppColors.gold, fontSize: 9, fontWeight: FontWeight.bold),
                               ),
                             ),
@@ -1725,7 +1732,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               child: Text(
                                 lastMessage.isNotEmpty
                                     ? lastMessage
-                                    : (currentUser.isBrazilian ? "Acessar chat da arena" : "Accéder au chat du club"),
+                                    : (isBr ? "Acessar chat da arena" : "Accéder au chat du club"),
                                 style: TextStyle(
                                   color: isUnread ? Colors.white : Colors.white70,
                                   fontSize: 13,
@@ -1738,7 +1745,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             if (lastTimestamp != null) ...[
                               const SizedBox(width: 6),
                               Text(
-                                _formatChatTimestamp(lastTimestamp, isBr: currentUser.isBrazilian),
+                                _formatChatTimestamp(lastTimestamp, isBr: isBr),
                                 style: TextStyle(
                                   color: isUnread ? AppColors.gold : Colors.white60,
                                   fontSize: 11,
@@ -1771,6 +1778,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     bool isUnread,
     AppState appState,
   ) {
+    final isBr = currentUser.isBrazilian || Localizations.localeOf(context).languageCode == 'pt';
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       child: ClipRRect(
@@ -1791,13 +1799,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       const Icon(Icons.delete_outline, color: AppColors.coral),
                       const SizedBox(width: 8),
                       Text(
-                        currentUser.isBrazilian ? "Excluir conversa" : "Supprimer la discussion",
+                        isBr ? "Excluir conversa" : "Supprimer la discussion",
                         style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
                   content: Text(
-                    currentUser.isBrazilian
+                    isBr
                         ? "Deseja remover o chat de '$tournamentName' de suas mensagens ?"
                         : "Voulez-vous retirer le chat de '$tournamentName' de votre boîte de réception ?",
                     style: const TextStyle(color: Colors.white70, fontSize: 14),
@@ -1806,7 +1814,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
                       child: Text(
-                        currentUser.isBrazilian ? "Cancelar" : "Annuler",
+                        isBr ? "Cancelar" : "Annuler",
                         style: const TextStyle(color: Colors.white60),
                       ),
                     ),
@@ -1817,7 +1825,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       ),
                       onPressed: () => Navigator.pop(ctx, true),
                       child: Text(
-                        currentUser.isBrazilian ? "Excluir" : "Supprimer",
+                        isBr ? "Excluir" : "Supprimer",
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -1838,7 +1846,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   const Icon(CupertinoIcons.trash_fill, color: Colors.white, size: 20),
                   const SizedBox(width: 8),
                   Text(
-                    currentUser.isBrazilian ? "Excluir" : "Supprimer",
+                    isBr ? "Excluir" : "Supprimer",
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -1849,7 +1857,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    currentUser.isBrazilian
+                    isBr
                         ? "Chat '$tournamentName' retiré de vos messages."
                         : "Chat '$tournamentName' retiré de vos messages.",
                   ),
@@ -2009,7 +2017,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                     border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
                                   ),
                                   child: Text(
-                                    currentUser.isBrazilian ? "Ver torneio" : "Voir l'épreuve",
+                                    isBr ? "Ver torneio" : "Voir l'épreuve",
                                     style: const TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
                                   ),
                                 ),
@@ -2026,7 +2034,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  currentUser.isBrazilian ? "CHAT TORNEIO" : "CHAT TOURNOI",
+                                  isBr ? "CHAT TORNEIO" : "CHAT TOURNOI",
                                   style: const TextStyle(color: AppColors.gold, fontSize: 9, fontWeight: FontWeight.w900),
                                 ),
                               ),
@@ -2035,7 +2043,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                 child: Text(
                                   lastMessage.isNotEmpty
                                       ? lastMessage
-                                      : (currentUser.isBrazilian ? "Acessar chat do torneio" : "Accéder au chat du tournoi"),
+                                      : (isBr ? "Acessar chat do torneio" : "Accéder au chat du tournoi"),
                                   style: TextStyle(
                                     color: isUnread ? Colors.white : Colors.white70,
                                     fontSize: 13,
@@ -2048,7 +2056,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               if (lastTimestamp != null) ...[
                                 const SizedBox(width: 6),
                                 Text(
-                                  _formatChatTimestamp(lastTimestamp, isBr: currentUser.isBrazilian),
+                                  _formatChatTimestamp(lastTimestamp, isBr: isBr),
                                   style: TextStyle(
                                     color: isUnread ? AppColors.gold : Colors.white60,
                                     fontSize: 11,
@@ -2115,7 +2123,7 @@ class _NewMessageModalState extends State<_NewMessageModal> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final isBr = widget.currentUser.isBrazilian;
+    final isBr = widget.currentUser.isBrazilian || Localizations.localeOf(context).languageCode == 'pt';
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),

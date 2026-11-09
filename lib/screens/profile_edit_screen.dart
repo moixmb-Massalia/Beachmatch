@@ -40,8 +40,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   @override
   void initState() {
     super.initState();
-    final user = context.read<AppState>().currentUser;
-    final isBr = user?.isBrazilian == true;
+    final appState = context.read<AppState>();
+    final user = appState.currentUser;
+    final isBr = (user?.isBrazilian == true) || (appState.currentLocale?.languageCode == 'pt');
     _nameController = TextEditingController(text: user?.displayName ?? "");
     _locationController = TextEditingController(text: user?.location ?? "");
     _licenceController = TextEditingController(text: isBr ? (user?.cbtId ?? user?.licenceNumber ?? '') : (user?.licenceNumber ?? ''));
@@ -217,7 +218,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         photoUrl = await ref.getDownloadURL();
       }
 
-      final isBr = appState.currentUser?.isBrazilian == true;
+      final isBr = (appState.currentUser?.isBrazilian == true) || (appState.currentLocale?.languageCode == 'pt');
       final currentLicence = _licenceController.text.trim();
       final licenceToSave = currentLicence.isNotEmpty ? currentLicence : null;
       final clubNameToSave = _clubController.text.trim().isNotEmpty ? _clubController.text.trim() : _clubName;
@@ -257,7 +258,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AppState>().currentUser;
-    final isBr = user?.isBrazilian == true;
+    final isBr = (user?.isBrazilian == true) || (Localizations.localeOf(context).languageCode == 'pt');
 
     return Scaffold(
       backgroundColor: Colors.transparent,

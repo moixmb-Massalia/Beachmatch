@@ -69,7 +69,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   }
 
   Future<void> _saveMatch() async {
-    final isBrazilian = context.read<AppState>().currentUser?.isBrazilian == true;
+    final isBrazilian = (context.read<AppState>().currentUser?.isBrazilian == true) || (Localizations.localeOf(context).languageCode == 'pt');
     if (_selectedCourtId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(isBrazilian ? "Por favor, selecione uma quadra de Beach Tennis." : "Veuillez sélectionner un terrain de Beach Tennis.")),
@@ -122,7 +122,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   }
 
   void _showSuccessDialog(String matchId, String courtName, DateTime matchDate) {
-    final isBrazilian = context.read<AppState>().currentUser?.isBrazilian == true;
+    final isBrazilian = (context.read<AppState>().currentUser?.isBrazilian == true) || (Localizations.localeOf(context).languageCode == 'pt');
     final formattedDate = isBrazilian
         ? DateFormat("EEEE, d 'de' MMMM 'às' HH:mm", 'pt_BR').format(matchDate)
         : DateFormat('EEEE d MMMM à HH:mm', 'fr_FR').format(matchDate);
@@ -213,7 +213,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final courts = appState.courts;
-    final isBrazilian = appState.currentUser?.isBrazilian == true;
+    final isBrazilian = (appState.currentUser?.isBrazilian == true) || (Localizations.localeOf(context).languageCode == 'pt');
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -724,7 +724,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                   ),
 
                   // 6. Chave Pix (Réservé exclusivement au Brésil 🇧🇷)
-                  if (context.watch<AppState>().currentUser?.isBrazilian == true) ...[
+                  if (isBrazilian) ...[
                     const SizedBox(height: 16),
                     _buildGlassCard(
                       child: Column(
@@ -865,7 +865,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
 
   Widget _buildLevelChip(int level) {
     final isSelected = _targetLevel == level;
-    final isBr = context.read<AppState>().currentUser?.isBrazilian == true;
+    final isBr = (context.read<AppState>().currentUser?.isBrazilian == true) || (Localizations.localeOf(context).languageCode == 'pt');
     return GestureDetector(
       onTap: () => setState(() => _targetLevel = level),
       child: AnimatedContainer(

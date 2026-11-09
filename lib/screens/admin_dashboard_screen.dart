@@ -2551,15 +2551,74 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         child: Icon(isReferee ? Icons.gavel_rounded : Icons.gavel_outlined, color: isReferee ? AppColors.gold : Colors.white70, size: 20),
                       ),
                       title: Text(isReferee ? "Retirer l'accréditation JAT FFT" : "Accréditer Arbitre JAT FFT ⚖️", style: const TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                        isReferee ? "Accès JAT activé (users & preauthorized_jats)" : "Cliquez pour accréditer comme arbitre officiel",
+                        style: const TextStyle(color: Colors.white38, fontSize: 11),
+                      ),
                       onTap: () async {
                         final newVal = !isReferee;
                         setModalState(() => isReferee = newVal);
                         u['isReferee'] = newVal;
-                        await _firestore.collection('users').doc(userId).update({'isReferee': newVal});
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(newVal ? "Joueur accrédité JAT FFT !" : "Accréditation JAT retirée")),
-                          );
+                        if (mounted) {
+                          setState(() {});
+                        }
+
+                        try {
+                          // 1. Mettre à jour la collection users avec merge: true
+                          await _firestore.collection('users').doc(userId).set({
+                            'isReferee': newVal,
+                            'role': newVal ? 'JAT' : 'PLAYER',
+                            'updatedAt': FieldValue.serverTimestamp(),
+                          }, SetOptions(merge: true));
+
+                          // 2. Synchroniser la collection preauthorized_jats pour autoriser l'accès tournois
+                          final cleanEmail = email.trim().toLowerCase();
+                          if (cleanEmail.isNotEmpty) {
+                            if (newVal) {
+                              await _firestore.collection('preauthorized_jats').doc(cleanEmail).set({
+                                'email': cleanEmail,
+                                'name': name.isNotEmpty ? (name.contains('(JAT)') ? name : '$name (JAT)') : 'Arbitre JAT',
+                                'isReferee': true,
+                                'role': 'JAT',
+                                'status': 'ACTIVE',
+                                'isPreauthorized': true,
+                                'verifiedJat': true,
+                                'updatedAt': FieldValue.serverTimestamp(),
+                              }, SetOptions(merge: true));
+                            } else {
+                              await _firestore.collection('preauthorized_jats').doc(cleanEmail).set({
+                                'isReferee': false,
+                                'role': 'PLAYER',
+                                'status': 'INACTIVE',
+                                'verifiedJat': false,
+                                'updatedAt': FieldValue.serverTimestamp(),
+                              }, SetOptions(merge: true));
+                            }
+                          }
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: newVal ? Colors.green.shade800 : Colors.blueGrey.shade800,
+                                content: Text(newVal ? "✅ $name accrédité JAT FFT avec succès !" : "ℹ️ Accréditation JAT retirée pour $name"),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          // En cas d'erreur, revert
+                          setModalState(() => isReferee = !newVal);
+                          u['isReferee'] = !newVal;
+                          if (mounted) {
+                            setState(() {});
+                          }
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: Colors.red.shade800,
+                                content: Text("Erreur lors de la mise à jour JAT : $e"),
+                              ),
+                            );
+                          }
                         }
                       },
                     ),

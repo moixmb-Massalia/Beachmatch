@@ -29,8 +29,10 @@ class _ClubListScreenState extends State<ClubListScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final user = context.read<AppState>().currentUser;
-      if (user != null && user.isBrazilian) {
+      final appState = context.read<AppState>();
+      final user = appState.currentUser;
+      final isPt = appState.currentLocale?.languageCode == 'pt';
+      if ((user != null && user.isBrazilian) || isPt) {
         setState(() => _selectedRegionFilter = "Brésil 🇧🇷");
       }
     });
@@ -53,7 +55,8 @@ class _ClubListScreenState extends State<ClubListScreen> {
 
   Widget _buildClubAffiliationBanner(BuildContext context) {
     final user = context.watch<AppState>().currentUser;
-    if (user == null || (user.clubId != null && user.clubId!.isNotEmpty) || user.isBrazilian) {
+    final isPt = Localizations.localeOf(context).languageCode == 'pt';
+    if (user == null || (user.clubId != null && user.clubId!.isNotEmpty) || user.isBrazilian || isPt) {
       return const SizedBox.shrink();
     }
 
@@ -194,7 +197,7 @@ class _ClubListScreenState extends State<ClubListScreen> {
                     children: [
                       Center(
                         child: Text(
-                          context.watch<AppState>().currentUser?.isBrazilian == true ? "Nenhuma arena encontrada." : "Aucun club trouvé.",
+                          ((context.watch<AppState>().currentUser?.isBrazilian == true) || Localizations.localeOf(context).languageCode == 'pt') ? "Nenhuma arena encontrada." : "Aucun club trouvé.",
                           style: const TextStyle(color: Colors.white70, fontSize: 16),
                         ),
                       ),
@@ -265,7 +268,7 @@ class _ClubListScreenState extends State<ClubListScreen> {
   }
 
   Widget _buildSearchBar() {
-    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
+    final isBr = (context.watch<AppState>().currentUser?.isBrazilian == true) || (Localizations.localeOf(context).languageCode == 'pt');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
       child: ClipRRect(
@@ -312,7 +315,7 @@ class _ClubListScreenState extends State<ClubListScreen> {
   }
 
   Widget _buildFilterChips() {
-    final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
+    final isBr = (context.watch<AppState>().currentUser?.isBrazilian == true) || (Localizations.localeOf(context).languageCode == 'pt');
     final filters = isBr
         ? [
             {'id': 'Brésil 🇧🇷', 'label': 'Brasil 🇧🇷'},

@@ -23,8 +23,8 @@
 		<key>CFBundleSignature</key>
 		<string>????</string>
 		<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<key>CFBundleVersion</key>
+		<false/>
+		<key>CFBundleVersion</key>
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
@@ -83,5 +83,20 @@
 		<string>BeachMatch a besoin d'accéder à votre micro pour vous permettre d'enregistrer et d'envoyer des messages vocaux dans le chat.</string>
 		<key>io.flutter.embedded_views_preview</key>
 		<true/>
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>com.googleusercontent.apps.975202518106-qijjobo87h14c619mqt4861ms7u6lcph</string>
+				</array>
+			</dict>
+		</array>
+		<key>GIDClientID</key>
+		<string>975202518106-qijjobo87h14c619mqt4861ms7u6lcph.apps.googleusercontent.com</string>
+		<key>GIDServerClientID</key>
+		<string>975202518106-h4h5ea4dghlgv258n1pg4t1dl8p5vhfp.apps.googleusercontent.com</string>
 	</dict>
 </plist>

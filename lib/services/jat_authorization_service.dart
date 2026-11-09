@@ -71,6 +71,16 @@ class JatAuthorizationService {
           return true;
         }
 
+        final affiliatedCities = List<String>.from(data['cities'] ?? []);
+        final tLoc = tournament.location.toLowerCase().trim();
+        final tName = tournament.name.toLowerCase().trim();
+        if (affiliatedCities.any((city) {
+          final c = city.toLowerCase().trim();
+          return c.isNotEmpty && (tLoc.contains(c) || tClub.contains(c) || tName.contains(c));
+        })) {
+          return true;
+        }
+
         final preauthName = (data['name'] ?? '').toString().toLowerCase().trim();
         final refName = (tournament.referee ?? '').toLowerCase().trim();
         if (preauthName.isNotEmpty && refName.isNotEmpty) {

@@ -1123,3 +1123,101 @@ exports.onBrazilianUserTokenRegistered = onDocumentUpdated({
   }
 });
 
+// ============================================================================
+// MESSAGE AUTOMATIQUE DE BIENVENUE & PARRAINAGE POUR TOUS LES NOUVEAUX INSCRITS DU BRÉSIL 🇧🇷
+// ============================================================================
+async function sendBrazilianWelcomeChat(userId, userData) {
+  const isBrazilian = (
+    userData.country === 'BR' ||
+    userData.country === 'BRA' ||
+    (userData.location && (userData.location.toLowerCase().includes('brasil') || userData.location.toLowerCase().includes('brazil'))) ||
+    userData.isBrazilian === true ||
+    userData.cbtCategory ||
+    userData.cbtId
+  );
+
+  if (!isBrazilian) return;
+
+  const chatId = `support_beachmatch_${userId}`;
+  const chatRef = db.collection("chats").document(chatId);
+  const chatDoc = await chatRef.get();
+  
+  // Idempotence : ne pas renvoyer si la conversation existe déjà
+  if (chatDoc.exists) return;
+
+  const displayName = userData.displayName || userData.name || "Atleta";
+  const firstName = displayName.split(" ")[0];
+  const photoUrl = userData.photoUrl || "";
+
+  const welcomeMessage = 
+`Olá ${firstName}! 🇧🇷🎾 Bem-vindo(a) ao BeachMatch Brasil!
+
+Estamos muito felizes em ter você na comunidade oficial de Beach Tennis no país!
+
+✨ O que você encontra no BeachMatch :
+• 🇧🇷 Tour Guiado Completo : Disponível na tela inicial e no seu Perfil para conhecer todas as funcionalidades de uma vez só!
+• 🏆 Perfil & Ranking CBT : Vincule sua categoria oficial (Iniciante, D, C, B, A, PRO) e acompanhe seu nível.
+• 🏖️ Arenas & Vento ao Vivo : Encontre quadras públicas e arenas privadas com previsão de vento em tempo real.
+• 💸 Rei da Praia & Divisão PIX : Crie partidas na sua arena favorita e divida o valor da locação via Pix em segundos.
+• 👥 SOS Parceiro : Encontre duplas para treinos ou torneios sem complicação.
+
+🎁 CONVIDE SEUS AMIGOS E PARCEIROS DE TREINO :
+O BeachMatch fica ainda melhor quando a sua galera está conectada! Chame seus amigos e parceiros de arena para baixarem o app e jogarem juntos.
+
+💬 Dúvidas, feedback ou quer cadastrar sua arena ?
+Basta responder diretamente aqui neste chat oficial da nossa equipe. Bom jogo e nos vemos na areia! ☀️🏖️🎾`;
+
+  await chatRef.set({
+    participants: [userId, "beachmatch_support"],
+    participantNames: {
+      [userId]: displayName,
+      "beachmatch_support": "BeachMatch Suporte 🇧🇷"
+    },
+    participantPhotos: {
+      [userId]: photoUrl,
+      "beachmatch_support": "https://firebasestorage.googleapis.com/v0/b/beach-tennis-216f4.firebasestorage.app/o/app_assets%2Fsupport_icon.png?alt=media"
+    },
+    lastMessage: welcomeMessage,
+    lastMessageSenderId: "beachmatch_support",
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    unreadBy: [userId],
+    isSupportChat: true,
+  });
+
+  await chatRef.collection("messages").add({
+    senderId: "beachmatch_support",
+    senderName: "BeachMatch Suporte 🇧🇷",
+    text: welcomeMessage,
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    readBy: ["beachmatch_support"],
+  });
+
+  logger.info(`Message de bienvenue et parrainage envoyé au nouvel inscrit brésilien ${userId} (${displayName})`);
+}
+
+exports.onBrazilianUserCreated = onDocumentCreated({
+  document: "users/{userId}",
+  region: "europe-west1"
+}, async (event) => {
+  const data = event.data ? event.data.data() : null;
+  if (!data) return;
+  try {
+    await sendBrazilianWelcomeChat(event.params.userId, data);
+  } catch (error) {
+    logger.error("Erreur onBrazilianUserCreated:", error);
+  }
+});
+
+exports.onBrazilianUserUpdated = onDocumentUpdated({
+  document: "users/{userId}",
+  region: "europe-west1"
+}, async (event) => {
+  const after = event.data.after ? event.data.after.data() : null;
+  if (!after) return;
+  try {
+    await sendBrazilianWelcomeChat(event.params.userId, after);
+  } catch (error) {
+    logger.error("Erreur onBrazilianUserUpdated:", error);
+  }
+});
+

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
@@ -14,7 +15,7 @@ class CompetitionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AppState>().currentUser;
-    final isBr = user?.isBrazilian == true;
+    final isBr = (user?.isBrazilian == true) || (Localizations.localeOf(context).languageCode == 'pt');
 
     return DefaultTabController(
       length: 4,
@@ -67,13 +68,18 @@ class CompetitionScreen extends StatelessWidget {
             ],
           ),
         ),
-        body: const TabBarView(
-          children: [
-            TournamentListScreen(showHeader: false),
-            BeachScoreHubScreen(isEmbedded: true),
-            FftRankingsScreen(isEmbedded: true),
-            TournamentRadarScreen(),
-          ],
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: kIsWeb ? 960 : double.infinity),
+            child: const TabBarView(
+              children: [
+                TournamentListScreen(showHeader: false),
+                BeachScoreHubScreen(isEmbedded: true),
+                FftRankingsScreen(isEmbedded: true),
+                TournamentRadarScreen(),
+              ],
+            ),
+          ),
         ),
       ),
     );

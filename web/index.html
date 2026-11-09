@@ -31,23 +31,21 @@
   <link rel="manifest" href="manifest.json">
   
   <!-- Google Maps JavaScript API -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDU9h5fyeXvq4VWS8vVHHPVK-iphlWZuL8"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBfDjAXYz7i3VQqs_c_836W8raCkSK9dmw"></script>
   
   <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
   
-  
-  
-  
   <style id="splash-screen-style">
     html {
-      height: 100%
+      height: 100%;
     }
 
     body {
       margin: 0;
       min-height: 100%;
-      background-color: #212121;
-          background-size: 100% 100%;
+      background: linear-gradient(135deg, rgba(10, 16, 26, 0.72) 0%, rgba(15, 23, 42, 0.85) 100%), url("splash/bg_beach_tennis.jpg") no-repeat center center fixed;
+      background-size: cover;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     .center {
@@ -59,59 +57,80 @@
       transform: translate(-50%, -50%);
     }
 
-    .contain {
-      display:block;
-      width:100%; height:100%;
-      object-fit: contain;
+    .splash-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 42px;
+      background: rgba(15, 25, 40, 0.82);
+      border: 1.5px solid rgba(255, 215, 0, 0.35);
+      border-radius: 28px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(0, 210, 255, 0.15);
+      text-align: center;
     }
 
-    .stretch {
-      display:block;
-      width:100%; height:100%;
+    .splash-logo {
+      width: 100px;
+      height: 100px;
+      border-radius: 22px;
+      box-shadow: 0 10px 30px rgba(255, 107, 107, 0.4);
     }
 
-    .cover {
-      display:block;
-      width:100%; height:100%;
-      object-fit: cover;
+    .splash-title {
+      margin-top: 18px;
+      font-size: 22px;
+      font-weight: 900;
+      color: #FFFFFF;
+      letter-spacing: 2px;
     }
 
-    .bottom {
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      -ms-transform: translate(-50%, 0);
-      transform: translate(-50%, 0);
+    .splash-subtitle {
+      margin-top: 4px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #FFD700;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
     }
 
-    .bottomLeft {
-      position: absolute;
-      bottom: 0;
-      left: 0;
+    .splash-spinner {
+      margin-top: 22px;
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(255, 255, 255, 0.15);
+      border-top-color: #00D2FF;
+      border-radius: 50%;
+      animation: bm-spin 0.85s linear infinite;
     }
 
-    .bottomRight {
-      position: absolute;
-      bottom: 0;
-      right: 0;
+    @keyframes bm-spin {
+      to { transform: rotate(360deg); }
     }
   </style>
   <script id="splash-screen-script">
     function removeSplashFromWeb() {
       document.getElementById("splash")?.remove();
       document.getElementById("splash-branding")?.remove();
-      document.body.style.background = "transparent";
+      document.body.style.background = "#0F141E";
     }
   </script>
 </head>
 <body>
-  <picture id="splash">
-      <source srcset="splash/img/light-1x.png 1x, splash/img/light-2x.png 2x, splash/img/light-3x.png 3x, splash/img/light-4x.png 4x" media="(prefers-color-scheme: light)">
-      <source srcset="splash/img/dark-1x.png 1x, splash/img/dark-2x.png 2x, splash/img/dark-3x.png 3x, splash/img/dark-4x.png 4x" media="(prefers-color-scheme: dark)">
-      <img class="center" aria-hidden="true" src="splash/img/light-1x.png" alt="">
-  </picture>
-  
-  
+  <div id="splash" class="center">
+    <div class="splash-card">
+      <picture>
+        <source srcset="splash/img/light-1x.png 1x, splash/img/light-2x.png 2x, splash/img/light-3x.png 3x, splash/img/light-4x.png 4x" media="(prefers-color-scheme: light)">
+        <source srcset="splash/img/dark-1x.png 1x, splash/img/dark-2x.png 2x, splash/img/dark-3x.png 3x, splash/img/dark-4x.png 4x" media="(prefers-color-scheme: dark)">
+        <img class="splash-logo" aria-hidden="true" src="splash/img/light-1x.png" alt="BeachMatch">
+      </picture>
+      <div class="splash-title">BEACHMATCH</div>
+      <div class="splash-subtitle">Beach Tennis Platform</div>
+      <div class="splash-spinner"></div>
+    </div>
+  </div>
   
   <!--
     You can customize the "flutter_bootstrap.js" script.
@@ -119,7 +138,7 @@
     or to give the user feedback during the initialization process.
 
     For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
   -->
   <script>
     if ('serviceWorker' in navigator) {
@@ -131,6 +150,5 @@
     }
   </script>
   <script src="flutter_bootstrap.js" async=""></script>
-
 
 </body></html>
