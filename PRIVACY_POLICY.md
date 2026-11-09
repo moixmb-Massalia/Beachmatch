@@ -1,58 +1,68 @@
 # Politique de Confidentialité — BeachMatch Tennis
 
-**Dernière mise à jour : 29 Octobre 2026**
-
-La présente Politique de Confidentialité décrit la façon dont l'application mobile **BeachMatch Tennis** (« nous », « notre » ou « l'Application ») collecte, utilise et protège vos données personnelles lorsque vous utilisez nos services sur iOS et Android.
-
-Nous accordons une importance primordiale au respect de votre vie privée et nous nous conformons aux exigences du Règlement Général sur la Protection des Données (RGPD) et aux règles de confidentialité d'Apple et de Google.
+**Dernière mise à jour : 9 Novembre 2026**
 
 ---
 
-## 1. Données collectées et finalités
+### Identification Officielle de l'Application & du Développeur
 
-Nous ne collectons que les informations strictement nécessaires au bon fonctionnement de l'Application :
+* **Nom de l'application :** BeachMatch Tennis
+* **Identifiant du Package (Google Play) :** `com.beachmatch.app`
+* **Bundle ID (Apple App Store) :** `com.beachmatch.mobile`
+* **Nom officiel du développeur / éditeur :** **Développeur MassaliaLink**
+* **Contact développeur / Support :** `moixmb@gmail.com` / `support@beachmatch.app`
+* **Dépôt officiel du code :** [https://github.com/moixmb-Massalia/Beachmatch](https://github.com/moixmb-Massalia/Beachmatch)
 
-* **Coordonnées & Profil joueur (Nom, Prénom, Adresse e-mail) :**  
-  Ces informations sont recueillies lors de votre inscription ou de votre connexion (via e-mail ou Sign in with Apple / Google). Elles permettent de créer votre compte joueur, de sécuriser votre accès et d'afficher votre nom lors des matchs ou dans la recherche de partenaires.
+---
+
+## 1. Présentation & Champ d'application
+
+La présente Politique de Confidentialité s'applique à l'application mobile **BeachMatch Tennis** éditée par **Développeur MassaliaLink**. Elle détaille nos engagements concernant la collecte, le traitement, l'hébergement et la protection de vos données personnelles, en parfaite conformité avec les règles de confidentialité de **Google Play**, d'**Apple App Store** et du **Règlement Général sur la Protection des Données (RGPD)**.
+
+---
+
+## 2. Données personnelles collectées et Finalités
+
+L'Application ne collecte que les informations strictement indispensables à la fourniture de son service de mise en relation de joueurs et de gestion des tournois de Beach Tennis :
+
+* **Coordonnées & Profil joueur (Nom, Prénom, E-mail) :**  
+  Recueillies lors de la création de compte ou de la connexion sécurisée (Google Sign-In, Sign in with Apple ou e-mail/mot de passe). Ces données permettent d'identifier le joueur, de sécuriser l'accès et d'afficher son nom lors des rencontres et recherches de partenaires.
 * **Photo de profil (facultative) :**  
-  Si vous choisissez d'ajouter une photo à votre profil, celle-ci est stockée de manière sécurisée afin de permettre aux autres joueurs de vous identifier sur les terrains.
-* **Données de localisation GPS (facultative) :**  
-  Avec votre accord préalable, l'Application utilise votre position géographique pour afficher les terrains, spots de beach tennis et tournois les plus proches sur la carte interactive et le radar. Votre position n'est pas suivie en arrière-plan ni stockée de façon continue.
-* **Messages et communications :**  
-  Les messages que vous échangez avec vos partenaires dans la messagerie intégrée sont stockés afin de vous permettre de convenir de vos créneaux et de retrouver l'historique de vos échanges de jeu.
-* **Données techniques et de diagnostic :**  
-  Des journaux d'erreurs anonymisés peuvent être traités afin d'identifier les pannes et d'améliorer la stabilité de l'Application.
+  Stockée de façon sécurisée si le joueur choisit d'en ajouter une, afin de faciliter son identification sur les courts.
+* **Localisation GPS (facultative & soumise à accord explicite) :**  
+  Utilisée uniquement au premier plan pour centrer la carte interactive et le radar sur les terrains et tournois à proximité immédiate. **Aucun suivi en arrière-plan n'est opéré et aucune donnée de position continue n'est enregistrée sur nos serveurs.**
+* **Messagerie intégrée :**  
+  Les messages échangés entre partenaires de jeu sont conservés afin de permettre la consultation de l'historique et la bonne organisation des matchs.
+* **Licences sportives et classements (FFT / CBT / ITF) :**  
+  Pour les compétiteurs, le numéro de licence officiel permet d'afficher les classements homologués et de faciliter l'inscription aux tournois officiels.
+* **Diagnostics techniques :**  
+  Des journaux d'erreurs anonymisés peuvent être traités afin d'éliminer les pannes et de garantir la stabilité de l'Application.
 
 ---
 
-## 2. Partage et revente des données
+## 3. Absence totale de revente & Non-partage publicitaire
 
-* **Aucune revente de données :** Nous ne vendons, ne louons et ne cédons aucune de vos données personnelles à des tiers.
-* **Aucun pistage publicitaire tiers :** L'Application n'intègre aucun traceur publicitaire tiers destiné à surveiller vos habitudes de navigation sur d'autres applications ou sites web.
-* **Hébergement sécurisé :** Vos données sont hébergées sur des serveurs sécurisés certifiés (Google Cloud Platform / Firebase).
+* **Aucune revente de données :** Le développeur **Développeur MassaliaLink** ne vend, ne loue, ne monétise et ne cède aucune donnée personnelle d'utilisateur à des tiers.
+* **Aucun pistage publicitaire tiers :** L'Application n'intègre aucune régie publicitaire tierce destinée au profilage commercial ou au suivi multi-applications.
+* **Hébergement certifié :** Vos données sont hébergées sur l'infrastructure sécurisée de **Google Cloud Platform / Firebase** (certifiée ISO 27001, SOC 2 et conforme au RGPD).
 
 ---
 
-## 3. Suppression du compte et des données (Conformité Apple Guideline 5.1.1)
+## 4. Suppression définitive du compte et des données (Conformité Google Play & Apple Guideline 5.1.1)
 
-Vous disposez à tout moment du contrôle total sur vos données :
+Chaque utilisateur conserve la maîtrise absolue de ses données personnelles :
 
 1. **Suppression autonome dans l'Application :**  
-   Vous pouvez supprimer définitivement votre compte et toutes les données associées en vous rendant dans l'Application sur l'écran **Profil** > **Supprimer mon compte**. Cette action supprime instantanément votre compte, votre profil, vos photos et vos messages de nos bases de données.
+   Directement dans l'Application via le menu **Profil** > **Supprimer mon compte**. Cette commande supprime instantanément et irréversiblement votre profil, adresse e-mail, photos et messages de l'ensemble de nos bases de données.
 2. **Demande par e-mail :**  
-   Vous pouvez également demander la suppression intégrale de vos informations personnelles en envoyant un e-mail à l'adresse du support indiquée ci-dessous. Votre demande sera traitée sous 48 heures ouvrées.
-
----
-
-## 4. Sécurité
-
-Nous mettons en œuvre des mesures de sécurité techniques et organisationnelles conformes aux standards de l'industrie (chiffrement des transferts via HTTPS / SSL, règles de sécurité strictes sur les bases de données) pour protéger vos données contre tout accès, altération ou destruction non autorisés.
+   En envoyant un simple e-mail au développeur à **`moixmb@gmail.com`** ou **`support@beachmatch.app`**. La suppression complète et définitive est effectuée sous 48 heures ouvrées.
 
 ---
 
 ## 5. Contact & Support
 
-Pour toute question concernant cette Politique de Confidentialité ou pour exercer vos droits d'accès, de rectification ou d'effacement, vous pouvez nous contacter :
+Pour toute question relative à cette Politique de Confidentialité ou pour exercer vos droits (accès, rectification, portabilité, effacement), vous pouvez contacter :
 
-* **E-mail de support :** `support@beachmatch.app`
-* **Dépôt officiel du projet :** [https://github.com/moixmb-Massalia/Beachmatch](https://github.com/moixmb-Massalia/Beachmatch)
+* **Éditeur / Développeur :** Développeur MassaliaLink
+* **E-mail :** `moixmb@gmail.com` / `support@beachmatch.app`
+* **URL de la politique en ligne :** [https://beach-tennis-216f4.web.app/privacy.html](https://beach-tennis-216f4.web.app/privacy.html)
