@@ -46,7 +46,7 @@
             android:value="2" />
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyDU9h5fyeXvq4VWS8vVHHPVK-iphlWZuL8" />
+            android:value="AIzaSyCMyJYPhUHKJM0bGqNlj-EWhK1vV03RMEE" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="beachmatch_high_importance_channel" />
