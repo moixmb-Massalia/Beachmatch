@@ -881,7 +881,8 @@ exports.onMatchCreated = onDocumentCreated({
 
 exports.onTournamentCreated = onDocumentCreated({
   document: "tournaments/{tournamentId}",
-  region: "europe-west1"
+  region: "europe-west1",
+  timeoutSeconds: 120
 }, async (event) => {
   const snapshot = event.data;
   if (!snapshot) return;
@@ -892,33 +893,111 @@ exports.onTournamentCreated = onDocumentCreated({
   const category = tournamentData.category || "BT";
   const dates = tournamentData.dates || tournamentData.date || "";
 
+  // 🛡️ REGROUPEMENT INTELLIGENT ANTI-SPAM (DEBOUNCING)
+  // Si plusieurs tournois sont ajoutés en masse dans la même minute,
+  // ils sont regroupés dans une seule et unique notification propre !
+  const bufferRef = db.collection("system_buffers").doc("tournament_alerts");
+  let isLeader = false;
+
+  const tourneyItem = {
+    id: event.params.tournamentId,
+    name: name,
+    category: category,
+    location: location,
+    dates: dates
+  };
+
   try {
-    // 🚀 Envoyé IMMÉDIATEMENT dès qu'un tournoi est ajouté (sans attendre le tirage du JAT)
-    // Récupère tous les joueurs possédant un jeton FCM actif
+    await db.runTransaction(async (transaction) => {
+      const doc = await transaction.get(bufferRef);
+      const now = Date.now();
+
+      if (!doc.exists || !doc.data().active) {
+        // Premier tournoi du lot : devient le "Leader"
+        isLeader = true;
+        transaction.set(bufferRef, {
+          active: true,
+          leaderId: event.params.tournamentId,
+          startedAt: now,
+          tournaments: [tourneyItem]
+        });
+      } else {
+        // Le lot est déjà en cours, on ajoute ce tournoi au récapitulatif
+        const data = doc.data();
+        const list = data.tournaments || [];
+        if (!list.some(item => item.id === tourneyItem.id)) {
+          list.push(tourneyItem);
+        }
+        transaction.update(bufferRef, {
+          tournaments: list,
+          lastUpdatedAt: now
+        });
+      }
+    });
+  } catch (err) {
+    logger.error("Erreur gestion du buffer de notification:", err);
+  }
+
+  // Si nous ne sommes pas le premier tournoi du lot, on s'arrête ici :
+  // Le Leader va tout envoyer en une seule fois pour tout le monde.
+  if (!isLeader) {
+    return;
+  }
+
+  // ⏳ LEADER : On attend 40 secondes pour collecter tous les tournois ajoutés en masse
+  await new Promise((resolve) => setTimeout(resolve, 40000));
+
+  try {
+    const finalSnap = await bufferRef.get();
+    if (!finalSnap.exists || !finalSnap.data()?.active) return;
+
+    const finalData = finalSnap.data();
+    const allTourneys = finalData.tournaments || [];
+
+    // Réinitialiser le buffer pour les prochains ajouts
+    await bufferRef.set({ active: false, tournaments: [], completedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+    if (allTourneys.length === 0) return;
+
+    // Déterminer le titre et le message : individuel vs groupé
+    let notifTitle = "";
+    let notifBody = "";
+
+    if (allTourneys.length === 1) {
+      const t = allTourneys[0];
+      notifTitle = `🎾 Nouveau Tournoi : ${t.category}`;
+      notifBody = `${t.name} (${t.location}) vient d'être ajouté ! ${t.dates ? '📅 ' + t.dates + '. ' : ''}Découvrez les détails et préparez votre paire !`;
+    } else {
+      const count = allTourneys.length;
+      // Extraire jusqu'à 3 villes uniques pour donner un aperçu alléchant
+      const locs = Array.from(new Set(allTourneys.map(t => t.location).filter(Boolean))).slice(0, 3);
+      const locsStr = locs.join(", ");
+      const extra = count > locs.length ? "..." : " !";
+      
+      notifTitle = `🎾 ${count} Nouveaux Tournois ajoutés !`;
+      notifBody = `Le calendrier s'agrandit avec ${locsStr}${extra} Venez découvrir toutes les dates et vous inscrire !`;
+    }
+
+    // Récupérer tous les joueurs ayant installé l'app
     const usersSnapshot = await db.collection("users").get();
-    
     const messages = [];
     const seenTokens = new Set();
+
     usersSnapshot.forEach(doc => {
       const userData = doc.data();
       const fcmToken = userData.fcmToken;
-      
-      // Envoi à tous sauf si l'utilisateur a expressément coupé tournamentAlertsEnabled: false
       if (!fcmToken || seenTokens.has(fcmToken) || userData.tournamentAlertsEnabled === false) return;
 
       seenTokens.add(fcmToken);
       messages.push({
         token: fcmToken,
         notification: {
-          title: `🎾 Nouveau Tournoi : ${category}`,
-          body: `${name} (${location}) vient d'être ajouté ! ${dates ? '📅 ' + dates + '. ' : ''}Découvrez les détails et inscrivez-vous !`
+          title: notifTitle,
+          body: notifBody
         },
         data: {
-          type: "new_tournament",
-          tournamentId: event.params.tournamentId,
-          category: String(category),
-          name: String(name),
-          location: String(location)
+          type: "tournaments_hub",
+          count: String(allTourneys.length)
         },
         android: {
           priority: "high",
@@ -936,8 +1015,8 @@ exports.onTournamentCreated = onDocumentCreated({
           payload: {
             aps: {
               alert: {
-                title: `🎾 Nouveau Tournoi : ${category}`,
-                body: `${name} (${location}) vient d'être ajouté ! ${dates ? '📅 ' + dates + '. ' : ''}Découvrez les détails et inscrivez-vous !`
+                title: notifTitle,
+                body: notifBody
               },
               badge: 1,
               sound: "default"
@@ -953,10 +1032,14 @@ exports.onTournamentCreated = onDocumentCreated({
         const chunk = messages.slice(i, i + maxTokens);
         await admin.messaging().sendAll(chunk);
       }
-      logger.info(`Notification de nouveau tournoi envoyée instantanément à ${messages.length} joueurs.`);
+      logger.info(`Notification groupée (${allTourneys.length} tournois) envoyée à ${messages.length} joueurs.`);
     }
   } catch (error) {
-    logger.error("Erreur lors de l'envoi de la notification onTournamentCreated:", error);
+    logger.error("Erreur lors de l'envoi de la notification groupée onTournamentCreated:", error);
+    // En cas d'erreur, s'assurer que le buffer est remis à zéro
+    try {
+      await bufferRef.set({ active: false, tournaments: [] });
+    } catch (_) {}
   }
 });
 
