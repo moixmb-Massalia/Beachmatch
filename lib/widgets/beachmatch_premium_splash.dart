@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/colors.dart';
+import '../theme/seasonal_theme.dart';
 
 /// Écran de démarrage d'accueil ultra-premium, immersif et animé.
 /// Conçu pour offrir une expérience fluide, cinématographique et luxueuse
@@ -166,6 +167,17 @@ class _BeachMatchPremiumSplashState extends State<BeachMatchPremiumSplash>
             ),
           ),
 
+          // 🌟 Ambiance saisonnière 100% automatique (particules festives selon la saison)
+          if (SeasonalTheme.hasActiveTheme)
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: SeasonalOverlay(
+                  numberOfParticles: 42,
+                  maxSpeed: 1.5,
+                ),
+              ),
+            ),
+
           // 💎 4. Carte centrale Glassmorphism avec animations coordonnées
           SafeArea(
             child: Center(
@@ -206,12 +218,16 @@ class _BeachMatchPremiumSplashState extends State<BeachMatchPremiumSplash>
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // 🎾 Logo circulaire officiel avec halo néon pulsant
-                              AnimatedBuilder(
-                                animation: _pulseController,
-                                builder: (context, child) {
-                                  return Transform.scale(
-                                    scale: _pulseAnimation.value,
+                              // 🎾 Logo circulaire officiel avec halo néon pulsant & bonnet de Noël saisonnier
+                              Stack(
+                                clipBehavior: Clip.none,
+                                alignment: Alignment.center,
+                                children: [
+                                  AnimatedBuilder(
+                                    animation: _pulseController,
+                                    builder: (context, child) {
+                                      return Transform.scale(
+                                        scale: _pulseAnimation.value,
                                     child: Container(
                                       width: 104,
                                       height: 104,
@@ -271,6 +287,16 @@ class _BeachMatchPremiumSplashState extends State<BeachMatchPremiumSplash>
                                   );
                                 },
                               ),
+                              if (SeasonalTheme.hasActiveTheme)
+                                const Positioned(
+                                  top: -14,
+                                  right: 0,
+                                  child: SeasonalLogoBadge(
+                                    size: 48,
+                                  ),
+                                ),
+                            ],
+                          ),
 
                               const SizedBox(height: 22),
 
@@ -319,7 +345,7 @@ class _BeachMatchPremiumSplashState extends State<BeachMatchPremiumSplash>
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      "L'ÉCOSYSTÈME BEACH TENNIS",
+                                      SeasonalTheme.splashBadgeText,
                                       style: GoogleFonts.outfit(
                                         color: AppColors.gold,
                                         fontSize: 10,
