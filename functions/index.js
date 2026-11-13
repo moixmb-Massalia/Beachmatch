@@ -887,56 +887,64 @@ exports.onTournamentCreated = onDocumentCreated({
   if (!snapshot) return;
 
   const tournamentData = snapshot.data();
-  const location = tournamentData.location || tournamentData.club || "Inconnue";
+  const location = tournamentData.location || tournamentData.club || "France";
   const name = tournamentData.name || "Nouveau Tournoi";
   const category = tournamentData.category || "BT";
+  const dates = tournamentData.dates || tournamentData.date || "";
 
   try {
-    const usersSnapshot = await db.collection("users").where("tournamentAlertsEnabled", "==", true).get();
+    // 🚀 Envoyé IMMÉDIATEMENT dès qu'un tournoi est ajouté (sans attendre le tirage du JAT)
+    // Récupère tous les joueurs possédant un jeton FCM actif
+    const usersSnapshot = await db.collection("users").get();
     
     const messages = [];
     const seenTokens = new Set();
     usersSnapshot.forEach(doc => {
       const userData = doc.data();
       const fcmToken = userData.fcmToken;
-      if (!fcmToken || seenTokens.has(fcmToken)) return;
+      
+      // Envoi à tous sauf si l'utilisateur a expressément coupé tournamentAlertsEnabled: false
+      if (!fcmToken || seenTokens.has(fcmToken) || userData.tournamentAlertsEnabled === false) return;
 
-      const userRegion = userData.alertRegion;
-      let shouldSend = false;
-
-      if (!userRegion) {
-        shouldSend = true;
-      } else if (location.toLowerCase().includes(userRegion.toLowerCase())) {
-        shouldSend = true;
-      }
-
-      if (shouldSend) {
-        seenTokens.add(fcmToken);
-        messages.push({
-          token: fcmToken,
+      seenTokens.add(fcmToken);
+      messages.push({
+        token: fcmToken,
+        notification: {
+          title: `🎾 Nouveau Tournoi : ${category}`,
+          body: `${name} (${location}) vient d'être ajouté ! ${dates ? '📅 ' + dates + '. ' : ''}Découvrez les détails et inscrivez-vous !`
+        },
+        data: {
+          type: "new_tournament",
+          tournamentId: event.params.tournamentId,
+          category: String(category),
+          name: String(name),
+          location: String(location)
+        },
+        android: {
+          priority: "high",
           notification: {
-            title: `Nouveau Tournoi : ${category}`,
-            body: `${name} à ${location} ! Allez voir les détails sur l'application.`
+            channelId: "beachmatch_high_importance_channel",
+            sound: "default",
+            defaultSound: true,
+            defaultVibrateTimings: true
+          }
+        },
+        apns: {
+          headers: {
+            "apns-priority": "10"
           },
-          data: {
-            type: "new_tournament",
-            tournamentId: event.params.tournamentId
-          },
-          android: {
-            notification: {
-              channelId: "beachmatch_high_importance_channel",
+          payload: {
+            aps: {
+              alert: {
+                title: `🎾 Nouveau Tournoi : ${category}`,
+                body: `${name} (${location}) vient d'être ajouté ! ${dates ? '📅 ' + dates + '. ' : ''}Découvrez les détails et inscrivez-vous !`
+              },
+              badge: 1,
               sound: "default"
             }
-          },
-          apns: {
-            payload: {
-              aps: {
-                sound: "default"
-              }
-            }
           }
-        });
-      }
+        }
+      });
     });
 
     if (messages.length > 0) {
@@ -945,7 +953,7 @@ exports.onTournamentCreated = onDocumentCreated({
         const chunk = messages.slice(i, i + maxTokens);
         await admin.messaging().sendAll(chunk);
       }
-      logger.info(`Notification de nouveau tournoi envoyée à ${messages.length} joueurs.`);
+      logger.info(`Notification de nouveau tournoi envoyée instantanément à ${messages.length} joueurs.`);
     }
   } catch (error) {
     logger.error("Erreur lors de l'envoi de la notification onTournamentCreated:", error);
