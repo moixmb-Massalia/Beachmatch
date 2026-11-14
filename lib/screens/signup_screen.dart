@@ -195,9 +195,10 @@ class _SignupScreenState extends State<SignupScreen> {
                                     try {
                                       bool success = await context.read<AppState>().signUpWithEmail(name, email, password);
                                       if (success && context.mounted) {
-                                        Navigator.pushReplacement(
+                                        Navigator.pushAndRemoveUntil(
                                           context,
                                           MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+                                          (route) => false,
                                         );
                                       }
                                     } catch (e) {

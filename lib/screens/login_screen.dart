@@ -51,17 +51,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _onLoginSuccess(bool isNewUser) {
     if (!mounted) return;
-    if (isNewUser) {
-      Navigator.pushReplacement(
+    final appState = context.read<AppState>();
+    if (isNewUser || appState.needsOnboarding) {
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+        (route) => false,
       );
     } else {
-      // Le StreamBuilder dans main.dart bascule automatiquement vers MainNavigationScreen.
-      // Si une route enfant est ouverte par-dessus, on la dépile en douceur.
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
-      }
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
+        (route) => false,
+      );
     }
   }
 
