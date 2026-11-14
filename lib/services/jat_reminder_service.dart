@@ -19,12 +19,19 @@ class JatReminderService {
     // L'utilisateur doit impérativement être accrédité JAT ou Admin dans la base de données
     if (!user.isReferee && !user.isAdmin) return false;
 
+    // 1. Vérification par Email de contact direct sur le tournoi
+    final userEmail = (user.email ?? '').toLowerCase().trim();
+    final contactEmail = (tournament.contactEmail ?? '').toLowerCase().trim();
+    if (userEmail.isNotEmpty && contactEmail.isNotEmpty && userEmail == contactEmail) {
+      return true;
+    }
+
     final refereeName = (tournament.referee ?? '').trim().toLowerCase();
     if (refereeName.isEmpty) return false;
 
     final userName = user.displayName.trim().toLowerCase();
 
-    // 1. Correspondance exacte ou partielle par Nom / Prénom
+    // 2. Correspondance exacte ou partielle par Nom / Prénom
     if (userName.isNotEmpty) {
       if (refereeName == userName) return true;
 
@@ -149,11 +156,6 @@ class JatReminderService {
           }
         }
       }
-    }
-
-    // Si admin sans tournoi aujourd'hui, renvoyer le premier tournoi futur si disponible
-    if (user.isAdmin && tournaments.isNotEmpty) {
-      return tournaments.first;
     }
 
     return null;
