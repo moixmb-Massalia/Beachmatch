@@ -1124,8 +1124,9 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
       itemCount: matches.length,
       itemBuilder: (context, index) {
-        final m = matches[index];
-        final t = tourneyMap[m['tournamentId']] ?? {};
+        final m = Map<String, dynamic>.from(matches[index]);
+        final rawT = tourneyMap[m['tournamentId']];
+        final Map<String, dynamic> t = rawT is Map ? Map<String, dynamic>.from(rawT) : <String, dynamic>{};
         return _buildMatchCard(m, t, type);
       },
     );

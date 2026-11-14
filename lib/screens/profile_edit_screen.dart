@@ -211,11 +211,17 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       final appState = context.read<AppState>();
       String? photoUrl = _existingPhotoUrl;
 
+      bool storageFailed = false;
       // Upload image if selected
       if (_selectedImageBytes != null && appState.currentUser != null) {
-        final ref = FirebaseStorage.instance.ref().child('user_avatars/${appState.currentUser!.id}.jpg');
-        await ref.putData(_selectedImageBytes!, SettableMetadata(contentType: 'image/jpeg'));
-        photoUrl = await ref.getDownloadURL();
+        try {
+          final ref = FirebaseStorage.instance.ref().child('user_avatars/${appState.currentUser!.id}.jpg');
+          await ref.putData(_selectedImageBytes!, SettableMetadata(contentType: 'image/jpeg'));
+          photoUrl = await ref.getDownloadURL();
+        } catch (storageErr) {
+          debugPrint("Firebase Storage upload error: $storageErr");
+          storageFailed = true;
+        }
       }
 
       final isBr = (appState.currentUser?.isBrazilian == true) || (appState.currentLocale?.languageCode == 'pt');
@@ -244,6 +250,15 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       }
 
       if (mounted) {
+        if (storageFailed) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.amber,
+              content: Text("Profil enregistré ! Pour enregistrer la photo, activez Firebase Storage dans la console."),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
         Navigator.pop(context);
       }
     } catch (e) {

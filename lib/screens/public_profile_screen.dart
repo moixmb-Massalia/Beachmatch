@@ -852,7 +852,74 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                         setState(() {
                           _resolvedPlayer = _resolvedPlayer?.copyWith(isReferee: val);
                         });
-                        await FirebaseFirestore.instance.collection('users').doc(player.id).update({'isReferee': val});
+                        try {
+                          final firestore = FirebaseFirestore.instance;
+                          String targetUid = player.id;
+                          
+                          // 1. Verifier si targetUid correspond bien au doc utilisateur
+                          final directDoc = await firestore.collection('users').doc(targetUid).get();
+                          if (!directDoc.exists) {
+                            // Recherche par email
+                            final userEmail = (player.email ?? '').toLowerCase().trim();
+                            if (userEmail.isNotEmpty) {
+                              final emailMatch = await firestore.collection('users').where('email', isEqualTo: userEmail).limit(1).get();
+                              if (emailMatch.docs.isNotEmpty) {
+                                targetUid = emailMatch.docs.first.id;
+                              }
+                            }
+                            // Recherche par licence si toujours pas trouve
+                            if (targetUid == player.id && player.licenceNumber != null && player.licenceNumber!.isNotEmpty) {
+                              final licMatch = await firestore.collection('users').where('licenceNumber', isEqualTo: player.licenceNumber!.trim()).limit(1).get();
+                              if (licMatch.docs.isNotEmpty) {
+                                targetUid = licMatch.docs.first.id;
+                              }
+                            }
+                          }
+
+                          // 2. Mettre a jour le doc user avec merge: true
+                          await firestore.collection('users').doc(targetUid).set({
+                            'isReferee': val,
+                            'role': val ? 'JAT' : 'PLAYER',
+                            'verifiedJat': val,
+                            'updatedAt': FieldValue.serverTimestamp(),
+                          }, SetOptions(merge: true));
+
+                          // 3. Synchroniser preauthorized_jats
+                          final cleanEmail = (player.email ?? '').trim().toLowerCase();
+                          if (cleanEmail.isNotEmpty) {
+                            if (val) {
+                              await firestore.collection('preauthorized_jats').doc(cleanEmail).set({
+                                'email': cleanEmail,
+                                'name': player.displayName,
+                                'isReferee': true,
+                                'role': 'JAT',
+                                'status': 'ACTIVE',
+                                'isPreauthorized': true,
+                                'verifiedJat': true,
+                                'updatedAt': FieldValue.serverTimestamp(),
+                              }, SetOptions(merge: true));
+                            } else {
+                              await firestore.collection('preauthorized_jats').doc(cleanEmail).set({
+                                'isReferee': false,
+                                'role': 'PLAYER',
+                                'status': 'INACTIVE',
+                                'verifiedJat': false,
+                                'updatedAt': FieldValue.serverTimestamp(),
+                              }, SetOptions(merge: true));
+                            }
+                          }
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: val ? Colors.green.shade800 : Colors.blueGrey.shade800,
+                                content: Text(val ? "✅ ${player.displayName} accrédité JAT avec succès !" : "ℹ️ Accréditation JAT retirée"),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          debugPrint("Erreur accreditation JAT: $e");
+                        }
                       },
                     ),
 
