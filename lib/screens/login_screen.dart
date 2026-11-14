@@ -21,6 +21,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final FocusNode _passwordFocusNode = FocusNode();
   bool _isFocused = false;
   bool _obscurePassword = true;
+  bool _isGoogleLoading = false;
+  bool _isAppleLoading = false;
 
   @override
   void initState() {
@@ -405,7 +407,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
                           // Google Button
                           OutlinedButton.icon(
-                            onPressed: () async {
+                            onPressed: (_isGoogleLoading || _isAppleLoading) ? null : () async {
+                              setState(() => _isGoogleLoading = true);
                               try {
                                 bool isNewUser = await context.read<AppState>().loginWithGoogle();
                                 _onLoginSuccess(isNewUser);
@@ -423,10 +426,21 @@ class _LoginScreenState extends State<LoginScreen> {
                                     );
                                   }
                                 }
+                              } finally {
+                                if (mounted) setState(() => _isGoogleLoading = false);
                               }
                             },
-                            icon: const Icon(Icons.g_mobiledata, size: 32, color: Colors.black87),
-                            label: Text(googleBtnLabel, style: const TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
+                            icon: _isGoogleLoading
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black87),
+                                  )
+                                : const Icon(Icons.g_mobiledata, size: 32, color: Colors.black87),
+                            label: Text(
+                              _isGoogleLoading ? "Connexion Google en cours..." : googleBtnLabel,
+                              style: const TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
                             style: OutlinedButton.styleFrom(
                               backgroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -438,7 +452,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
                           // Apple Button (Apple App Store Guideline 4.8)
                           OutlinedButton.icon(
-                            onPressed: () async {
+                            onPressed: (_isGoogleLoading || _isAppleLoading) ? null : () async {
+                              setState(() => _isAppleLoading = true);
                               try {
                                 bool isNewUser = await context.read<AppState>().loginWithApple();
                                 _onLoginSuccess(isNewUser);
@@ -451,10 +466,21 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   );
                                 }
+                              } finally {
+                                if (mounted) setState(() => _isAppleLoading = false);
                               }
                             },
-                            icon: const Icon(Icons.apple, size: 28, color: Colors.white),
-                            label: Text(appleBtnLabel, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                            icon: _isAppleLoading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  )
+                                : const Icon(Icons.apple, size: 28, color: Colors.white),
+                            label: Text(
+                              _isAppleLoading ? "Connexion Apple en cours..." : appleBtnLabel,
+                              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
                             style: OutlinedButton.styleFrom(
                               backgroundColor: Colors.black,
                               padding: const EdgeInsets.symmetric(vertical: 16),

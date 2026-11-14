@@ -99,6 +99,11 @@ class AppState extends ChangeNotifier {
               notifyListeners();
               return;
             }
+            final bool hasCompleted = data['onboardingCompleted'] == true || data['onboardingSkipped'] == true;
+            final bool hasLicence = (data['licenceNumber'] != null && (data['licenceNumber'] as String).trim().isNotEmpty);
+            if (!hasCompleted && !hasLicence) {
+              _needsOnboarding = true;
+            }
             if (!kIsWeb) {
               await _updateFCMToken();
             }
@@ -122,6 +127,7 @@ class AppState extends ChangeNotifier {
             };
             await FirebaseFirestore.instance.collection('users').doc(user.uid).set(newUserData, SetOptions(merge: true));
             _currentUser = UserModel.fromMap(newUserData, user.uid);
+            _needsOnboarding = true;
             if (!kIsWeb) {
               await _updateFCMToken();
             }
@@ -332,6 +338,24 @@ class AppState extends ChangeNotifier {
   String _playerSearchQuery = "";
   String get playerSearchQuery => _playerSearchQuery;
 
+  bool _needsOnboarding = false;
+  bool get needsOnboarding => _needsOnboarding;
+  set needsOnboarding(bool val) {
+    _needsOnboarding = val;
+    notifyListeners();
+  }
+
+  void skipOnboarding() {
+    _needsOnboarding = false;
+    if (_currentUser != null) {
+      FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set({
+        'onboardingSkipped': true,
+        'onboardingCompleted': true,
+      }, SetOptions(merge: true));
+    }
+    notifyListeners();
+  }
+
   // --- Auth ---
   Future<bool> loginWithGoogle() async {
     _isLoading = true;
@@ -387,6 +411,7 @@ class AppState extends ChangeNotifier {
         
         if (!userDoc.exists) {
           isNewUser = true;
+          _needsOnboarding = true;
           // We don't save yet, we let onboarding do it. We just store the partial model in memory.
           _currentUser = UserModel(
             id: userCredential.user!.uid,
@@ -405,6 +430,11 @@ class AppState extends ChangeNotifier {
             _currentUser = null;
             throw "Votre compte a été banni.";
           }
+          final bool hasCompleted = userDoc.data()!['onboardingCompleted'] == true || userDoc.data()!['onboardingSkipped'] == true;
+          final bool hasLic = (userDoc.data()!['licenceNumber'] != null && (userDoc.data()!['licenceNumber'] as String).trim().isNotEmpty);
+          if (!hasCompleted && !hasLic) {
+            _needsOnboarding = true;
+          }
           // Override if this is the admin account, in case it was created before this feature
           if (userCredential.user!.email == 'moixmb@gmail.com') {
             _currentUser = _currentUser!.copyWith(isAdmin: true);
@@ -417,8 +447,6 @@ class AppState extends ChangeNotifier {
         if (!kIsWeb) {
           await _updateFCMToken();
         }
-        
-        await loadData();
       }
     } on FirebaseAuthException catch (e) {
       debugPrint("Erreur FirebaseAuth Google : ${e.code} - ${e.message}");
@@ -501,6 +529,7 @@ class AppState extends ChangeNotifier {
 
         if (!userDoc.exists) {
           isNewUser = true;
+          _needsOnboarding = true;
           _currentUser = UserModel(
             id: userCredential.user!.uid,
             displayName: displayName,
@@ -518,6 +547,11 @@ class AppState extends ChangeNotifier {
             _currentUser = null;
             throw "Votre compte a été banni.";
           }
+          final bool hasCompleted = userDoc.data()!['onboardingCompleted'] == true || userDoc.data()!['onboardingSkipped'] == true;
+          final bool hasLic = (userDoc.data()!['licenceNumber'] != null && (userDoc.data()!['licenceNumber'] as String).trim().isNotEmpty);
+          if (!hasCompleted && !hasLic) {
+            _needsOnboarding = true;
+          }
           if (userCredential.user!.email == 'moixmb@gmail.com') {
             _currentUser = _currentUser!.copyWith(isAdmin: true);
             FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).update({'isAdmin': true});
@@ -527,7 +561,6 @@ class AppState extends ChangeNotifier {
         if (!kIsWeb) {
           await _updateFCMToken();
         }
-        await loadData();
       }
       return isNewUser;
     } on FirebaseAuthException catch (e) {
@@ -656,6 +689,7 @@ class AppState extends ChangeNotifier {
     String? cbtId,
     String? cbtCategory,
     String? arena,
+    String? club,
   }) async {
     if (_currentUser == null) return;
     
@@ -663,6 +697,7 @@ class AppState extends ChangeNotifier {
     final cbtIdVal = isBr ? (cbtId ?? licenceNumber) : null;
     final cbtCatVal = isBr ? (cbtCategory ?? ranking ?? 'Iniciante') : null;
     final frenchLicence = isBr ? null : licenceNumber;
+    final finalClub = arena ?? club ?? _currentUser!.clubName;
 
     // Update model
     _currentUser = UserModel(
@@ -678,18 +713,26 @@ class AppState extends ChangeNotifier {
       licenceNumber: frenchLicence,
       cbtId: cbtIdVal,
       cbtCategory: cbtCatVal,
-      clubName: arena ?? _currentUser!.clubName,
+      clubName: finalClub,
       fcmToken: _currentUser!.fcmToken,
     );
     
     // Save to Firestore
     final userData = _currentUser!.toMap();
     userData['searchTokens'] = _generateSearchTokens(pseudo, isBr ? cbtIdVal : frenchLicence);
-    await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set(userData);
+    userData['onboardingCompleted'] = true;
+    userData['onboardingSkipped'] = false;
+    if (finalClub.isNotEmpty) {
+      userData['club'] = finalClub;
+      userData['clubName'] = finalClub;
+    }
+    await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set(userData, SetOptions(merge: true));
     await _checkAndApplyPreauthorizedRoles(_currentUser!.id, FirebaseAuth.instance.currentUser?.email);
     if (isBr) {
       await _ensureBrazilianWelcomeChat(_currentUser!);
     }
+    _needsOnboarding = false;
+    notifyListeners();
     await loadData();
   }
 

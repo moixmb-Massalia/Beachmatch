@@ -10,6 +10,7 @@ import 'firebase_options.dart';
 import 'theme/colors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'screens/login_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'screens/main_navigation.dart';
 import 'screens/match_confirmation_screen.dart';
 import 'screens/clubs/club_detail_screen.dart';
@@ -373,6 +374,10 @@ class _BeachMatchAppState extends State<BeachMatchApp> {
             return _buildStartupSplashScreen();
           }
           if (snapshot.hasData) {
+            final appState = context.watch<AppState>();
+            if (appState.needsOnboarding) {
+              return const OnboardingScreen();
+            }
             return const MainNavigationScreen();
           }
           return const LoginScreen();

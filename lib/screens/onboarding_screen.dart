@@ -24,6 +24,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   bool _isLicenceVerified = false;
   int? _verifiedElo;
   String? _verifiedRanking;
+  String? _verifiedClub;
 
   static const List<String> _cbtCategories = [
     'Iniciante',
@@ -67,18 +68,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         final Map<String, dynamic> responseBody = json.decode(response.body);
         if (responseBody.containsKey('result')) {
           final data = responseBody['result'] as Map<String, dynamic>;
-        setState(() {
-          _pseudoController.text = "${data['firstName']} ${data['lastName']}";
-          _selectedLevel = int.parse(data['level'].toString());
-          _verifiedElo = data['elo'] != null ? int.tryParse(data['elo'].toString()) : null;
-          _verifiedRanking = data['ranking']?.toString();
-          _isLicenceVerified = true;
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Licence vérifiée avec succès !"), backgroundColor: Colors.green),
-          );
-        }
+          setState(() {
+            _pseudoController.text = "${data['firstName']} ${data['lastName']}";
+            _selectedLevel = int.tryParse(data['level'].toString()) ?? 1;
+            _verifiedElo = data['elo'] != null ? int.tryParse(data['elo'].toString()) : null;
+            _verifiedRanking = data['ranking']?.toString();
+            _verifiedClub = data['club']?.toString();
+            _isLicenceVerified = true;
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("Licence vérifiée : ${data['firstName']} ${data['lastName']} (${data['club'] ?? ''})"),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
         }
       } else {
         throw Exception("Erreur Serveur: ${response.statusCode} - ${response.body}");
@@ -436,12 +441,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                     arena: _arenaController.text.trim().isNotEmpty ? _arenaController.text.trim() : null,
                                   );
                                 } else {
+                                  final enteredLicence = _licenceController.text.trim();
+                                  if (enteredLicence.isNotEmpty && !_isLicenceVerified) {
+                                    await _verifyLicence();
+                                  }
                                   await appState.completeOnboarding(
                                     _pseudoController.text.trim(), 
                                     _selectedLevel,
-                                    licenceNumber: _isLicenceVerified ? _licenceController.text.trim() : null,
+                                    licenceNumber: enteredLicence.isNotEmpty ? enteredLicence : null,
                                     eloScore: _isLicenceVerified ? _verifiedElo : null,
                                     ranking: _isLicenceVerified ? _verifiedRanking : null,
+                                    club: _verifiedClub,
                                   );
                                 }
                                 
@@ -467,6 +477,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             ),
                             child: Text(startBtnLabel, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: () {
+                              context.read<AppState>().skipOnboarding();
+                            },
+                            child: Text(
+                              lang == 'pt' ? "Pular por enquanto" : (lang == 'en' ? "Skip for now" : "Passer cette étape pour l'instant"),
+                              style: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+                            ),
                           ),
                         ],
                       ),
