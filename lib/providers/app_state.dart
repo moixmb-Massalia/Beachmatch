@@ -697,7 +697,7 @@ class AppState extends ChangeNotifier {
     final cbtIdVal = isBr ? (cbtId ?? licenceNumber) : null;
     final cbtCatVal = isBr ? (cbtCategory ?? ranking ?? 'Iniciante') : null;
     final frenchLicence = isBr ? null : licenceNumber;
-    final finalClub = arena ?? club ?? _currentUser!.clubName;
+    final String finalClub = arena ?? club ?? _currentUser?.clubName ?? '';
 
     // Update model
     _currentUser = UserModel(
