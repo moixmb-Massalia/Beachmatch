@@ -217,7 +217,7 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text("⏱️ Planning décalé de +${minutes} min (Décalage total : +${_delayOffsetMinutes} min)"),
+        content: Text("⏱️ Planning décalé de +$minutes min (Décalage total : +$_delayOffsetMinutes min)"),
         backgroundColor: AppColors.gold,
         duration: const Duration(seconds: 3),
         action: SnackBarAction(

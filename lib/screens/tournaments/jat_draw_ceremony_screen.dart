@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -73,7 +72,7 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
   TournamentPair? _swapSelectedPair;
   Uint8List? _customClubLogoBytes;
   bool _isA3Format = false;
-  String _customRulesText = "2 sets de 4 jeux · Tie-Break à 4/4 · 3e set = Super Tie-Break (10 pts) · No-Ad";
+  final String _customRulesText = "2 sets de 4 jeux · Tie-Break à 4/4 · 3e set = Super Tie-Break (10 pts) · No-Ad";
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;

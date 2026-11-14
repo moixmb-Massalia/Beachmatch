@@ -1410,7 +1410,7 @@ class TournamentPdfService {
                         color: navyColor,
                       ),
                     ),
-                    const pw.SizedBox(width: 8),
+                    pw.SizedBox(width: 8),
 
                     // Accroche positive
                     pw.Expanded(
@@ -1648,6 +1648,7 @@ class TournamentPdfService {
     required PdfColor navyColor,
     required PdfColor goldColor,
   }) {
+    const darkGray = PdfColor.fromInt(0xFF334155);
     return pw.Container(
       margin: const pw.EdgeInsets.symmetric(vertical: 2),
       decoration: pw.BoxDecoration(

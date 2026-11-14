@@ -6,6 +6,7 @@ on:
     branches:
       - main
     paths:
+      - 'lib/**'
       - 'ios/**'
       - 'pubspec.yaml'
       - '.github/workflows/build_ios.yml'

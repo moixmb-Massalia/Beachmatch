@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,6 +9,7 @@ import '../theme/colors.dart';
 import '../theme/seasonal_theme.dart';
 import '../providers/app_state.dart';
 import '../models/user.dart';
+import '../models/tournament.dart';
 import '../models/news_item.dart';
 import '../services/news_service.dart';
 import '../widgets/beach_weather_widget.dart';
@@ -823,7 +825,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           MaterialPageRoute(
                             builder: (_) => TournamentBracketScreen(
                               tournament: tourney,
-                              isReferee: true,
+                              isAuthorized: true,
                             ),
                           ),
                         );
