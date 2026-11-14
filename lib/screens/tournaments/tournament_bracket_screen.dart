@@ -236,6 +236,18 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
     required String pair2Name,
   }) async {
     try {
+      // Désactiver tout appel actif précédent sur ce même terrain pour éviter les doublons
+      final prevCalls = await FirebaseFirestore.instance
+          .collection('tournaments')
+          .doc(widget.tournament.id)
+          .collection('court_calls')
+          .where('court', isEqualTo: court)
+          .where('isActive', isEqualTo: true)
+          .get();
+      for (final doc in prevCalls.docs) {
+        await doc.reference.update({'isActive': false});
+      }
+
       await FirebaseFirestore.instance
           .collection('tournaments')
           .doc(widget.tournament.id)
@@ -286,6 +298,12 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
         .collection('court_calls')
         .doc(callId)
         .update({'isActive': false});
+  }
+
+  Future<void> _dismissAllCourtCalls(List<CourtCallModel> calls) async {
+    for (final call in calls) {
+      await _dismissCourtCall(call.id);
+    }
   }
 
   Future<void> _safeShareText({
@@ -1820,7 +1838,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
   }
 
   // ==========================================
-  // BANNIERE D'APPEL DES JOUEURS EN DIRECT (LIVE TICKER)
+  // BANNIERE D'APPEL DES JOUEURS EN DIRECT (LIVE MULTI-COURTS TICKER)
   // ==========================================
   Widget _buildLiveCourtCallBanner() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -1835,99 +1853,279 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
           return const SizedBox.shrink();
         }
 
-        final doc = snapshot.data!.docs.first;
-        final call = CourtCallModel.fromMap(doc.data(), doc.id);
+        final calls = snapshot.data!.docs
+            .map((doc) => CourtCallModel.fromMap(doc.data(), doc.id))
+            .toList();
 
+        // Trier par numéro de court croissant (Court 1, Court 2, etc.)
+        calls.sort((a, b) => a.court.compareTo(b.court));
+
+        if (calls.isEmpty) return const SizedBox.shrink();
+
+        // Cas A : Un seul court appelé
+        if (calls.length == 1) {
+          final call = calls.first;
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.gold.withValues(alpha: 0.35),
+                        const Color(0xFFE11D48).withValues(alpha: 0.25),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.gold, width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.gold.withValues(alpha: 0.3),
+                        blurRadius: 12,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
+                          color: AppColors.gold,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.campaign_rounded, color: Colors.black, size: 18),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  "APPEL COURT ${call.court}",
+                                  style: const TextStyle(
+                                    color: AppColors.gold,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: Colors.redAccent.withValues(alpha: 0.3),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    "EN DIRECT",
+                                    style: TextStyle(
+                                      color: Colors.redAccent,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "${call.pair1Name} vs ${call.pair2Name}",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_isJat) ...[
+                        IconButton(
+                          icon: const Icon(Icons.check_circle_outline, color: Colors.white70, size: 20),
+                          tooltip: "Clôturer l'appel",
+                          onPressed: () => _dismissCourtCall(call.id),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        // Cas B : Multi-Courts appelés simultanément (Résolution du bug des appels écrasés)
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.only(top: 8, bottom: 8),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                     colors: [
-                      AppColors.gold.withValues(alpha: 0.35),
-                      const Color(0xFFE11D48).withValues(alpha: 0.25),
+                      AppColors.gold.withValues(alpha: 0.28),
+                      const Color(0xFF1E1B4B).withValues(alpha: 0.4),
+                      const Color(0xFFE11D48).withValues(alpha: 0.2),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.gold, width: 1.5),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.8), width: 1.2),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.gold.withValues(alpha: 0.3),
-                      blurRadius: 12,
+                      color: AppColors.gold.withValues(alpha: 0.25),
+                      blurRadius: 10,
                       spreadRadius: 1,
                     ),
                   ],
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(
-                        color: AppColors.gold,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.campaign_rounded, color: Colors.black, size: 18),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    // En-tête multi-terrains
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                      child: Row(
                         children: [
-                          Row(
-                            children: [
-                              Text(
-                                "APPEL COURT ${call.court}",
-                                style: const TextStyle(
-                                  color: AppColors.gold,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: AppColors.gold,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.campaign_rounded, color: Colors.black, size: 14),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            "APPELS EN DIRECT (${calls.length} TERRAINS)",
+                            style: const TextStyle(
+                              color: AppColors.gold,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (_isJat)
+                            GestureDetector(
+                              onTap: () => _dismissAllCourtCalls(calls),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: Colors.redAccent.withValues(alpha: 0.3),
-                                  borderRadius: BorderRadius.circular(4),
+                                  color: Colors.white12,
+                                  borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: const Text(
-                                  "EN DIRECT",
-                                  style: TextStyle(
-                                    color: Colors.redAccent,
-                                    fontSize: 8,
-                                    fontWeight: FontWeight.w900,
-                                  ),
+                                  "Tout clore",
+                                  style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            "${call.pair1Name} vs ${call.pair2Name}",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
                             ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
                         ],
                       ),
                     ),
-                    if (_isJat) ...[
-                      // Bouton Acquitter Appel
-                      IconButton(
-                        icon: const Icon(Icons.check_circle_outline, color: Colors.white70, size: 20),
-                        tooltip: "Clôturer l'appel",
-                        onPressed: () => _dismissCourtCall(call.id),
+                    const SizedBox(height: 6),
+                    // Carrousel horizontal des terrains appelés
+                    SizedBox(
+                      height: 58,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        itemCount: calls.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          final c = calls[index];
+                          return Container(
+                            width: 230,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F172A).withValues(alpha: 0.75),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 1),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.gold.withValues(alpha: 0.25),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              "COURT ${c.court}",
+                                              style: const TextStyle(
+                                                color: AppColors.gold,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                            decoration: BoxDecoration(
+                                              color: Colors.redAccent.withValues(alpha: 0.3),
+                                              borderRadius: BorderRadius.circular(3),
+                                            ),
+                                            child: const Text(
+                                              "LIVE",
+                                              style: TextStyle(
+                                                color: Colors.redAccent,
+                                                fontSize: 7,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        "${c.pair1Name} vs ${c.pair2Name}",
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (_isJat)
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    icon: const Icon(Icons.check_circle_outline, color: Colors.white60, size: 18),
+                                    tooltip: "Clôturer court ${c.court}",
+                                    onPressed: () => _dismissCourtCall(c.id),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),

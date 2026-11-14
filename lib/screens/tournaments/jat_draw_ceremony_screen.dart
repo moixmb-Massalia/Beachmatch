@@ -1,11 +1,14 @@
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../models/tournament.dart';
 import '../../models/tournament_bracket_model.dart';
 import '../../services/bracket_generator_service.dart';
 import '../../services/draw_certification_service.dart';
+import '../../services/tournament_pdf_service.dart';
 import '../../theme/colors.dart';
 import '../../widgets/add_pair_autocomplete_dialog.dart';
 
@@ -64,6 +67,13 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
   DateTime? _drawTimestamp;
   String? _certificateId;
   TournamentBracket? _generatedBracket;
+
+  // Mode Tirage Déjà Fait & Échange par Appui Long
+  bool _isPreDoneMode = false;
+  TournamentPair? _swapSelectedPair;
+  Uint8List? _customClubLogoBytes;
+  bool _isA3Format = false;
+  String _customRulesText = "2 sets de 4 jeux · Tie-Break à 4/4 · 3e set = Super Tie-Break (10 pts) · No-Ad";
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -310,6 +320,365 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
         );
       }
     });
+  }
+
+  /// 📋 Mode "Tirage déjà fait" (Applique immédiatement les têtes de séries et active l'échange par appui long)
+  void _startPreDoneDraw() {
+    if (_pairs.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Ajoutez au moins 2 paires pour configurer le tableau."),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    HapticFeedback.heavyImpact();
+
+    // 1. Assigner d'abord les Têtes de Série mathématiques par poids
+    var seededPairs = BracketGeneratorService.assignSeeds(_pairs);
+
+    if (_invertSeeds && seededPairs.length >= 2) {
+      final pTs1 = seededPairs.firstWhere((p) => p.seed == 1, orElse: () => seededPairs[0]);
+      final pTs2 = seededPairs.firstWhere((p) => p.seed == 2, orElse: () => seededPairs[1]);
+
+      seededPairs = seededPairs.map((p) {
+        if (p.id == pTs1.id) return p.copyWith(seed: 2);
+        if (p.id == pTs2.id) return p.copyWith(seed: 1);
+        return p;
+      }).toList();
+    }
+
+    TournamentBracket resultBracket;
+
+    if (_format == 'single_pool') {
+      resultBracket = BracketGeneratorService.generatePoolsAndBracket(
+        tournamentId: widget.tournament.id,
+        category: widget.categoryKey,
+        pouleAPairs: seededPairs,
+        pouleBPairs: const [],
+        finalPhaseType: 'direct_finals',
+        numCourts: _numCourts,
+      );
+    } else if (_format == 'pools_and_bracket') {
+      final pouleAPairs = <TournamentPair>[];
+      final pouleBPairs = <TournamentPair>[];
+
+      for (int i = 0; i < seededPairs.length; i++) {
+        if (i % 2 == 0) {
+          pouleAPairs.add(seededPairs[i]);
+        } else {
+          pouleBPairs.add(seededPairs[i]);
+        }
+      }
+
+      resultBracket = BracketGeneratorService.generatePoolsAndBracket(
+        tournamentId: widget.tournament.id,
+        category: widget.categoryKey,
+        pouleAPairs: pouleAPairs,
+        pouleBPairs: pouleBPairs,
+        finalPhaseType: _finalPhaseType,
+        numCourts: _numCourts,
+      );
+    } else {
+      resultBracket = BracketGeneratorService.generateBracket(
+        tournamentId: widget.tournament.id,
+        category: widget.categoryKey,
+        registeredPairs: seededPairs,
+        numCourts: _numCourts,
+      );
+    }
+
+    final now = DateTime.now();
+    final certId = DrawCertificationService.generateCertificateId(widget.tournament.id, widget.categoryKey, now);
+
+    setState(() {
+      _isDrawing = false;
+      _isPreDoneMode = true;
+      _drawCompleted = true;
+      _drawTimestamp = now;
+      _certificateId = certId;
+      _generatedBracket = resultBracket;
+      _swapSelectedPair = null;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.touch_app_rounded, color: Colors.black),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                "💡 Tirage prêt ! Faites un appui long sur une équipe pour l'intervertir.",
+                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: AppColors.gold,
+        duration: Duration(seconds: 4),
+      ),
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
+  }
+
+  /// Sélection d'une équipe par appui long pour échange
+  void _onPairLongPress(TournamentPair pair) {
+    if (pair.isBye) return;
+    HapticFeedback.heavyImpact();
+    setState(() {
+      _swapSelectedPair = pair;
+    });
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.swap_horiz_rounded, color: AppColors.gold),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                "Équipe sélectionnée : ${pair.displayName}. Touchez la 2e équipe pour permuter !",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF1E293B),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  /// Clic sur une équipe (si une 1ère équipe est sélectionnée, effectue la permutation)
+  void _onPairTap(TournamentPair targetPair) {
+    if (_swapSelectedPair == null || _swapSelectedPair!.id == targetPair.id) return;
+    _swapTwoPairs(_swapSelectedPair!, targetPair);
+  }
+
+  /// Permutation immédiate de deux équipes et recalibrage du tableau
+  void _swapTwoPairs(TournamentPair p1, TournamentPair p2) {
+    HapticFeedback.mediumImpact();
+    final idx1 = _pairs.indexWhere((p) => p.id == p1.id);
+    final idx2 = _pairs.indexWhere((p) => p.id == p2.id);
+
+    if (idx1 != -1 && idx2 != -1) {
+      setState(() {
+        final temp = _pairs[idx1];
+        _pairs[idx1] = _pairs[idx2];
+        _pairs[idx2] = temp;
+        _swapSelectedPair = null;
+      });
+
+      // Régénérer instantanément le tableau avec les nouvelles positions
+      _startPreDoneDraw();
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("✅ Échange validé : ${p1.displayName} ⟷ ${p2.displayName}"),
+          backgroundColor: AppColors.gold,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  /// Boîte de dialogue de téléchargement & impression du Tableau Papillon (Affichage Club)
+  Future<void> _openButterflyPosterDialog() async {
+    if (_generatedBracket == null) return;
+    HapticFeedback.mediumImpact();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            return Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: Color(0xFF0F172A),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.print_rounded, color: AppColors.gold, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "TABLEAU PAPILLON OFFICIEL",
+                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              "Afficheur officiel A4 / A3 prêt à imprimer",
+                              style: TextStyle(color: Colors.white60, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Format papier
+                  const Text("Format d'impression :", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Center(child: Text("A4 Paysage (Standard)")),
+                          selected: !_isA3Format,
+                          onSelected: (val) {
+                            setModalState(() => _isA3Format = false);
+                            setState(() => _isA3Format = false);
+                          },
+                          selectedColor: AppColors.gold,
+                          backgroundColor: const Color(0xFF1E293B),
+                          labelStyle: TextStyle(color: !_isA3Format ? Colors.black : Colors.white70, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Center(child: Text("A3 Paysage (Grand Panneau)")),
+                          selected: _isA3Format,
+                          onSelected: (val) {
+                            setModalState(() => _isA3Format = true);
+                            setState(() => _isA3Format = true);
+                          },
+                          selectedColor: AppColors.gold,
+                          backgroundColor: const Color(0xFF1E293B),
+                          labelStyle: TextStyle(color: _isA3Format ? Colors.black : Colors.white70, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Logo Club
+                  const Text("Logo du club organisateur :", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Row(
+                      children: [
+                        if (_customClubLogoBytes != null)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Image.memory(_customClubLogoBytes!, width: 40, height: 40, fit: BoxFit.cover),
+                          )
+                        else
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white12,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(Icons.shield_rounded, color: AppColors.gold, size: 24),
+                          ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _customClubLogoBytes != null ? "Logo Club Sélectionné" : "Logo FFT Beach Tennis (Par défaut)",
+                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                _customClubLogoBytes != null ? "Sera imprimé en haut à gauche" : "Utilisé si aucun logo de club n'est fourni",
+                                style: const TextStyle(color: Colors.white60, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () async {
+                            final picker = ImagePicker();
+                            final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 600);
+                            if (picked != null) {
+                              final bytes = await picked.readAsBytes();
+                              setModalState(() => _customClubLogoBytes = bytes);
+                              setState(() => _customClubLogoBytes = bytes);
+                            }
+                          },
+                          icon: const Icon(Icons.add_photo_alternate_rounded, size: 16, color: AppColors.gold),
+                          label: Text(_customClubLogoBytes != null ? "Changer" : "Ajouter", style: const TextStyle(color: AppColors.gold, fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Bouton Télécharger PDF
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await TournamentPdfService.generateAndExportButterflyPosterPdf(
+                          tournament: widget.tournament,
+                          bracket: _generatedBracket!,
+                          clubLogoBytes: _customClubLogoBytes,
+                          customRules: _customRulesText,
+                          isA3: _isA3Format,
+                        );
+                      },
+                      icon: const Icon(Icons.download_rounded, color: Colors.black),
+                      label: const Text(
+                        "Télécharger & Imprimer le PDF",
+                        style: TextStyle(color: Colors.black, fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _exportPdfCertificate() async {
@@ -1344,39 +1713,62 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
               ),
             ),
           ] else ...[
-            ScaleTransition(
-              scale: _pulseAnimation,
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.gold.withValues(alpha: 0.45),
-                      blurRadius: 20,
-                      spreadRadius: 2,
+            Column(
+              children: [
+                ScaleTransition(
+                  scale: _pulseAnimation,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.gold.withValues(alpha: 0.45),
+                          blurRadius: 20,
+                          spreadRadius: 2,
+                        ),
+                      ],
                     ),
-                  ],
+                    child: ElevatedButton.icon(
+                      onPressed: _startDrawCeremony,
+                      icon: const Icon(Icons.casino_rounded, size: 24, color: Colors.black),
+                      label: Text(
+                        _drawCompleted ? "🎲 Relancer le Tirage Officiel" : "🎲 Lancer le Tirage au Sort Officiel",
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
                 ),
-                child: ElevatedButton.icon(
-                  onPressed: _startDrawCeremony,
-                  icon: const Icon(Icons.casino_rounded, size: 24, color: Colors.black),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _startPreDoneDraw,
+                  icon: const Icon(Icons.playlist_add_check_circle_rounded, size: 20, color: AppColors.gold),
                   label: Text(
-                    _drawCompleted ? "🎲 Relancer le Tirage Officiel" : "🎲 Lancer le Tirage au Sort Officiel",
+                    _isPreDoneMode ? "📋 Tirage déjà fait (Actif · Appui long pour permuter)" : "📋 Le tirage est déjà fait (Ajuster mon tableau)",
                     style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black,
-                      letterSpacing: 0.5,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.gold,
                     ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.gold,
-                    padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    elevation: 0,
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.gold, width: 1.5),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    backgroundColor: _isPreDoneMode ? AppColors.gold.withValues(alpha: 0.15) : Colors.transparent,
                   ),
                 ),
-              ),
+              ],
             ),
           ],
         ],
@@ -1508,6 +1900,36 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
           const Divider(color: Colors.white12, height: 1),
           const SizedBox(height: 14),
 
+          // Bannière explicative d'échange interactif par appui long
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.gold.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.touch_app_rounded, color: AppColors.gold, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _swapSelectedPair != null
+                        ? "Paire active : ${_swapSelectedPair!.displayName} ➔ Touchez une 2e équipe pour permuter !"
+                        : "💡 Astuce JAT : Faites un appui long sur une équipe pour l'intervertir avec une autre.",
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                if (_swapSelectedPair != null)
+                  GestureDetector(
+                    onTap: () => setState(() => _swapSelectedPair = null),
+                    child: const Icon(Icons.close_rounded, color: Colors.white70, size: 16),
+                  ),
+              ],
+            ),
+          ),
+
           // Contenu du tirage (Poules ou 1er Tour)
           if ((_format == 'pools_and_bracket' || _format == 'single_pool') && _generatedBracket!.pools.isNotEmpty) ...[
             for (final pool in _generatedBracket!.pools) ...[
@@ -1533,46 +1955,79 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
                       ],
                     ),
                     const SizedBox(height: 8),
-                    for (int i = 0; i < pool.pairs.length; i++)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 3),
-                        child: Row(
-                          children: [
-                            Text("${i + 1}. ", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
-                            Expanded(
-                              child: Text(
-                                pool.pairs[i].displayName,
-                                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                              ),
+                    for (int i = 0; i < pool.pairs.length; i++) ...[
+                      () {
+                        final p = pool.pairs[i];
+                        final isSelected = _swapSelectedPair?.id == p.id;
+                        return InkWell(
+                          onLongPress: () => _onPairLongPress(p),
+                          onTap: () => _onPairTap(p),
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppColors.gold.withValues(alpha: 0.3) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(6),
+                              border: isSelected ? Border.all(color: AppColors.gold, width: 1.5) : null,
                             ),
-                            if (pool.pairs[i].seed != null)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                decoration: BoxDecoration(
-                                  color: AppColors.gold,
-                                  borderRadius: BorderRadius.circular(4),
+                            child: Row(
+                              children: [
+                                Text("${i + 1}. ", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
+                                Expanded(
+                                  child: Text(
+                                    p.displayName,
+                                    style: TextStyle(
+                                      color: isSelected ? AppColors.gold : Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ),
-                                child: Text(
-                                  "TS ${pool.pairs[i].seed}",
-                                  style: const TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
+                                if (isSelected)
+                                  Container(
+                                    margin: const EdgeInsets.only(right: 6),
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(3)),
+                                    child: const Text("ÉCHANGE", style: TextStyle(color: Colors.black, fontSize: 8, fontWeight: FontWeight.w900)),
+                                  ),
+                                if (p.seed != null)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.gold,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      "TS ${p.seed}",
+                                      style: const TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }(),
+                    ],
                   ],
                 ),
               ),
             ],
           ] else ...[
             const Text(
-              "AFFICHES DU 1ER TOUR :",
+              "AFFICHES DU 1ER TOUR (TOUCHEZ POUR INTERVERTIR) :",
               style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            for (final m in _generatedBracket!.mainMatches.where((m) => m.roundIndex == 0).take(6))
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+            for (final m in _generatedBracket!.mainMatches.where((m) => m.roundIndex == 0)) ...[
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white12),
+                ),
                 child: Row(
                   children: [
                     Container(
@@ -1588,16 +2043,71 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        "${m.pair1?.displayName ?? 'TBD'}  🆚  ${m.pair2?.displayName ?? 'TBD'}",
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      child: Row(
+                        children: [
+                          if (m.pair1 != null)
+                            Expanded(
+                              child: InkWell(
+                                onLongPress: () => _onPairLongPress(m.pair1!),
+                                onTap: () => _onPairTap(m.pair1!),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: _swapSelectedPair?.id == m.pair1!.id ? AppColors.gold.withValues(alpha: 0.3) : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: _swapSelectedPair?.id == m.pair1!.id ? Border.all(color: AppColors.gold, width: 1.2) : null,
+                                  ),
+                                  child: Text(
+                                    m.pair1!.displayName,
+                                    style: TextStyle(
+                                      color: _swapSelectedPair?.id == m.pair1!.id ? AppColors.gold : Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            const Expanded(child: Text("TBD", style: TextStyle(color: Colors.white54, fontSize: 11))),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 4),
+                            child: Text("vs", style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ),
+                          if (m.pair2 != null)
+                            Expanded(
+                              child: InkWell(
+                                onLongPress: () => _onPairLongPress(m.pair2!),
+                                onTap: () => _onPairTap(m.pair2!),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: _swapSelectedPair?.id == m.pair2!.id ? AppColors.gold.withValues(alpha: 0.3) : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: _swapSelectedPair?.id == m.pair2!.id ? Border.all(color: AppColors.gold, width: 1.2) : null,
+                                  ),
+                                  child: Text(
+                                    m.pair2!.displayName,
+                                    style: TextStyle(
+                                      color: _swapSelectedPair?.id == m.pair2!.id ? AppColors.gold : Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            const Expanded(child: Text("TBD", style: TextStyle(color: Colors.white54, fontSize: 11))),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
+            ],
           ],
         ],
       ),
@@ -1607,6 +2117,24 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
   Widget _buildCertificationActionButtons() {
     return Column(
       children: [
+        // 🦋 BOUTON OFFICIEL TABLEAU PAPILLON (A4 / A3) AFFICHEUR CLUB
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _openButterflyPosterDialog,
+            icon: const Icon(Icons.print_rounded, size: 20, color: Colors.black),
+            label: const Text(
+              "📄 Imprimer Tableau Papillon A4 / A3 (Affichage Club)",
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.black),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF59E0B),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
         Row(
           children: [
             Expanded(

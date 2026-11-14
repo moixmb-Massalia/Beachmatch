@@ -49,6 +49,7 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
   String _currentPresetName = "Répartition 1";
   bool _currentPresetIsOfficial = false;
   List<CourtSchedulePreset> _availablePresets = [];
+  int _delayOffsetMinutes = 0; // Décalage horaire dynamique (+15 min pluie/retard)
 
   @override
   void initState() {
@@ -208,8 +209,30 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
     return 'DH';
   }
 
+  void _addDelayMinutes(int minutes) {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _delayOffsetMinutes += minutes;
+    });
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("⏱️ Planning décalé de +${minutes} min (Décalage total : +${_delayOffsetMinutes} min)"),
+        backgroundColor: AppColors.gold,
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: "Réinitialiser",
+          textColor: Colors.black,
+          onPressed: () {
+            setState(() => _delayOffsetMinutes = 0);
+          },
+        ),
+      ),
+    );
+  }
+
   String _formatRotationTime(int rotIndex) {
-    final startMinutes = 9 * 60 + rotIndex * 75; // 1h15 par rotation FFT
+    final startMinutes = 9 * 60 + rotIndex * 75 + _delayOffsetMinutes; // 1h15 par rotation FFT + décalage dynamique
     final endMinutes = startMinutes + 75;
     final startH = (startMinutes ~/ 60).toString().padLeft(2, '0');
     final startM = (startMinutes % 60).toString().padLeft(2, '0');
@@ -1196,7 +1219,27 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
                 ],
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
+            // Bouton Retard / Pluie (+15 min)
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _delayOffsetMinutes > 0 ? AppColors.gold : Colors.white70,
+                side: BorderSide(
+                  color: _delayOffsetMinutes > 0 ? AppColors.gold : Colors.white24,
+                  width: 1,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                backgroundColor: _delayOffsetMinutes > 0 ? AppColors.gold.withValues(alpha: 0.15) : Colors.transparent,
+              ),
+              icon: const Icon(Icons.more_time_rounded, size: 15),
+              label: Text(
+                _delayOffsetMinutes > 0 ? "+${_delayOffsetMinutes}m" : "+15m",
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+              ),
+              onPressed: () => _addDelayMinutes(15),
+            ),
+            const SizedBox(width: 8),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: _currentPresetIsOfficial ? const Color(0xFF16A34A) : AppColors.gold,

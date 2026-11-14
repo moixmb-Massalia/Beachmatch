@@ -1223,4 +1223,620 @@ class TournamentPdfService {
       name: 'Rotations_Terrains_${tournament.name.replaceAll(' ', '_')}.pdf',
     );
   }
+
+  // =========================================================================
+  // 🦋 TABLEAU PAPILLON OFFICIEL FFT (AFFICHEUR CLUB A4 / A3 PAYSAGE)
+  // Tableau Central 1er Tour avec Tableau Principal à droite, Consolante à gauche,
+  // Matches de classement intégral (1 à 16) et QR Code "Live Score" BeachMatch.
+  // =========================================================================
+
+  static Future<Uint8List> buildButterflyPosterPdfBytes({
+    required TournamentModel tournament,
+    required TournamentBracket bracket,
+    Uint8List? clubLogoBytes,
+    String? customRules,
+    bool isA3 = false,
+  }) async {
+    final pdf = pw.Document();
+
+    final pageFormat = isA3 ? PdfPageFormat.a3.landscape : PdfPageFormat.a4.landscape;
+
+    // Palette officielle
+    const navyColor = PdfColor.fromInt(0xFF0F172A);
+    const goldColor = PdfColor.fromInt(0xFFB8860B);
+    const darkGray = PdfColor.fromInt(0xFF334155);
+    const lightGray = PdfColor.fromInt(0xFFF8FAFC);
+    const borderColor = PdfColor.fromInt(0xFF1E293B);
+
+    // Extraction des 16 paires (ou 8 paires) pour le 1er tour
+    List<TournamentPair> startingPairs = [];
+    if (bracket.mainMatches.isNotEmpty) {
+      final r0Matches = bracket.mainMatches.where((m) => m.roundIndex == 0).toList();
+      r0Matches.sort((a, b) => a.matchIndex.compareTo(b.matchIndex));
+      for (final m in r0Matches) {
+        startingPairs.add(m.pair1 ?? const TournamentPair(id: 'bye', player1Name: 'À déterminer', player2Name: ''));
+        startingPairs.add(m.pair2 ?? const TournamentPair(id: 'bye', player1Name: 'À déterminer', player2Name: ''));
+      }
+    } else if (bracket.pairs.isNotEmpty) {
+      startingPairs = List<TournamentPair>.from(bracket.pairs);
+    }
+
+    // Compléter jusqu'à 16 ou 8 avec des BYE si nécessaire
+    final targetSize = startingPairs.length <= 8 ? 8 : 16;
+    while (startingPairs.length < targetSize) {
+      final byeIdx = startingPairs.length + 1;
+      startingPairs.add(TournamentPair(
+        id: 'bye_$byeIdx',
+        player1Name: 'EXEMPT',
+        player2Name: 'BYE #$byeIdx',
+        isBye: true,
+      ));
+    }
+
+    final categoryLabel = bracket.category == 'double_messieurs' || bracket.category == 'DH'
+        ? 'DOUBLE MESSIEURS'
+        : (bracket.category == 'double_dames' || bracket.category == 'DD' ? 'DOUBLE DAMES' : 'DOUBLE MIXTE');
+
+    final rulesText = customRules ??
+        "2 sets de 4 jeux · Tie-Break à 4/4 · 3e set = Super Tie-Break (10 pts) · No-Ad (Point décisif)";
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: pageFormat,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        build: (context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              // 1. EN-TÊTE OFFICIEL FFT & CLUB
+              pw.Container(
+                padding: const pw.EdgeInsets.only(bottom: 6),
+                decoration: const pw.BoxDecoration(
+                  border: pw.Border(bottom: pw.BorderSide(color: navyColor, width: 1.5)),
+                ),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    // Logo Club ou Blason FFT
+                    if (clubLogoBytes != null && clubLogoBytes.isNotEmpty)
+                      pw.Container(
+                        width: 44,
+                        height: 44,
+                        margin: const pw.EdgeInsets.only(right: 10),
+                        child: pw.Image(pw.MemoryImage(clubLogoBytes), fit: pw.BoxFit.contain),
+                      )
+                    else
+                      pw.Container(
+                        width: 42,
+                        height: 42,
+                        margin: const pw.EdgeInsets.only(right: 10),
+                        padding: const pw.EdgeInsets.all(3),
+                        decoration: pw.BoxDecoration(
+                          color: navyColor,
+                          borderRadius: pw.BorderRadius.circular(6),
+                          border: pw.Border.all(color: goldColor, width: 1),
+                        ),
+                        child: pw.Center(
+                          child: pw.Text(
+                            "FFT\nBEACH",
+                            style: pw.TextStyle(color: goldColor, fontSize: 8, fontWeight: pw.FontWeight.bold),
+                            textAlign: pw.TextAlign.center,
+                          ),
+                        ),
+                      ),
+
+                    // Titre & Épreuve
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            cleanText("${tournament.club.isNotEmpty ? tournament.club : 'CLUB ORGANISATEUR'} · FFT BEACH TENNIS"),
+                            style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: darkGray, letterSpacing: 0.8),
+                          ),
+                          pw.Text(
+                            cleanText("${tournament.name.toUpperCase()} · $categoryLabel"),
+                            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: navyColor),
+                          ),
+                          pw.Text(
+                            "Tableau Officiel à Classement Intégral · JAT : ${cleanText(tournament.referee ?? 'Juge-Arbitre Référent')}",
+                            style: const pw.TextStyle(fontSize: 7.5, color: darkGray),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Encadré des Règles de jeu (comme manuscrit à Narbonne)
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: pw.BoxDecoration(
+                        color: lightGray,
+                        borderRadius: pw.BorderRadius.circular(6),
+                        border: pw.Border.all(color: navyColor, width: 0.8),
+                      ),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.end,
+                        children: [
+                          pw.Text(
+                            "FORMAT DES MATCHES",
+                            style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+                          ),
+                          pw.SizedBox(height: 2),
+                          pw.Text(
+                            rulesText,
+                            style: const pw.TextStyle(fontSize: 7, color: darkGray),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              pw.SizedBox(height: 6),
+
+              // 2. CORPS DU TABLEAU PAPILLON (CONSOLANTE ◄── DÉPART AU CENTRE ──► PRINCIPAL)
+              pw.Expanded(
+                child: _buildButterflyGrid(
+                  startingPairs: startingPairs,
+                  bracket: bracket,
+                  navyColor: navyColor,
+                  goldColor: goldColor,
+                  borderColor: borderColor,
+                  lightGray: lightGray,
+                ),
+              ),
+
+              pw.SizedBox(height: 4),
+
+              // 3. PIED DE PAGE : LEVIER D'ACQUISITION POSITIF & QR CODE
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: pw.BoxDecoration(
+                  color: lightGray,
+                  borderRadius: pw.BorderRadius.circular(6),
+                  border: pw.Border.all(color: goldColor, width: 0.8),
+                ),
+                child: pw.Row(
+                  children: [
+                    // QR Code vers l'application / Live Score
+                    pw.Container(
+                      width: 28,
+                      height: 28,
+                      child: pw.BarcodeWidget(
+                        barcode: pw.Barcode.qrCode(),
+                        data: 'https://beachmatch.app/tournaments/${tournament.id}',
+                        drawText: false,
+                        color: navyColor,
+                      ),
+                    ),
+                    const pw.SizedBox(width: 8),
+
+                    // Accroche positive
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            "Vivez le tournoi en direct ! Scannez ce QR Code pour suivre les scores en temps réel et vos terrains sur BeachMatch.",
+                            style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+                          ),
+                          pw.Text(
+                            "Application officielle BeachMatch · Convocations · Live Scores · Tableaux & Feuilles de matches FFT",
+                            style: const pw.TextStyle(fontSize: 6.5, color: darkGray),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Date & Mention
+                    pw.Text(
+                      "Édité le ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year} · BeachMatch System",
+                      style: const pw.TextStyle(fontSize: 6.5, color: darkGray),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  /// Grille papillon complète vectorielle (16 ou 8 paires)
+  static pw.Widget _buildButterflyGrid({
+    required List<TournamentPair> startingPairs,
+    required TournamentBracket bracket,
+    required PdfColor navyColor,
+    required PdfColor goldColor,
+    required PdfColor borderColor,
+    required PdfColor lightGray,
+  }) {
+    // 8 matches au 1er tour
+    final int matchCount = startingPairs.length ~/ 2;
+
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        // ==========================================
+        // GAUCHE : TABLEAU CONSOLANTE (Places 9 à 16)
+        // ==========================================
+        pw.Expanded(
+          flex: 4,
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                color: const PdfColor.fromInt(0xFFE2E8F0),
+                child: pw.Text(
+                  "◄── TABLEAU CONSOLANTE (PLACES 9 À 16)",
+                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                  children: [
+                    // Finales Consolante (Places 9-10 & 11-12)
+                    pw.Expanded(
+                      child: pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildMatchBox(label: "MATCH 31 · PLACES 9-10", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 29 · PLACES 11-12", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 27 · PLACES 13-14", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 25 · PLACES 15-16", navyColor: navyColor, goldColor: goldColor),
+                        ],
+                      ),
+                    ),
+                    pw.SizedBox(width: 4),
+                    // Demies Consolante
+                    pw.Expanded(
+                      child: pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildMatchBox(label: "MATCH 18 · DEMIE CONSO", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 22 · DEMIE CONSO", navyColor: navyColor, goldColor: goldColor),
+                        ],
+                      ),
+                    ),
+                    pw.SizedBox(width: 4),
+                    // Quarts Consolante (issus des perdants T1)
+                    pw.Expanded(
+                      child: pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildMatchBox(label: "MATCH 9 (Perd. 4 vs 1)", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 10 (Perd. 3 vs 2)", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 13 (Perd. 5 vs 7)", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 14 (Perd. 6 vs 8)", navyColor: navyColor, goldColor: goldColor),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        pw.SizedBox(width: 6),
+
+        // ==========================================
+        // AU CENTRE : COLONNE 1ER TOUR (DÉPART)
+        // ==========================================
+        pw.Expanded(
+          flex: 3,
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                color: navyColor,
+                child: pw.Text(
+                  "1ER TOUR · TOUTES PAIRES",
+                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Column(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                  children: [
+                    for (int i = 0; i < matchCount; i++) ...[
+                      _buildFirstRoundBox(
+                        matchNumber: _getMatchNumberForIndex(i),
+                        p1: startingPairs[i * 2],
+                        p2: startingPairs[i * 2 + 1],
+                        navyColor: navyColor,
+                        goldColor: goldColor,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        pw.SizedBox(width: 6),
+
+        // ==========================================
+        // DROITE : TABLEAU PRINCIPAL (Places 1 à 8)
+        // ==========================================
+        pw.Expanded(
+          flex: 4,
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                color: goldColor,
+                child: pw.Text(
+                  "TABLEAU PRINCIPAL (PLACES 1 À 8) ──►",
+                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                  children: [
+                    // Quarts de finale (issus des vainqueurs T1)
+                    pw.Expanded(
+                      child: pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildMatchBox(label: "MATCH 11 (Vainq. 4 vs 1)", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 12 (Vainq. 3 vs 2)", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 15 (Vainq. 5 vs 7)", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 16 (Vainq. 6 vs 8)", navyColor: navyColor, goldColor: goldColor),
+                        ],
+                      ),
+                    ),
+                    pw.SizedBox(width: 4),
+                    // Demi-finales
+                    pw.Expanded(
+                      child: pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildMatchBox(label: "MATCH 20 · DEMI-FINALE 1", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 24 · DEMI-FINALE 2", navyColor: navyColor, goldColor: goldColor),
+                        ],
+                      ),
+                    ),
+                    pw.SizedBox(width: 4),
+                    // Finales (Places 1-2 & 3-4 & 5-6 & 7-8)
+                    pw.Expanded(
+                      child: pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildMatchBox(label: "MATCH 32 · GRANDE FINALE (1-2)", navyColor: navyColor, goldColor: goldColor, isFinal: true),
+                          _buildMatchBox(label: "MATCH 30 · PETITE FINALE (3-4)", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 28 · PLACES 5-6", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 26 · PLACES 7-8", navyColor: navyColor, goldColor: goldColor),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Numérotation officielle des matches du 1er tour selon le standard FFT de Narbonne
+  static int _getMatchNumberForIndex(int idx) {
+    const mapping = [4, 1, 3, 2, 5, 7, 6, 8];
+    if (idx < mapping.length) return mapping[idx];
+    return idx + 1;
+  }
+
+  /// Boîte du 1er Tour (Centre)
+  static pw.Widget _buildFirstRoundBox({
+    required int matchNumber,
+    required TournamentPair p1,
+    required TournamentPair p2,
+    required PdfColor navyColor,
+    required PdfColor goldColor,
+  }) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.symmetric(vertical: 2),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.white,
+        borderRadius: pw.BorderRadius.circular(4),
+        border: pw.Border.all(color: navyColor, width: 0.8),
+      ),
+      child: pw.Column(
+        children: [
+          // Ligne Paire 1
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: pw.Row(
+              children: [
+                pw.Expanded(
+                  child: pw.Text(
+                    p1.displayName,
+                    style: pw.TextStyle(
+                      fontSize: 6.5,
+                      fontWeight: p1.seed != null ? pw.FontWeight.bold : pw.FontWeight.normal,
+                      color: p1.isBye ? PdfColors.grey500 : navyColor,
+                    ),
+                    maxLines: 1,
+                  ),
+                ),
+                if (p1.seed != null)
+                  pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 0.5),
+                    decoration: pw.BoxDecoration(color: goldColor, borderRadius: pw.BorderRadius.circular(2)),
+                    child: pw.Text("TS${p1.seed}", style: const pw.TextStyle(fontSize: 5.5, color: PdfColors.white)),
+                  ),
+              ],
+            ),
+          ),
+          // Séparateur MATCH X
+          pw.Container(
+            color: const PdfColor.fromInt(0xFFF1F5F9),
+            padding: const pw.EdgeInsets.symmetric(vertical: 1),
+            child: pw.Center(
+              child: pw.Text(
+                "MATCH $matchNumber",
+                style: pw.TextStyle(fontSize: 5.5, fontWeight: pw.FontWeight.bold, color: darkGray),
+              ),
+            ),
+          ),
+          // Ligne Paire 2
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: pw.Row(
+              children: [
+                pw.Expanded(
+                  child: pw.Text(
+                    p2.displayName,
+                    style: pw.TextStyle(
+                      fontSize: 6.5,
+                      fontWeight: p2.seed != null ? pw.FontWeight.bold : pw.FontWeight.normal,
+                      color: p2.isBye ? PdfColors.grey500 : navyColor,
+                    ),
+                    maxLines: 1,
+                  ),
+                ),
+                if (p2.seed != null)
+                  pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 0.5),
+                    decoration: pw.BoxDecoration(color: goldColor, borderRadius: pw.BorderRadius.circular(2)),
+                    child: pw.Text("TS${p2.seed}", style: const pw.TextStyle(fontSize: 5.5, color: PdfColors.white)),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Boîte standard de match (Quarts, Demies, Finales, Consolantes) avec lignes pour stylo
+  static pw.Widget _buildMatchBox({
+    required String label,
+    required PdfColor navyColor,
+    required PdfColor goldColor,
+    bool isFinal = false,
+  }) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+      decoration: pw.BoxDecoration(
+        color: isFinal ? const PdfColor.fromInt(0xFFFEF9C3) : PdfColors.white,
+        borderRadius: pw.BorderRadius.circular(4),
+        border: pw.Border.all(
+          color: isFinal ? goldColor : navyColor,
+          width: isFinal ? 1.2 : 0.6,
+        ),
+      ),
+      child: pw.Column(
+        children: [
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(vertical: 1.5, horizontal: 3),
+            color: isFinal ? goldColor : const PdfColor.fromInt(0xFFF1F5F9),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Expanded(
+                  child: pw.Text(
+                    label,
+                    style: pw.TextStyle(
+                      fontSize: 5.5,
+                      fontWeight: pw.FontWeight.bold,
+                      color: isFinal ? PdfColors.white : navyColor,
+                    ),
+                    maxLines: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: pw.Column(
+              children: [
+                // Ligne 1 pour stylo
+                pw.Container(
+                  height: 10,
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
+                  ),
+                ),
+                pw.SizedBox(height: 3),
+                // Ligne 2 pour stylo
+                pw.Container(
+                  height: 10,
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Génère et lance l'impression / partage du Tableau Papillon
+  static Future<void> generateAndExportButterflyPosterPdf({
+    required TournamentModel tournament,
+    required TournamentBracket bracket,
+    Uint8List? clubLogoBytes,
+    String? customRules,
+    bool isA3 = false,
+  }) async {
+    final pdfBytes = await buildButterflyPosterPdfBytes(
+      tournament: tournament,
+      bracket: bracket,
+      clubLogoBytes: clubLogoBytes,
+      customRules: customRules,
+      isA3: isA3,
+    );
+
+    final cleanCategory = bracket.category.replaceAll('double_', '').toUpperCase();
+    final filename = 'Tableau_Papillon_${tournament.name.replaceAll(' ', '_')}_$cleanCategory.pdf';
+
+    if (kIsWeb) {
+      try {
+        await Printing.layoutPdf(
+          onLayout: (PdfPageFormat format) async => pdfBytes,
+          name: filename,
+        );
+        return;
+      } catch (_) {}
+
+      try {
+        final dataUri = Uri.dataFromBytes(pdfBytes, mimeType: 'application/pdf');
+        await launchUrl(dataUri, mode: LaunchMode.externalApplication);
+        return;
+      } catch (e) {
+        debugPrint("PDF fallback error: $e");
+      }
+    } else {
+      try {
+        final shared = await Printing.sharePdf(bytes: pdfBytes, filename: filename);
+        if (shared) return;
+      } catch (_) {}
+
+      try {
+        await Printing.layoutPdf(
+          onLayout: (PdfPageFormat format) async => pdfBytes,
+          name: filename,
+        );
+        return;
+      } catch (_) {}
+    }
+  }
 }

@@ -122,6 +122,43 @@ class JatReminderService {
     return null;
   }
 
+  /// 🏆 Recherche un tournoi actif en direct ou très proche (J-2 à J+1)
+  /// pour lequel l'utilisateur connecté est le JAT officiel ou Administrateur.
+  static TournamentModel? findActiveTournamentForJat({
+    required List<TournamentModel> tournaments,
+    required UserModel? user,
+  }) {
+    if (user == null) return null;
+    if (!user.isReferee && !user.isAdmin) return null;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    for (final t in tournaments) {
+      if (isUserRefereeForTournament(user, t)) {
+        final start = t.startDate;
+        final end = t.endDate ?? t.startDate;
+        if (start != null) {
+          final startDay = DateTime(start.year, start.month, start.day);
+          final endDay = DateTime(end!.year, end.month, end.day);
+          // Actif entre J-2 et J+1
+          final isAroundTourney = today.isAfter(startDay.subtract(const Duration(days: 2))) &&
+              today.isBefore(endDay.add(const Duration(days: 2)));
+          if (isAroundTourney) {
+            return t;
+          }
+        }
+      }
+    }
+
+    // Si admin sans tournoi aujourd'hui, renvoyer le premier tournoi futur si disponible
+    if (user.isAdmin && tournaments.isNotEmpty) {
+      return tournaments.first;
+    }
+
+    return null;
+  }
+
   /// Affiche la boîte de dialogue ou bannière de rappel la veille du tournoi
   static Future<void> showEveReminderBanner(
     BuildContext context, {
