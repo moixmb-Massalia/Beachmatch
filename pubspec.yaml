@@ -2,7 +2,7 @@ name: beachmatch_mobile
 description: A new Flutter project for BeachMatch.
 publish_to: 'none'
 
-version: 1.0.93+193
+version: 1.0.94+194
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
