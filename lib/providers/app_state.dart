@@ -88,6 +88,10 @@ class AppState extends ChangeNotifier {
               data['country'] = _detectDefaultCountry();
               needsSync = true;
             }
+            if (data['createdAt'] == null && user.metadata.creationTime != null) {
+              data['createdAt'] = user.metadata.creationTime;
+              needsSync = true;
+            }
             if (needsSync) {
               await FirebaseFirestore.instance.collection('users').doc(user.uid).set(data, SetOptions(merge: true));
             }
