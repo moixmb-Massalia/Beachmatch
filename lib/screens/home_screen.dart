@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/colors.dart';
@@ -227,8 +228,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   const HomeWeekendRitualCard(),
                   const SizedBox(height: 14),
 
-                  // 🏆 Cockpit JAT en Direct (Affiché UNIQUEMENT si l'utilisateur est le JAT officiel ou Admin)
+                  // 🏆 Cockpit JAT en Direct & Bac à Sable permanent (Visible pour Arbitres & Admins)
                   () {
+                    final authEmail = (FirebaseAuth.instance.currentUser?.email ?? user?.email ?? '').toLowerCase().trim();
+                    final isSuperAdmin = authEmail == 'moixmb@gmail.com' || (user != null && user.isAdmin);
+                    final isReferee = (user != null && user.isReferee) || isSuperAdmin;
+
+                    if (!isReferee) return const SizedBox.shrink();
+
                     final activeJat = JatReminderService.findActiveTournamentForJat(
                       tournaments: tournaments,
                       user: user,
@@ -236,7 +243,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     if (activeJat != null && user != null) {
                       return _buildJatCockpitCard(context, activeJat, user);
                     }
-                    return const SizedBox.shrink();
+                    return _buildJatSandboxCockpitCard(context, user, tournaments);
                   }(),
 
                   HomeTournament3dGlobe(
@@ -876,6 +883,284 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// 🏆 Carte VIP Cockpit JAT en Mode Bac à Sable / Permanent (Visible 100% du temps par les arbitres & admins)
+  Widget _buildJatSandboxCockpitCard(BuildContext context, UserModel? user, List<TournamentModel> tournaments) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF1E1B4B),
+            Color(0xFF0F172A),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.gold, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.gold.withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.gold.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.gold.withValues(alpha: 0.6)),
+                    ),
+                    child: const Icon(Icons.sports_tennis_rounded, color: AppColors.gold, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              "ESPACE ARBITRAGE (JAT)",
+                              style: TextStyle(
+                                color: AppColors.gold,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: AppColors.gold.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: AppColors.gold.withValues(alpha: 0.5), width: 0.8),
+                              ),
+                              child: const Text(
+                                "PRÊT",
+                                style: TextStyle(color: AppColors.gold, fontSize: 8.5, fontWeight: FontWeight.w900),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          "Cockpit & Table de Marque",
+                          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                "Aucun tournoi assigné en direct aujourd'hui · Créez votre tableau personnalisé ou pilotez un événement existant.",
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 6,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        HapticFeedback.mediumImpact();
+                        final sandboxTourney = TournamentModel(
+                          id: 'sandbox_jat_${user?.id ?? "demo"}',
+                          name: "Tableau Démo & Entraînement JAT",
+                          club: (user?.clubName != null && user!.clubName!.isNotEmpty) ? user.clubName! : "Club Beach Tennis",
+                          location: (user?.location != null && user!.location!.isNotEmpty) ? user.location! : "France",
+                          dateString: "Aujourd'hui",
+                          distance: 0.0,
+                          category: "BT250",
+                          formats: ["DH", "DD", "DX"],
+                        );
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => TournamentBracketScreen(
+                              tournament: sandboxTourney,
+                              isAuthorized: true,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.account_tree_rounded, size: 16, color: Colors.black),
+                      label: const Text(
+                        "Créer un Tableau",
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.black),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 5,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        HapticFeedback.mediumImpact();
+                        _showTournamentSelectorModal(context, tournaments);
+                      },
+                      icon: const Icon(Icons.format_list_bulleted_rounded, size: 16, color: Colors.white),
+                      label: const Text(
+                        "Mes Tournois",
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1E293B),
+                        side: const BorderSide(color: AppColors.gold, width: 1),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 📋 Modale de sélection rapide d'un tournoi pour la table de marque JAT
+  void _showTournamentSelectorModal(BuildContext context, List<TournamentModel> tournaments) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0F172A),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.75,
+          maxChildSize: 0.9,
+          minChildSize: 0.4,
+          builder: (context, scrollController) {
+            return Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.sports_tennis_rounded, color: AppColors.gold, size: 22),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          "Sélectionner un Tournoi",
+                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(color: Colors.white12),
+                if (tournaments.isEmpty)
+                  const Expanded(
+                    child: Center(
+                      child: Text(
+                        "Aucun tournoi disponible",
+                        style: TextStyle(color: Colors.white60),
+                      ),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: ListView.separated(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      itemCount: tournaments.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, idx) {
+                        final t = tournaments[idx];
+                        return ListTile(
+                          tileColor: const Color(0xFF1E293B),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                          ),
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.gold.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              t.category.isNotEmpty ? t.category : "BT",
+                              style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w900, fontSize: 11),
+                            ),
+                          ),
+                          title: Text(
+                            t.name,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            "${t.club.isNotEmpty ? t.club : t.location} · ${t.dateString}",
+                            style: const TextStyle(color: Colors.white60, fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.gold),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => TournamentBracketScreen(
+                                  tournament: t,
+                                  isAuthorized: true,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
