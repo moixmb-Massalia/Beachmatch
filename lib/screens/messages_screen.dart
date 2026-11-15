@@ -377,6 +377,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       data['requestReceiverId'] == currentUser.id &&
                       data['status'] == 'pending';
 
+                  // ✅ Filtrer les chats privés sans partenaire valide (self-chats, chats corrompus)
+                  if (!isGroup && !isTournament && !isIncomingRequest) {
+                    final users = List<String>.from(data['users'] ?? []);
+                    final otherUsers = users.where((id) => id != currentUser.id).toList();
+                    // Si aucun autre utilisateur distinct → ne pas afficher
+                    if (otherUsers.isEmpty) return false;
+                  }
+
                   if (_selectedFilter == 'requests') {
                     return isIncomingRequest;
                   }
@@ -405,8 +413,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     return _matchesTokens("$groupName $lastMessage", searchTokens);
                   } else {
                     final users = List<String>.from(chatData['users'] ?? []);
-                    final otherUserId = users.firstWhere((id) => id != currentUser.id, orElse: () => currentUser.id);
-                    final otherUser = _resolveUser(otherUserId, appState);
+                    final otherUsers = users.where((id) => id != currentUser.id).toList();
+                    if (otherUsers.isEmpty) return false; // masquer self-chat
+                    final otherUser = _resolveUser(otherUsers.first, appState);
                     if (otherUser != null) {
                       return _matchesTokens("${otherUser.displayName} ${otherUser.location} $lastMessage", searchTokens);
                     }
@@ -739,8 +748,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               final isUnread = unreadBy.contains(currentUser.id);
 
                               if (_selectedFilter == 'requests') {
-                                final otherUserId = users.firstWhere((id) => id != currentUser.id, orElse: () => currentUser.id);
-                                final otherUser = _resolveUser(otherUserId, appState);
+                                final otherUsers = users.where((id) => id != currentUser.id).toList();
+                                if (otherUsers.isEmpty) return const SizedBox.shrink();
+                                final otherUser = _resolveUser(otherUsers.first, appState);
                                 if (otherUser != null) {
                                   return _buildRequestMessageItem(
                                     context,
@@ -774,7 +784,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                 final clubId = chatId.replaceFirst('club_', '');
                                 return _buildGroupMessageItem(context, currentUser, groupName, groupIcon, lastMessage, clubId, lastTimestamp, isUnread);
                               } else {
-                                final otherUserId = users.firstWhere((id) => id != currentUser.id, orElse: () => currentUser.id);
+                                // ✅ Anti self-chat : ne jamais afficher une conversation avec soi-même
+                                final otherUsers = users.where((id) => id != currentUser.id).toList();
+                                if (otherUsers.isEmpty) return const SizedBox.shrink();
+                                final otherUserId = otherUsers.first;
                                 final otherUser = _resolveUser(otherUserId, appState);
                                 final isPending = chatData['status'] == 'pending' && chatData['requestSenderId'] == currentUser.id;
                                 if (otherUser != null) {
