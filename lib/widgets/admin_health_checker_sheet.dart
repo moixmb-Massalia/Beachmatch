@@ -96,6 +96,29 @@ class _AdminHealthCheckerSheetState extends State<AdminHealthCheckerSheet> {
     }
   }
 
+  Future<void> _purgeCrashReports() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final snap = await FirebaseFirestore.instance.collection('app_crash_reports').get();
+      final batch = FirebaseFirestore.instance.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      setState(() {
+        _crashReportsCount = 0;
+        _recentCrashes = [];
+      });
+      messenger.showSnackBar(
+        const SnackBar(content: Text("Historique des anomalies vidé avec succès !"), backgroundColor: Colors.green),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text("Erreur : $e"), backgroundColor: Colors.redAccent),
+      );
+    }
+  }
+
   int get _healthScore {
     int score = 100;
     if (_firestorePingMs > 600) score -= 10;
@@ -247,14 +270,24 @@ class _AdminHealthCheckerSheetState extends State<AdminHealthCheckerSheet> {
 
                       if (_recentCrashes.isNotEmpty) ...[
                         const SizedBox(height: 22),
-                        const Text(
-                          "DERNIÈRES ANOMALIES INTERCEPTÉES (PROACTIF)",
-                          style: TextStyle(
-                            color: Colors.white54,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.1,
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              "DERNIÈRES ANOMALIES INTERCEPTÉES",
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                            TextButton.icon(
+                              icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 16),
+                              label: const Text("Vider", style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+                              onPressed: _purgeCrashReports,
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 10),
                         ..._recentCrashes.map((c) => _buildCrashCard(c)),
