@@ -50,13 +50,22 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
     final c = _removeAccents(t.country ?? '').toLowerCase();
     final name = _removeAccents(t.name).toLowerCase();
 
+    final isReunion = loc.contains('reunion') || c.contains('reunion') || c == 're' ||
+        loc.contains('974') || loc.contains('clotilde') || loc.contains('saline') ||
+        loc.contains('etang-sale') || loc.contains('etang sale') ||
+        loc.contains('saint-gilles') || loc.contains('saint-paul') ||
+        (loc.contains('saint-pierre') && (loc.contains('974') || loc.contains('reunion'))) ||
+        name.contains('brisants') || name.contains('bourbon') || name.contains('tcbsp') || 
+        name.contains('beach park') || name.contains('sain gym') || name.contains('sin gym');
+
     switch (countryCode) {
       case 'FR':
-        final isOther = loc.contains('reunion') || loc.contains('bresil') || loc.contains('brasil') || 
+        if (isReunion) return false;
+        final isOther = loc.contains('bresil') || loc.contains('brasil') || 
             loc.contains('italie') || loc.contains('italy') || loc.contains('espagne') || loc.contains('spain') || 
             loc.contains('venezuela') || loc.contains('aruba') || loc.contains('martinique') || 
             loc.contains('guadeloupe') || loc.contains('saint-barth') || loc.contains('saint-martin') || 
-            c.contains('reunion') || c.contains('bresil') || c.contains('brasil') || c == 'br' || c.contains('italie') || 
+            c.contains('bresil') || c.contains('brasil') || c == 'br' || c.contains('italie') || 
             c.contains('espagne') || c.contains('spain') || c.contains('venezuela') || c.contains('aruba') || 
             c.contains('martinique') || c.contains('guadeloupe') || c.contains('saint-barth') || c.contains('saint-martin');
         return !isOther;
@@ -70,8 +79,7 @@ class _TournamentListScreenState extends State<TournamentListScreen> {
             name.contains('panam') || name.contains('pan-american') || name.contains('cbt') || name.contains('sand series');
 
       case 'RE':
-        return loc.contains('reunion') || c.contains('reunion') || c == 're' ||
-            name.contains('brisants') || name.contains('bourbon') || name.contains('tcbsp') || name.contains('beach park');
+        return isReunion;
 
       case 'ANT':
         return loc.contains('martinique') || loc.contains('guadeloupe') || loc.contains('saint-barth') || loc.contains('saint-martin') ||
