@@ -601,6 +601,7 @@ class AppState extends ChangeNotifier {
         // Prepare memory user for onboarding
         _currentUser = UserModel(
           id: userCredential.user!.uid,
+          email: userCredential.user!.email ?? email,
           displayName: name,
           firstName: resolvedFirst,
           lastName: resolvedLast,
@@ -733,6 +734,9 @@ class AppState extends ChangeNotifier {
     // Update model
     _currentUser = UserModel(
       id: _currentUser!.id,
+      email: _currentUser!.email ?? FirebaseAuth.instance.currentUser?.email,
+      firstName: _currentUser!.firstName,
+      lastName: _currentUser!.lastName,
       displayName: pseudo,
       level: level,
       eloScore: eloScore ?? 0,
