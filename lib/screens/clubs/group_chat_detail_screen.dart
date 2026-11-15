@@ -45,6 +45,17 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
   bool _isRecording = false;
   Map<String, dynamic>? _replyingTo;
 
+  /// The canonical chat room ID in `chats` collection (e.g. `club_marseille`, `club_a906f38d5e10`)
+  String get _chatRoomId => _chatService.getClubChatRoomId(widget.clubId);
+
+  /// The raw club ID without `club_` prefix (e.g. `marseille`, `a906f38d5e10`)
+  String get _rawClubId => widget.clubId.startsWith('club_') ? widget.clubId.substring(5) : widget.clubId;
+
+  /// Candidate IDs for queries in `clubs` and `users` (handles both prefixed and unprefixed formats)
+  List<String> get _clubCandidateIds => {_chatRoomId, widget.clubId, _rawClubId}.toList();
+
+  bool get _isMontmeyran => _chatRoomId == 'club_6cf0dd19a384' || _rawClubId == '6cf0dd19a384';
+
   @override
   void initState() {
     super.initState();
@@ -147,35 +158,33 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance.collection('clubs').doc(widget.clubId).snapshots(),
-                builder: (context, clubSnap) {
-                  final clubData = clubSnap.data?.data() ?? {};
-                  final adminId = clubData['adminId']?.toString();
-                  final presidentEmails = List<String>.from(clubData['presidentEmails'] ?? []);
-                  
+                stream: FirebaseFirestore.instance.collection('chats').doc(_chatRoomId).snapshots(),
+                builder: (context, chatSnap) {
+                  final chatData = chatSnap.data?.data();
                   final rawMembers = <String>{};
-                  if (clubData['membersIds'] is List) {
-                    rawMembers.addAll(List<String>.from(clubData['membersIds']));
-                  }
-                  if (clubData['memberIds'] is List) {
-                    rawMembers.addAll(List<String>.from(clubData['memberIds']));
-                  }
-                  if (adminId != null && adminId.isNotEmpty) {
-                    rawMembers.add(adminId);
+                  if (chatData != null && chatData['users'] is List) {
+                    rawMembers.addAll(List<String>.from(chatData['users']));
                   }
 
                   return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                    stream: FirebaseFirestore.instance.collection('chats').doc(widget.clubId).snapshots(),
-                    builder: (context, chatSnap) {
-                      if (chatSnap.hasData && chatSnap.data?.data() != null) {
-                        final chatData = chatSnap.data!.data()!;
-                        if (chatData['users'] is List) {
-                          rawMembers.addAll(List<String>.from(chatData['users']));
-                        }
-                      }
+                    stream: FirebaseFirestore.instance.collection('clubs').doc(_chatRoomId).snapshots(),
+                    builder: (context, clubSnap) {
+                      final clubData = clubSnap.data?.data() ?? {};
+                      final adminId = clubData['adminId']?.toString();
+                      final presidentEmails = List<String>.from(clubData['presidentEmails'] ?? []);
                       
+                      if (clubData['membersIds'] is List) {
+                        rawMembers.addAll(List<String>.from(clubData['membersIds']));
+                      }
+                      if (clubData['memberIds'] is List) {
+                        rawMembers.addAll(List<String>.from(clubData['memberIds']));
+                      }
+                      if (adminId != null && adminId.isNotEmpty && adminId != 'admin_user_id') {
+                        rawMembers.add(adminId);
+                      }
+
                       return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: FirebaseFirestore.instance.collection('users').where('clubId', isEqualTo: widget.clubId).snapshots(),
+                        stream: FirebaseFirestore.instance.collection('users').where('clubId', whereIn: _clubCandidateIds).snapshots(),
                         builder: (context, usersByClubSnap) {
                           if (usersByClubSnap.hasData) {
                             for (final doc in usersByClubSnap.data!.docs) {
@@ -183,7 +192,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                             }
                           }
                           // Condition stricte : Maria Carolina ne doit jamais figurer dans le club de Montmeyran
-                          if (widget.clubId == 'club_6cf0dd19a384') {
+                          if (_isMontmeyran) {
                             rawMembers.remove('QTm5SkYm9CXpGzCZ4lcirhZm6lh2');
                           }
                           final memberIdsList = rawMembers.toList();
@@ -550,15 +559,25 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                         ],
                       ),
                       StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                        stream: FirebaseFirestore.instance.collection('clubs').doc(widget.clubId).snapshots(),
-                        builder: (context, snapshot) {
-                          final data = snapshot.data?.data();
-                          final list = (data?['memberIds'] as List?) ?? (data?['membersIds'] as List?);
-                          final count = list?.length ?? 0;
-                          return Text(
-                            count > 0 ? "$count membres · voir les infos" : "Chat du club · voir les membres",
-                            style: const TextStyle(fontSize: 11, color: AppColors.gold, fontWeight: FontWeight.w500),
-                            overflow: TextOverflow.ellipsis,
+                        stream: FirebaseFirestore.instance.collection('chats').doc(_chatRoomId).snapshots(),
+                        builder: (context, chatSnap) {
+                          final chatUsers = List<String>.from(chatSnap.data?.data()?['users'] ?? []);
+                          return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                            stream: FirebaseFirestore.instance.collection('clubs').doc(_chatRoomId).snapshots(),
+                            builder: (context, clubSnap) {
+                              final clubData = clubSnap.data?.data();
+                              final clubMembers = List<String>.from(clubData?['memberIds'] ?? clubData?['membersIds'] ?? []);
+                              final allMembers = {...chatUsers, ...clubMembers};
+                              if (_isMontmeyran) {
+                                allMembers.remove('QTm5SkYm9CXpGzCZ4lcirhZm6lh2');
+                              }
+                              final count = allMembers.length;
+                              return Text(
+                                count > 0 ? "$count membres · voir les infos" : "Chat du club · voir les membres",
+                                style: const TextStyle(fontSize: 11, color: AppColors.gold, fontWeight: FontWeight.w500),
+                                overflow: TextOverflow.ellipsis,
+                              );
+                            },
                           );
                         },
                       ),
@@ -694,7 +713,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
 
   Widget _buildPinnedAnnouncementBanner(UserModel currentUser) {
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('chats').doc('club_${widget.clubId}').snapshots(),
+      stream: FirebaseFirestore.instance.collection('chats').doc(_chatRoomId).snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || !snapshot.data!.exists) return const SizedBox.shrink();
         final chatData = snapshot.data!.data() as Map<String, dynamic>?;
@@ -800,7 +819,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                 icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 18),
                 tooltip: "Désépingler",
                 onPressed: () async {
-                  await FirebaseFirestore.instance.collection('chats').doc('club_${widget.clubId}').set({
+                  await FirebaseFirestore.instance.collection('chats').doc(_chatRoomId).set({
                     'pinnedAnnouncement': {
                       'isPinned': false,
                     }
@@ -871,7 +890,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
 
     final replyTo = data['replyTo'] as Map<String, dynamic>?;
     final reactions = data['reactions'] as Map<String, dynamic>?;
-    final chatRoomId = 'club_${widget.clubId}';
+    final chatRoomId = _chatRoomId;
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -1291,7 +1310,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
   }
 
   Future<void> _votePoll(String messageId, int optionIndex, String currentUserId) async {
-    final chatRoomId = 'club_${widget.clubId}';
+    final chatRoomId = _chatRoomId;
     final msgRef = FirebaseFirestore.instance.collection('chats').doc(chatRoomId).collection('messages').doc(messageId);
     
     await msgRef.set({
@@ -1523,7 +1542,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
               Navigator.pop(ctx);
               await FirebaseFirestore.instance
                   .collection('chats')
-                  .doc('club_${widget.clubId}')
+                  .doc(_chatRoomId)
                   .collection('messages')
                   .doc(messageId)
                   .delete();
@@ -1651,7 +1670,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                   Navigator.pop(ctx);
                   await FirebaseFirestore.instance
                       .collection('chats')
-                      .doc('club_${widget.clubId}')
+                      .doc(_chatRoomId)
                       .collection('messages')
                       .doc(messageId)
                       .update({

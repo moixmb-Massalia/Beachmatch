@@ -781,7 +781,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               } else if (isGroup) {
                                 final groupName = chatData['groupName'] as String? ?? "Groupe";
                                 final groupIcon = chatData['groupIcon'] as String?;
-                                final clubId = chatId.replaceFirst('club_', '');
+                                final clubId = chatId;
                                 return _buildGroupMessageItem(context, currentUser, groupName, groupIcon, lastMessage, clubId, lastTimestamp, isUnread);
                               } else {
                                 // ✅ Anti self-chat : ne jamais afficher une conversation avec soi-même
