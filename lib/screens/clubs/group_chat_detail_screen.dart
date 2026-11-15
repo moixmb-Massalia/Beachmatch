@@ -130,6 +130,247 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
     );
   }
 
+  void _showClubMembersBottomSheet(BuildContext context, UserModel currentUser) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.8,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (sheetCtx, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF131D2E),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: FirebaseFirestore.instance.collection('clubs').doc(widget.clubId).snapshots(),
+                builder: (context, clubSnap) {
+                  final clubData = clubSnap.data?.data() ?? {};
+                  final adminId = clubData['adminId']?.toString();
+                  final presidentEmails = List<String>.from(clubData['presidentEmails'] ?? []);
+                  
+                  final rawMembers = <String>{};
+                  if (clubData['membersIds'] is List) {
+                    rawMembers.addAll(List<String>.from(clubData['membersIds']));
+                  }
+                  if (clubData['memberIds'] is List) {
+                    rawMembers.addAll(List<String>.from(clubData['memberIds']));
+                  }
+                  if (adminId != null && adminId.isNotEmpty) {
+                    rawMembers.add(adminId);
+                  }
+
+                  return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance.collection('chats').doc(widget.clubId).snapshots(),
+                    builder: (context, chatSnap) {
+                      if (chatSnap.hasData && chatSnap.data?.data() != null) {
+                        final chatData = chatSnap.data!.data()!;
+                        if (chatData['users'] is List) {
+                          rawMembers.addAll(List<String>.from(chatData['users']));
+                        }
+                      }
+                      
+                      final memberIdsList = rawMembers.toList();
+
+                      return Column(
+                        children: [
+                          Center(
+                            child: Container(
+                              margin: const EdgeInsets.only(top: 12, bottom: 8),
+                              width: 44,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: Colors.white24,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 52,
+                                  height: 52,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: AppColors.gold, width: 2),
+                                  ),
+                                  child: ClipOval(
+                                    child: (widget.clubBannerUrl != null && widget.clubBannerUrl!.trim().isNotEmpty && widget.clubBannerUrl!.startsWith('http'))
+                                        ? Image.network(widget.clubBannerUrl!.trim(), fit: BoxFit.cover, errorBuilder: (_, __, ___) => Image.asset(_getClubPhotoAsset(widget.clubName), fit: BoxFit.cover))
+                                        : Image.asset(_getClubPhotoAsset(widget.clubName), fit: BoxFit.cover),
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        widget.clubName,
+                                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        "${memberIdsList.length} membre${memberIdsList.length > 1 ? 's' : ''} dans le salon",
+                                        style: const TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w600),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close, color: Colors.white70),
+                                  onPressed: () => Navigator.pop(ctx),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Divider(color: Colors.white12, height: 1),
+                          InkWell(
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              showClubInviteDialog(
+                                context,
+                                clubId: widget.clubId,
+                                clubName: widget.clubName,
+                                bannerUrl: widget.clubBannerUrl,
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.coral.withValues(alpha: 0.2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.person_add_alt_1_rounded, color: AppColors.coral, size: 22),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  const Text(
+                                    "Inviter des membres dans le club",
+                                    style: TextStyle(color: AppColors.coral, fontSize: 15, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const Divider(color: Colors.white12, height: 1),
+                          Expanded(
+                            child: memberIdsList.isEmpty
+                                ? const Center(
+                                    child: Text("Aucun membre trouvé dans ce salon", style: TextStyle(color: Colors.white54)),
+                                  )
+                                : ListView.separated(
+                                    controller: scrollController,
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    itemCount: memberIdsList.length,
+                                    separatorBuilder: (_, __) => const Divider(color: Colors.white10, height: 1, indent: 76),
+                                    itemBuilder: (context, index) {
+                                      final memberId = memberIdsList[index];
+                                      return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                                        future: FirebaseFirestore.instance.collection('users').doc(memberId).get(),
+                                        builder: (context, userSnap) {
+                                          final userData = userSnap.data?.data();
+                                          final name = userData?['displayName']?.toString() ?? userData?['name']?.toString() ?? "Joueur";
+                                          final photo = userData?['photoUrl']?.toString();
+                                          final isMe = memberId == currentUser.id;
+                                          final isPresident = (adminId != null && adminId == memberId) ||
+                                              (userData?['email'] != null && presidentEmails.contains(userData!['email']));
+                                          final isJat = userData?['isReferee'] == true || userData?['role'] == 'JAT';
+                                          final ranking = userData?['ranking']?.toString();
+
+                                          return ListTile(
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                                            leading: CircleAvatar(
+                                              radius: 22,
+                                              backgroundColor: AppColors.coral,
+                                              backgroundImage: (photo != null && photo.trim().isNotEmpty) ? NetworkImage(photo) : null,
+                                              child: (photo == null || photo.trim().isEmpty)
+                                                  ? Text(
+                                                      name.isNotEmpty ? name[0].toUpperCase() : "?",
+                                                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                                    )
+                                                  : null,
+                                            ),
+                                            title: Row(
+                                              children: [
+                                                Flexible(
+                                                  child: Text(
+                                                    isMe ? "$name (Vous)" : name,
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 15,
+                                                      fontWeight: isMe ? FontWeight.bold : FontWeight.w600,
+                                                    ),
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                if (isPresident) ...[
+                                                  const SizedBox(width: 6),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: AppColors.gold.withValues(alpha: 0.2),
+                                                      borderRadius: BorderRadius.circular(6),
+                                                      border: Border.all(color: AppColors.gold, width: 0.8),
+                                                    ),
+                                                    child: const Text("👑 Président", style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold)),
+                                                  ),
+                                                ] else if (isJat) ...[
+                                                  const SizedBox(width: 6),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.blueAccent.withValues(alpha: 0.2),
+                                                      borderRadius: BorderRadius.circular(6),
+                                                      border: Border.all(color: Colors.blueAccent, width: 0.8),
+                                                    ),
+                                                    child: const Text("🎾 JAT", style: TextStyle(color: Colors.blueAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                            subtitle: Text(
+                                              (ranking != null && ranking.isNotEmpty && ranking != 'NC')
+                                                  ? "Classement FFT #$ranking"
+                                                  : (userData?['location']?.toString() ?? "Membre du club"),
+                                              style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                            ),
+                                            trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white30, size: 14),
+                                            onTap: () {
+                                              Navigator.pop(ctx);
+                                              _openUserProfile(memberId, displayName: name, photoUrl: photo);
+                                            },
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   String _getClubPhotoAsset(String name) => ClubModel.getClubPhotoAsset(name);
 
   void _confirmDeleteChat(BuildContext context, UserModel currentUser) {
@@ -227,63 +468,97 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         elevation: 0,
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFE8604C), Color(0xFFF4A535)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1.5),
-              ),
-              child: ClipOval(
-                child: (widget.clubBannerUrl != null && widget.clubBannerUrl!.trim().isNotEmpty && widget.clubBannerUrl!.startsWith('http'))
-                    ? Image.network(
-                        widget.clubBannerUrl!.trim(),
-                        width: 40,
-                        height: 40,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Image.asset(
-                          photoAsset,
-                          width: 40,
-                          height: 40,
-                          fit: BoxFit.cover,
-                          cacheWidth: 100,
-                          errorBuilder: (_, __, ___) => const Center(
-                            child: Icon(Icons.sports_tennis, color: Colors.white, size: 20),
+        title: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _showClubMembersBottomSheet(context, currentUser),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFE8604C), Color(0xFFF4A535)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1.5),
+                  ),
+                  child: ClipOval(
+                    child: (widget.clubBannerUrl != null && widget.clubBannerUrl!.trim().isNotEmpty && widget.clubBannerUrl!.startsWith('http'))
+                        ? Image.network(
+                            widget.clubBannerUrl!.trim(),
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Image.asset(
+                              photoAsset,
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.cover,
+                              cacheWidth: 100,
+                              errorBuilder: (_, __, ___) => const Center(
+                                child: Icon(Icons.sports_tennis, color: Colors.white, size: 20),
+                              ),
+                            ),
+                          )
+                        : Image.asset(
+                            photoAsset,
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.cover,
+                            cacheWidth: 100,
+                            errorBuilder: (_, __, ___) => const Center(
+                              child: Icon(Icons.sports_tennis, color: Colors.white, size: 20),
+                            ),
                           ),
-                        ),
-                      )
-                    : Image.asset(
-                        photoAsset,
-                        width: 40,
-                        height: 40,
-                        fit: BoxFit.cover,
-                        cacheWidth: 100,
-                        errorBuilder: (_, __, ___) => const Center(
-                          child: Icon(Icons.sports_tennis, color: Colors.white, size: 20),
-                        ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              widget.clubName,
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white70, size: 18),
+                        ],
                       ),
-              ),
+                      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        stream: FirebaseFirestore.instance.collection('clubs').doc(widget.clubId).snapshots(),
+                        builder: (context, snapshot) {
+                          final count = (snapshot.data?.data()?['membersIds'] as List?)?.length ?? 0;
+                          return Text(
+                            count > 0 ? "$count membres · voir les infos" : "Chat du club · voir les membres",
+                            style: const TextStyle(fontSize: 11, color: AppColors.gold, fontWeight: FontWeight.w500),
+                            overflow: TextOverflow.ellipsis,
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Chat interne du club", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                  Text(widget.clubName, style: const TextStyle(fontSize: 12, color: Colors.white70), overflow: TextOverflow.ellipsis),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.people_alt_rounded, color: AppColors.gold),
+            tooltip: "Membres du salon",
+            onPressed: () => _showClubMembersBottomSheet(context, currentUser),
+          ),
           IconButton(
             icon: const Icon(Icons.group_add_rounded, color: Colors.white),
             tooltip: "Inviter des joueurs",
@@ -299,7 +574,9 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
             color: const Color(0xFF16253B),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             onSelected: (value) {
-              if (value == 'invite') {
+              if (value == 'members') {
+                _showClubMembersBottomSheet(context, currentUser);
+              } else if (value == 'invite') {
                 showClubInviteDialog(
                   context,
                   clubId: widget.clubId,
@@ -311,6 +588,16 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
               }
             },
             itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'members',
+                child: Row(
+                  children: [
+                    Icon(Icons.people_alt_rounded, color: AppColors.gold, size: 20),
+                    SizedBox(width: 10),
+                    Text("Membres du salon", style: TextStyle(color: Colors.white, fontSize: 14)),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'invite',
                 child: Row(
