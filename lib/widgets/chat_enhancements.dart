@@ -226,13 +226,75 @@ class ActiveReplyBanner extends StatelessWidget {
   }
 }
 
-/// Modal moderne d'actions au long-press sur un message (Réactions WhatsApp, Répondre, Copier, Supprimer)
+/// Bannière affichée au-dessus du champ de texte lors de la modification d'un message
+class ActiveEditBanner extends StatelessWidget {
+  final String originalText;
+  final VoidCallback onCancel;
+
+  const ActiveEditBanner({
+    super.key,
+    required this.originalText,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF16253B),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          left: const BorderSide(color: Colors.lightBlueAccent, width: 4),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.edit_rounded, color: Colors.lightBlueAccent, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Modifier le message",
+                  style: TextStyle(
+                    color: Colors.lightBlueAccent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  originalText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: onCancel,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Modal moderne d'actions au long-press sur un message (Réactions WhatsApp, Répondre, Modifier, Copier, Supprimer)
 class ChatMessageActionsModal extends StatelessWidget {
   final String text;
   final String senderName;
   final bool isMe;
   final Function(String emoji) onReactionSelected;
   final VoidCallback onReply;
+  final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
   const ChatMessageActionsModal({
@@ -242,6 +304,7 @@ class ChatMessageActionsModal extends StatelessWidget {
     required this.isMe,
     required this.onReactionSelected,
     required this.onReply,
+    this.onEdit,
     this.onDelete,
   });
 
@@ -252,6 +315,7 @@ class ChatMessageActionsModal extends StatelessWidget {
     required bool isMe,
     required Function(String emoji) onReactionSelected,
     required VoidCallback onReply,
+    VoidCallback? onEdit,
     VoidCallback? onDelete,
   }) {
     HapticFeedback.mediumImpact();
@@ -264,6 +328,7 @@ class ChatMessageActionsModal extends StatelessWidget {
         isMe: isMe,
         onReactionSelected: onReactionSelected,
         onReply: onReply,
+        onEdit: onEdit,
         onDelete: onDelete,
       ),
     );
@@ -360,6 +425,25 @@ class ChatMessageActionsModal extends StatelessWidget {
                           backgroundColor: Color(0xFF1E293B),
                         ),
                       );
+                    },
+                  ),
+
+                // Option Modifier le texte (si auteur et message texte)
+                if (isMe && onEdit != null && text.isNotEmpty)
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.edit_outlined, color: Colors.lightBlueAccent, size: 20),
+                    ),
+                    title: const Text("Modifier le message", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    subtitle: const Text("Corriger le message envoyé", style: TextStyle(color: Colors.white60, fontSize: 12)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      onEdit!();
                     },
                   ),
 

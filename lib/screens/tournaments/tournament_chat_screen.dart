@@ -37,6 +37,8 @@ class _TournamentChatScreenState extends State<TournamentChatScreen> {
   final ChatService _chatService = ChatService();
   bool _isSending = false;
   Map<String, dynamic>? _replyingTo;
+  String? _editingMessageId;
+  String? _editingOriginalText;
 
   @override
   void initState() {
@@ -60,6 +62,34 @@ class _TournamentChatScreenState extends State<TournamentChatScreen> {
   void _sendMessage(UserModel currentUser) async {
     final text = _textController.text.trim();
     if (text.isEmpty || _isSending) return;
+
+    if (_editingMessageId != null) {
+      final msgId = _editingMessageId!;
+      setState(() {
+        _isSending = true;
+        _editingMessageId = null;
+        _editingOriginalText = null;
+      });
+      _textController.clear();
+
+      try {
+        final chatRoomId = _chatService.getTournamentChatRoomId(widget.tournament.id);
+        await _chatService.editMessage(
+          chatRoomId: chatRoomId,
+          messageId: msgId,
+          newText: text,
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Erreur lors de la modification du message.")),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isSending = false);
+      }
+      return;
+    }
 
     final reply = _replyingTo;
     setState(() {
@@ -788,6 +818,17 @@ class _TournamentChatScreenState extends State<TournamentChatScreen> {
                         };
                       });
                     },
+                    onEdit: () {
+                      setState(() {
+                        _editingMessageId = messageId;
+                        _editingOriginalText = text;
+                        _replyingTo = null;
+                        _textController.text = text;
+                        _textController.selection = TextSelection.fromPosition(
+                          TextPosition(offset: _textController.text.length),
+                        );
+                      });
+                    },
                     onDelete: () {
                       _chatService.deleteMessage(chatRoomId, messageId);
                     },
@@ -912,6 +953,16 @@ class _TournamentChatScreenState extends State<TournamentChatScreen> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            if (data['isEdited'] == true) ...[
+                              Text(
+                                "modifié • ",
+                                style: TextStyle(
+                                  color: isMe ? Colors.white.withValues(alpha: 0.6) : Colors.white54,
+                                  fontSize: 10,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
                             Text(
                               timeStr,
                               style: TextStyle(
@@ -1072,6 +1123,21 @@ class _TournamentChatScreenState extends State<TournamentChatScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (_editingMessageId != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              child: ActiveEditBanner(
+                originalText: _editingOriginalText ?? '',
+                onCancel: () => setState(() {
+                  _editingMessageId = null;
+                  _editingOriginalText = null;
+                  _textController.clear();
+                }),
+              ),
+            ),
+          ),
         if (_replyingTo != null)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),

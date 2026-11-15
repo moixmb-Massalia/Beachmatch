@@ -44,6 +44,8 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
   late final AudioRecorder _audioRecorder;
   bool _isRecording = false;
   Map<String, dynamic>? _replyingTo;
+  String? _editingMessageId;
+  String? _editingOriginalText;
 
   /// The canonical chat room ID in `chats` collection (e.g. `club_marseille`, `club_a906f38d5e10`)
   String get _chatRoomId => _chatService.getClubChatRoomId(widget.clubId);
@@ -69,7 +71,33 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
   }
 
   void _sendMessage(UserModel currentUser) async {
-    if (_controller.text.trim().isEmpty) return;
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+
+    if (_editingMessageId != null) {
+      final msgId = _editingMessageId!;
+      setState(() {
+        _isSending = true;
+        _editingMessageId = null;
+        _editingOriginalText = null;
+      });
+      _controller.clear();
+
+      try {
+        await _chatService.editMessage(
+          chatRoomId: _chatRoomId,
+          messageId: msgId,
+          newText: text,
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Erreur lors de la modification.")));
+        }
+      } finally {
+        if (mounted) setState(() => _isSending = false);
+      }
+      return;
+    }
 
     final reply = _replyingTo;
     setState(() {
@@ -81,7 +109,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
         widget.clubId, 
         currentUser.id,
         currentUser.displayName, 
-        _controller.text.trim(),
+        text,
         widget.clubName,
         widget.clubBannerUrl,
         replyTo: reply,
@@ -947,6 +975,17 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                       };
                     });
                   },
+                  onEdit: () {
+                    setState(() {
+                      _editingMessageId = messageId;
+                      _editingOriginalText = text;
+                      _replyingTo = null;
+                      _controller.text = text;
+                      _controller.selection = TextSelection.fromPosition(
+                        TextPosition(offset: _controller.text.length),
+                      );
+                    });
+                  },
                   onDelete: () {
                     _chatService.deleteMessage(chatRoomId, messageId);
                   },
@@ -985,6 +1024,16 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (data['isEdited'] == true) ...[
+                          Text(
+                            "modifié • ",
+                            style: TextStyle(
+                              color: isMe ? Colors.white60 : AppColors.textMuted,
+                              fontSize: 10,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
                         Text(timeStr, style: TextStyle(color: isMe ? Colors.white70 : AppColors.textMuted, fontSize: 10)),
                         if (isMe) ...[
                           const SizedBox(width: 4),
@@ -1019,6 +1068,15 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (_editingMessageId != null)
+          ActiveEditBanner(
+            originalText: _editingOriginalText ?? '',
+            onCancel: () => setState(() {
+              _editingMessageId = null;
+              _editingOriginalText = null;
+              _controller.clear();
+            }),
+          ),
         if (_replyingTo != null)
           ActiveReplyBanner(
             replyTo: _replyingTo!,

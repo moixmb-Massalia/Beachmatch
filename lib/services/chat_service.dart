@@ -350,6 +350,43 @@ class ChatService {
         .delete();
   }
 
+  // Modifier un message individuel (style WhatsApp)
+  Future<void> editMessage({
+    required String chatRoomId,
+    required String messageId,
+    required String newText,
+  }) async {
+    final trimmed = newText.trim();
+    if (trimmed.isEmpty) return;
+
+    final msgRef = _firestore
+        .collection('chats')
+        .doc(chatRoomId)
+        .collection('messages')
+        .doc(messageId);
+
+    await msgRef.update({
+      'text': trimmed,
+      'isEdited': true,
+      'editedAt': FieldValue.serverTimestamp(),
+    });
+
+    // Mettre à jour lastMessage sur le salon si ce message était le plus récent
+    try {
+      final chatDocRef = _firestore.collection('chats').doc(chatRoomId);
+      final latestSnap = await _firestore
+          .collection('chats')
+          .doc(chatRoomId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+      if (latestSnap.docs.isNotEmpty && latestSnap.docs.first.id == messageId) {
+        await chatDocRef.update({'lastMessage': trimmed});
+      }
+    } catch (_) {}
+  }
+
   // Ajouter ou retirer une réaction emoji sur un message (style WhatsApp)
   Future<void> toggleReaction({
     required String chatRoomId,
