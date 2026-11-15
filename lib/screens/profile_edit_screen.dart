@@ -231,6 +231,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         try {
           await FirebaseStorage.instance.ref().child('user_avatars/${appState.currentUser!.id}.jpg').delete();
         } catch (_) {}
+        try {
+          await FirebaseAuth.instance.currentUser?.updatePhotoURL(null);
+        } catch (_) {}
       }
 
       final isBr = (appState.currentUser?.isBrazilian == true) || (appState.currentLocale?.languageCode == 'pt');

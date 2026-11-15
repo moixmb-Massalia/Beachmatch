@@ -80,10 +80,6 @@ class AppState extends ChangeNotifier {
               data['email'] = user.email;
               needsSync = true;
             }
-            if ((data['photoUrl'] == null || (data['photoUrl'] as String).isEmpty) && (user.photoURL?.isNotEmpty == true)) {
-              data['photoUrl'] = user.photoURL;
-              needsSync = true;
-            }
             if (data['country'] == null || (data['country'] as String).trim().isEmpty) {
               data['country'] = _detectDefaultCountry();
               needsSync = true;
