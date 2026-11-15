@@ -368,7 +368,7 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                                             },
                                           );
                                         },
-                                      );
+                                      ),
                               ),
                             ],
                           );
