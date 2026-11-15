@@ -174,191 +174,205 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                         }
                       }
                       
-                      final memberIdsList = rawMembers.toList();
+                      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: FirebaseFirestore.instance.collection('users').where('clubId', isEqualTo: widget.clubId).snapshots(),
+                        builder: (context, usersByClubSnap) {
+                          if (usersByClubSnap.hasData) {
+                            for (final doc in usersByClubSnap.data!.docs) {
+                              rawMembers.add(doc.id);
+                            }
+                          }
+                          // Condition stricte : Maria Carolina ne doit jamais figurer dans le club de Montmeyran
+                          if (widget.clubId == 'club_6cf0dd19a384') {
+                            rawMembers.remove('QTm5SkYm9CXpGzCZ4lcirhZm6lh2');
+                          }
+                          final memberIdsList = rawMembers.toList();
 
-                      return Column(
-                        children: [
-                          Center(
-                            child: Container(
-                              margin: const EdgeInsets.only(top: 12, bottom: 8),
-                              width: 44,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.white24,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 52,
-                                  height: 52,
+                          return Column(
+                            children: [
+                              Center(
+                                child: Container(
+                                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                                  width: 44,
+                                  height: 4,
                                   decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: AppColors.gold, width: 2),
-                                  ),
-                                  child: ClipOval(
-                                    child: (widget.clubBannerUrl != null && widget.clubBannerUrl!.trim().isNotEmpty && widget.clubBannerUrl!.startsWith('http'))
-                                        ? Image.network(widget.clubBannerUrl!.trim(), fit: BoxFit.cover, errorBuilder: (_, __, ___) => Image.asset(_getClubPhotoAsset(widget.clubName), fit: BoxFit.cover))
-                                        : Image.asset(_getClubPhotoAsset(widget.clubName), fit: BoxFit.cover),
+                                    color: Colors.white24,
+                                    borderRadius: BorderRadius.circular(2),
                                   ),
                                 ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        widget.clubName,
-                                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 52,
+                                      height: 52,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: AppColors.gold, width: 2),
                                       ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        "${memberIdsList.length} membre${memberIdsList.length > 1 ? 's' : ''} dans le salon",
-                                        style: const TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w600),
+                                      child: ClipOval(
+                                        child: (widget.clubBannerUrl != null && widget.clubBannerUrl!.trim().isNotEmpty && widget.clubBannerUrl!.startsWith('http'))
+                                            ? Image.network(widget.clubBannerUrl!.trim(), fit: BoxFit.cover, errorBuilder: (_, __, ___) => Image.asset(_getClubPhotoAsset(widget.clubName), fit: BoxFit.cover))
+                                            : Image.asset(_getClubPhotoAsset(widget.clubName), fit: BoxFit.cover),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            widget.clubName,
+                                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            "${memberIdsList.length} membre${memberIdsList.length > 1 ? 's' : ''} dans le salon",
+                                            style: const TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w600),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.close, color: Colors.white70),
+                                      onPressed: () => Navigator.pop(ctx),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Divider(color: Colors.white12, height: 1),
+                              InkWell(
+                                onTap: () {
+                                  Navigator.pop(ctx);
+                                  showClubInviteDialog(
+                                    context,
+                                    clubId: widget.clubId,
+                                    clubName: widget.clubName,
+                                    bannerUrl: widget.clubBannerUrl,
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.coral.withValues(alpha: 0.2),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.person_add_alt_1_rounded, color: AppColors.coral, size: 22),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      const Text(
+                                        "Inviter des membres dans le club",
+                                        style: TextStyle(color: AppColors.coral, fontSize: 15, fontWeight: FontWeight.bold),
                                       ),
                                     ],
                                   ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.close, color: Colors.white70),
-                                  onPressed: () => Navigator.pop(ctx),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Divider(color: Colors.white12, height: 1),
-                          InkWell(
-                            onTap: () {
-                              Navigator.pop(ctx);
-                              showClubInviteDialog(
-                                context,
-                                clubId: widget.clubId,
-                                clubName: widget.clubName,
-                                bannerUrl: widget.clubBannerUrl,
-                              );
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.coral.withValues(alpha: 0.2),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(Icons.person_add_alt_1_rounded, color: AppColors.coral, size: 22),
-                                  ),
-                                  const SizedBox(width: 14),
-                                  const Text(
-                                    "Inviter des membres dans le club",
-                                    style: TextStyle(color: AppColors.coral, fontSize: 15, fontWeight: FontWeight.bold),
-                                  ),
-                                ],
                               ),
-                            ),
-                          ),
-                          const Divider(color: Colors.white12, height: 1),
-                          Expanded(
-                            child: memberIdsList.isEmpty
-                                ? const Center(
-                                    child: Text("Aucun membre trouvé dans ce salon", style: TextStyle(color: Colors.white54)),
-                                  )
-                                : ListView.separated(
-                                    controller: scrollController,
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
-                                    itemCount: memberIdsList.length,
-                                    separatorBuilder: (_, __) => const Divider(color: Colors.white10, height: 1, indent: 76),
-                                    itemBuilder: (context, index) {
-                                      final memberId = memberIdsList[index];
-                                      return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                                        future: FirebaseFirestore.instance.collection('users').doc(memberId).get(),
-                                        builder: (context, userSnap) {
-                                          final userData = userSnap.data?.data();
-                                          final name = userData?['displayName']?.toString() ?? userData?['name']?.toString() ?? "Joueur";
-                                          final photo = userData?['photoUrl']?.toString();
-                                          final isMe = memberId == currentUser.id;
-                                          final isPresident = (adminId != null && adminId == memberId) ||
-                                              (userData?['email'] != null && presidentEmails.contains(userData!['email']));
-                                          final isJat = userData?['isReferee'] == true || userData?['role'] == 'JAT';
-                                          final ranking = userData?['ranking']?.toString();
+                              const Divider(color: Colors.white12, height: 1),
+                              Expanded(
+                                child: memberIdsList.isEmpty
+                                    ? const Center(
+                                        child: Text("Aucun membre trouvé dans ce salon", style: TextStyle(color: Colors.white54)),
+                                      )
+                                    : ListView.separated(
+                                        controller: scrollController,
+                                        padding: const EdgeInsets.symmetric(vertical: 8),
+                                        itemCount: memberIdsList.length,
+                                        separatorBuilder: (_, __) => const Divider(color: Colors.white10, height: 1, indent: 76),
+                                        itemBuilder: (context, index) {
+                                          final memberId = memberIdsList[index];
+                                          return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                                            future: FirebaseFirestore.instance.collection('users').doc(memberId).get(),
+                                            builder: (context, userSnap) {
+                                              final userData = userSnap.data?.data();
+                                              final name = userData?['displayName']?.toString() ?? userData?['name']?.toString() ?? "Joueur";
+                                              final photo = userData?['photoUrl']?.toString();
+                                              final isMe = memberId == currentUser.id;
+                                              final isPresident = (adminId != null && adminId == memberId) ||
+                                                  (userData?['email'] != null && presidentEmails.contains(userData!['email']));
+                                              final isJat = userData?['isReferee'] == true || userData?['role'] == 'JAT';
+                                              final ranking = userData?['ranking']?.toString();
 
-                                          return ListTile(
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                                            leading: CircleAvatar(
-                                              radius: 22,
-                                              backgroundColor: AppColors.coral,
-                                              backgroundImage: (photo != null && photo.trim().isNotEmpty) ? NetworkImage(photo) : null,
-                                              child: (photo == null || photo.trim().isEmpty)
-                                                  ? Text(
-                                                      name.isNotEmpty ? name[0].toUpperCase() : "?",
-                                                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                                                    )
-                                                  : null,
-                                            ),
-                                            title: Row(
-                                              children: [
-                                                Flexible(
-                                                  child: Text(
-                                                    isMe ? "$name (Vous)" : name,
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 15,
-                                                      fontWeight: isMe ? FontWeight.bold : FontWeight.w600,
-                                                    ),
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
+                                              return ListTile(
+                                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                                                leading: CircleAvatar(
+                                                  radius: 22,
+                                                  backgroundColor: AppColors.coral,
+                                                  backgroundImage: (photo != null && photo.trim().isNotEmpty) ? NetworkImage(photo) : null,
+                                                  child: (photo == null || photo.trim().isEmpty)
+                                                      ? Text(
+                                                          name.isNotEmpty ? name[0].toUpperCase() : "?",
+                                                          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                                        )
+                                                      : null,
                                                 ),
-                                                if (isPresident) ...[
-                                                  const SizedBox(width: 6),
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: AppColors.gold.withValues(alpha: 0.2),
-                                                      borderRadius: BorderRadius.circular(6),
-                                                      border: Border.all(color: AppColors.gold, width: 0.8),
+                                                title: Row(
+                                                  children: [
+                                                    Flexible(
+                                                      child: Text(
+                                                        isMe ? "$name (Vous)" : name,
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 15,
+                                                          fontWeight: isMe ? FontWeight.bold : FontWeight.w600,
+                                                        ),
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
                                                     ),
-                                                    child: const Text("👑 Président", style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold)),
-                                                  ),
-                                                ] else if (isJat) ...[
-                                                  const SizedBox(width: 6),
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.blueAccent.withValues(alpha: 0.2),
-                                                      borderRadius: BorderRadius.circular(6),
-                                                      border: Border.all(color: Colors.blueAccent, width: 0.8),
-                                                    ),
-                                                    child: const Text("🎾 JAT", style: TextStyle(color: Colors.blueAccent, fontSize: 10, fontWeight: FontWeight.bold)),
-                                                  ),
-                                                ],
-                                              ],
-                                            ),
-                                            subtitle: Text(
-                                              (ranking != null && ranking.isNotEmpty && ranking != 'NC')
-                                                  ? "Classement FFT #$ranking"
-                                                  : (userData?['location']?.toString() ?? "Membre du club"),
-                                              style: const TextStyle(color: Colors.white54, fontSize: 12),
-                                            ),
-                                            trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white30, size: 14),
-                                            onTap: () {
-                                              Navigator.pop(ctx);
-                                              _openUserProfile(memberId, displayName: name, photoUrl: photo);
+                                                    if (isPresident) ...[
+                                                      const SizedBox(width: 6),
+                                                      Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                        decoration: BoxDecoration(
+                                                          color: AppColors.gold.withValues(alpha: 0.2),
+                                                          borderRadius: BorderRadius.circular(6),
+                                                          border: Border.all(color: AppColors.gold, width: 0.8),
+                                                        ),
+                                                        child: const Text("👑 Président", style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold)),
+                                                      ),
+                                                    ] else if (isJat) ...[
+                                                      const SizedBox(width: 6),
+                                                      Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.blueAccent.withValues(alpha: 0.2),
+                                                          borderRadius: BorderRadius.circular(6),
+                                                          border: Border.all(color: Colors.blueAccent, width: 0.8),
+                                                        ),
+                                                        child: const Text("🎾 JAT", style: TextStyle(color: Colors.blueAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                                                      ),
+                                                    ],
+                                                  ],
+                                                ),
+                                                subtitle: Text(
+                                                  (ranking != null && ranking.isNotEmpty && ranking != 'NC')
+                                                      ? "Classement FFT #$ranking"
+                                                      : (userData?['location']?.toString() ?? "Membre du club"),
+                                                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                                ),
+                                                trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white30, size: 14),
+                                                onTap: () {
+                                                  Navigator.pop(ctx);
+                                                  _openUserProfile(memberId, displayName: name, photoUrl: photo);
+                                                },
+                                              );
                                             },
                                           );
                                         },
                                       );
-                                    },
-                                  ),
-                          ),
-                        ],
+                              ),
+                            ],
+                          );
+                        },
                       );
                     },
                   );
@@ -538,7 +552,9 @@ class _GroupChatDetailScreenState extends State<GroupChatDetailScreen> {
                       StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                         stream: FirebaseFirestore.instance.collection('clubs').doc(widget.clubId).snapshots(),
                         builder: (context, snapshot) {
-                          final count = (snapshot.data?.data()?['membersIds'] as List?)?.length ?? 0;
+                          final data = snapshot.data?.data();
+                          final list = (data?['memberIds'] as List?) ?? (data?['membersIds'] as List?);
+                          final count = list?.length ?? 0;
                           return Text(
                             count > 0 ? "$count membres · voir les infos" : "Chat du club · voir les membres",
                             style: const TextStyle(fontSize: 11, color: AppColors.gold, fontWeight: FontWeight.w500),

@@ -33,7 +33,7 @@ class ClubModel {
       name: data['name'] ?? 'Club Inconnu',
       description: data['description'] ?? '',
       adminId: data['adminId'] ?? '',
-      memberIds: List<String>.from(data['memberIds'] ?? []),
+      memberIds: List<String>.from(data['memberIds'] ?? data['membersIds'] ?? []),
       presidentEmails: List<String>.from(data['presidentEmails'] ?? []),
       logoUrl: data['logoUrl'],
       bannerUrl: data['bannerUrl'],
