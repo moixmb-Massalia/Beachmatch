@@ -31,6 +31,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   int _verifiedEloScore = 0;
   Uint8List? _selectedImageBytes;
   String? _existingPhotoUrl;
+  bool _photoRemoved = false;
   bool _isLookingForPartner = false;
   String? _preferredPosition;
   String? _availability;
@@ -77,6 +78,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         final bytes = await pickedFile.readAsBytes();
         setState(() {
           _selectedImageBytes = bytes;
+          _photoRemoved = false;
         });
       }
     } catch (e) {
@@ -92,6 +94,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     setState(() {
       _selectedImageBytes = null;
       _existingPhotoUrl = null;
+      _photoRemoved = true;
     });
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -224,6 +227,12 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         }
       }
 
+      if (_photoRemoved && appState.currentUser != null) {
+        try {
+          await FirebaseStorage.instance.ref().child('user_avatars/${appState.currentUser!.id}.jpg').delete();
+        } catch (_) {}
+      }
+
       final isBr = (appState.currentUser?.isBrazilian == true) || (appState.currentLocale?.languageCode == 'pt');
       final currentLicence = _licenceController.text.trim();
       final licenceToSave = currentLicence.isNotEmpty ? currentLicence : null;
@@ -233,7 +242,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         displayName: _nameController.text.trim(),
         location: _locationController.text.trim(),
         level: _selectedLevel,
-        photoUrl: photoUrl,
+        photoUrl: _photoRemoved ? null : photoUrl,
+        clearPhoto: _photoRemoved,
         licenceNumber: isBr ? null : licenceToSave,
         ranking: _rankingController.text.trim().isNotEmpty ? _rankingController.text.trim() : null,
         eloScore: (_isLicenceVerified && _verifiedEloScore > 0) ? _verifiedEloScore : appState.currentUser?.eloScore,
