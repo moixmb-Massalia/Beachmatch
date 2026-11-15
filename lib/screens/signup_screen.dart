@@ -13,17 +13,34 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  static String formatFirstName(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return '';
+    return trimmed.split('-').map((hyphenPart) {
+      return hyphenPart.split(' ').where((w) => w.isNotEmpty).map((word) {
+        if (word.isEmpty) return '';
+        return word[0].toUpperCase() + (word.length > 1 ? word.substring(1).toLowerCase() : '');
+      }).join(' ');
+    }).join('-');
+  }
+
+  static String formatLastName(String input) {
+    return input.trim().toUpperCase();
   }
 
   String _detectLang(BuildContext context) {
@@ -62,11 +79,17 @@ class _SignupScreenState extends State<SignupScreen> {
                     ? "Join the official BeachMatch community."
                     : "Rejoignez la communauté officielle BeachMatch.")));
 
-    final nameLabel = lang == 'pt'
-        ? "Nome completo"
+    final firstNameLabel = lang == 'pt'
+        ? "Nome *"
         : (lang == 'es'
-            ? "Nombre completo"
-            : (lang == 'it' ? "Nome completo" : (lang == 'en' ? "Full Name" : "Nom complet")));
+            ? "Nombre *"
+            : (lang == 'it' ? "Nome *" : (lang == 'en' ? "First Name *" : "Prénom *")));
+
+    final lastNameLabel = lang == 'pt'
+        ? "Sobrenome *"
+        : (lang == 'es'
+            ? "Apellido *"
+            : (lang == 'it' ? "Cognome *" : (lang == 'en' ? "Last Name *" : "Nom de famille *")));
 
     final emailLabel = lang == 'pt'
         ? "E-mail"
@@ -79,12 +102,12 @@ class _SignupScreenState extends State<SignupScreen> {
         : (lang == 'es' ? "Contraseña" : (lang == 'it' ? "Password" : (lang == 'en' ? "Password" : "Mot de passe")));
 
     final emptyFieldsMsg = lang == 'pt'
-        ? "Por favor, preencha todos os campos"
+        ? "Por favor, preencha todos os campos obrigatórios (Nome e Sobrenome)"
         : (lang == 'es'
-            ? "Por favor, completa todos los campos"
+            ? "Por favor, completa todos los campos obligatorios (Nombre y Apellido)"
             : (lang == 'it'
-                ? "Compila tutti i campi"
-                : (lang == 'en' ? "Please fill in all fields" : "Veuillez remplir tous les champs")));
+                ? "Compila tutti i campi obbligatori (Nome e Cognome)"
+                : (lang == 'en' ? "Please fill in all required fields (First & Last Name)" : "Veuillez remplir tous les champs obligatoires (Prénom et Nom)")));
 
     final submitLabel = lang == 'pt'
         ? "Cadastre-se"
@@ -166,8 +189,28 @@ class _SignupScreenState extends State<SignupScreen> {
                                 ),
                                 const SizedBox(height: 24),
 
-                                // Name
-                                _buildTextField(nameLabel, Icons.person_outline, _nameController),
+                                // Prénom & Nom obligatoires
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildTextField(
+                                        firstNameLabel,
+                                        Icons.person_outline,
+                                        _firstNameController,
+                                        textCapitalization: TextCapitalization.words,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildTextField(
+                                        lastNameLabel,
+                                        Icons.badge_outlined,
+                                        _lastNameController,
+                                        textCapitalization: TextCapitalization.characters,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                                 const SizedBox(height: 16),
 
                                 // Email
@@ -181,19 +224,30 @@ class _SignupScreenState extends State<SignupScreen> {
                                 // Signup Button
                                 ElevatedButton(
                                   onPressed: isLoading ? null : () async {
-                                    final name = _nameController.text.trim();
+                                    final rawFirst = _firstNameController.text.trim();
+                                    final rawLast = _lastNameController.text.trim();
                                     final email = _emailController.text.trim();
                                     final password = _passwordController.text;
 
-                                    if (name.isEmpty || email.isEmpty || password.isEmpty) {
+                                    if (rawFirst.isEmpty || rawLast.isEmpty || email.isEmpty || password.isEmpty) {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(content: Text(emptyFieldsMsg)),
                                       );
                                       return;
                                     }
 
+                                    final formattedFirst = formatFirstName(rawFirst);
+                                    final formattedLast = formatLastName(rawLast);
+                                    final fullName = "$formattedFirst $formattedLast";
+
                                     try {
-                                      bool success = await context.read<AppState>().signUpWithEmail(name, email, password);
+                                      bool success = await context.read<AppState>().signUpWithEmail(
+                                        fullName,
+                                        email,
+                                        password,
+                                        firstName: formattedFirst,
+                                        lastName: formattedLast,
+                                      );
                                       if (success && context.mounted) {
                                         Navigator.pushAndRemoveUntil(
                                           context,
@@ -240,6 +294,7 @@ class _SignupScreenState extends State<SignupScreen> {
     TextEditingController controller, {
     bool isPassword = false,
     TextInputType keyboardType = TextInputType.text,
+    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -251,6 +306,7 @@ class _SignupScreenState extends State<SignupScreen> {
         controller: controller,
         obscureText: isPassword ? _obscurePassword : false,
         keyboardType: keyboardType,
+        textCapitalization: textCapitalization,
         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         decoration: InputDecoration(
           labelText: label,

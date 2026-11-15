@@ -38,6 +38,8 @@ class UserModel {
   final bool isAmbassador;
   final String? ambassadorTitle;
   final String? email;
+  final String? firstName;
+  final String? lastName;
 
   bool get canReferee => isAdmin || isReferee;
   bool get isBrazilian => country.toUpperCase() == 'BR' || (cbtCategory != null && cbtCategory!.isNotEmpty) || (cbtId != null && cbtId!.isNotEmpty);
@@ -76,6 +78,8 @@ class UserModel {
     this.isAmbassador = false,
     this.ambassadorTitle,
     this.email,
+    this.firstName,
+    this.lastName,
   });
 
   UserModel copyWith({
@@ -113,6 +117,8 @@ class UserModel {
     bool? isAmbassador,
     String? ambassadorTitle,
     String? email,
+    String? firstName,
+    String? lastName,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -148,6 +154,8 @@ class UserModel {
       isAmbassador: isAmbassador ?? this.isAmbassador,
       ambassadorTitle: ambassadorTitle ?? this.ambassadorTitle,
       email: email ?? this.email,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
     );
   }
 
@@ -221,6 +229,8 @@ class UserModel {
       isAmbassador: data['isAmbassador'] ?? false,
       ambassadorTitle: data['ambassadorTitle'],
       email: data['email'],
+      firstName: data['firstName']?.toString(),
+      lastName: data['lastName']?.toString(),
     );
   }
 
@@ -259,6 +269,8 @@ class UserModel {
       'isAmbassador': isAmbassador,
       if (ambassadorTitle != null) 'ambassadorTitle': ambassadorTitle,
       if (email != null) 'email': email,
+      if (firstName != null) 'firstName': firstName,
+      if (lastName != null) 'lastName': lastName,
     };
   }
 }

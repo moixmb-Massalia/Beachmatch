@@ -575,7 +575,13 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<bool> signUpWithEmail(String name, String email, String password) async {
+  Future<bool> signUpWithEmail(
+    String name,
+    String email,
+    String password, {
+    String? firstName,
+    String? lastName,
+  }) async {
     _isLoading = true;
     notifyListeners();
     bool success = false;
@@ -589,10 +595,15 @@ class AppState extends ChangeNotifier {
       if (userCredential.user != null) {
         await userCredential.user!.updateDisplayName(name);
         
+        final resolvedFirst = firstName ?? (name.contains(' ') ? name.split(' ').first : name);
+        final resolvedLast = lastName ?? (name.contains(' ') ? name.split(' ').sublist(1).join(' ') : '');
+
         // Prepare memory user for onboarding
         _currentUser = UserModel(
           id: userCredential.user!.uid,
           displayName: name,
+          firstName: resolvedFirst,
+          lastName: resolvedLast,
           level: 1,
           eloScore: 0,
           location: _currentPosition != null ? "Ma Position" : "Non définie",
@@ -600,6 +611,26 @@ class AppState extends ChangeNotifier {
           createdAt: DateTime.now(),
           isAdmin: userCredential.user!.email == 'moixmb@gmail.com',
         );
+
+        // Pre-create user in Firestore with proper casing and search tokens
+        final tokens = _generateSearchTokens(name, null);
+        await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
+          'id': userCredential.user!.uid,
+          'email': email,
+          'displayName': name,
+          'name': name,
+          'firstName': resolvedFirst,
+          'lastName': resolvedLast,
+          'level': 1,
+          'eloScore': 0,
+          'location': _currentPosition != null ? "Ma Position" : "Non définie",
+          'isPremium': false,
+          'createdAt': FieldValue.serverTimestamp(),
+          'isAdmin': userCredential.user!.email == 'moixmb@gmail.com',
+          'searchTokens': tokens,
+          'onboardingCompleted': false,
+        }, SetOptions(merge: true));
+
         success = true;
       }
     } on FirebaseAuthException catch (e) {
@@ -888,8 +919,20 @@ class AppState extends ChangeNotifier {
             : _currentUser!.cbtCategory);
     final finalLicence = isBr ? null : (licenceNumber?.trim().isNotEmpty == true ? licenceNumber!.trim() : null);
 
+    String formattedDisplayName = displayName.trim();
+    String? newFirstName;
+    String? newLastName;
+    if (formattedDisplayName.contains(' ')) {
+      final parts = formattedDisplayName.split(' ');
+      newFirstName = formatFirstName(parts.first);
+      newLastName = formatLastName(parts.sublist(1).join(' '));
+      formattedDisplayName = "$newFirstName $newLastName";
+    }
+
     _currentUser = _currentUser!.copyWith(
-      displayName: displayName,
+      displayName: formattedDisplayName,
+      firstName: newFirstName ?? _currentUser!.firstName,
+      lastName: newLastName ?? _currentUser!.lastName,
       location: location,
       country: updatedCountry,
       level: level,
@@ -906,11 +949,13 @@ class AppState extends ChangeNotifier {
       cbtCategory: finalCbtCat,
     );
     
-    final searchTokens = _generateSearchTokens(displayName, isBr ? finalCbtId : finalLicence);
+    final searchTokens = _generateSearchTokens(formattedDisplayName, isBr ? finalCbtId : finalLicence);
 
     await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set({
-      'displayName': displayName,
-      'name': displayName,
+      'displayName': formattedDisplayName,
+      'name': formattedDisplayName,
+      if (newFirstName != null) 'firstName': newFirstName,
+      if (newLastName != null) 'lastName': newLastName,
       'location': location,
       'country': updatedCountry,
       'level': level,
@@ -1656,6 +1701,21 @@ class AppState extends ChangeNotifier {
   bool get isSearchingFFT => _isSearchingFFT;
 
   Timer? _searchDebounce;
+
+  static String formatFirstName(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return '';
+    return trimmed.split('-').map((hyphenPart) {
+      return hyphenPart.split(' ').where((w) => w.isNotEmpty).map((word) {
+        if (word.isEmpty) return '';
+        return word[0].toUpperCase() + (word.length > 1 ? word.substring(1).toLowerCase() : '');
+      }).join(' ');
+    }).join('-');
+  }
+
+  static String formatLastName(String input) {
+    return input.trim().toUpperCase();
+  }
 
   String _normalizeSearch(String s) {
     return s.toLowerCase()
