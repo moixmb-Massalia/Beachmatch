@@ -215,13 +215,28 @@ class ProfileScreen extends StatelessWidget {
                     boxShadow: [
                       BoxShadow(color: AppColors.gold.withValues(alpha: 0.3), blurRadius: 15, spreadRadius: 2)
                     ],
-                    image: (user.photoUrl != null && user.photoUrl!.isNotEmpty)
-                      ? DecorationImage(image: NetworkImage(user.photoUrl!), fit: BoxFit.cover) 
-                      : null,
                   ),
-                  child: (user.photoUrl == null || user.photoUrl!.isEmpty)
-                    ? Center(child: Text(user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : "?", style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold)))
-                    : null,
+                  child: ClipOval(
+                    child: (user.photoUrl != null && user.photoUrl!.isNotEmpty)
+                        ? Image.network(
+                            user.photoUrl!,
+                            fit: BoxFit.cover,
+                            width: 100,
+                            height: 100,
+                            errorBuilder: (context, error, stackTrace) => Center(
+                              child: Text(
+                                user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : "?",
+                                style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: Text(
+                              user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : "?",
+                              style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                  ),
                 ),
                 Positioned(
                   bottom: 0,

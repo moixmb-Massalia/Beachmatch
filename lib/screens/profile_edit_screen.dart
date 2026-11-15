@@ -273,6 +273,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             ),
           );
         }
+        PaintingBinding.instance.imageCache.clear();
+        PaintingBinding.instance.imageCache.clearLiveImages();
         Navigator.pop(context);
       }
     } catch (e) {
@@ -374,15 +376,20 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                                       boxShadow: [
                                         BoxShadow(color: AppColors.gold.withValues(alpha: 0.3), blurRadius: 15, spreadRadius: 2)
                                       ],
-                                      image: _selectedImageBytes != null
-                                          ? DecorationImage(image: MemoryImage(_selectedImageBytes!), fit: BoxFit.cover)
-                                          : (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty
-                                              ? DecorationImage(image: NetworkImage(_existingPhotoUrl!), fit: BoxFit.cover)
-                                              : null),
                                     ),
-                                    child: (_selectedImageBytes == null && (_existingPhotoUrl == null || _existingPhotoUrl!.isEmpty))
-                                        ? const Icon(Icons.person, size: 50, color: Colors.white70)
-                                        : null,
+                                    child: ClipOval(
+                                      child: _selectedImageBytes != null
+                                          ? Image.memory(_selectedImageBytes!, width: 100, height: 100, fit: BoxFit.cover)
+                                          : (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty
+                                              ? Image.network(
+                                                  _existingPhotoUrl!,
+                                                  width: 100,
+                                                  height: 100,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (_, __, ___) => const Icon(Icons.person, size: 50, color: Colors.white70),
+                                                )
+                                              : const Icon(Icons.person, size: 50, color: Colors.white70)),
+                                    ),
                                   ),
                                   Positioned(
                                     bottom: 0,
