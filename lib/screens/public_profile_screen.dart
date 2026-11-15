@@ -269,8 +269,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                               CircleAvatar(
                                 radius: 55,
                                 backgroundColor: AppColors.coral,
-                                backgroundImage: player.photoUrl != null ? NetworkImage(player.photoUrl!) : null,
-                                child: player.photoUrl == null
+                                backgroundImage: (player.photoUrl != null && player.photoUrl!.trim().isNotEmpty) ? NetworkImage(player.photoUrl!) : null,
+                                child: (player.photoUrl == null || player.photoUrl!.trim().isEmpty)
                                     ? Text(
                                         player.displayName.isNotEmpty ? player.displayName[0].toUpperCase() : "?",
                                         style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold),
