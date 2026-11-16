@@ -3,6 +3,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 
 class WhatsAppShareService {
+  static const String appStoreUrl = 'https://apps.apple.com/app/beachmatch-tennis/id6828378600';
+  static const String playStoreUrl = 'https://play.google.com/store/apps/details?id=com.beachmatch.app';
+  static const String universalDownloadUrl = 'https://beach-tennis-216f4.web.app/download';
+
   /// Partage vers WhatsApp en priorité, avec repli transparent sur la feuille de partage native
   static Future<void> shareToWhatsAppOrNative({
     required String text,
@@ -67,7 +71,10 @@ class WhatsAppShareService {
           "• Chave : $draw\n"
           "• Objetivo : $goal\n\n"
           "💬 *Bora jogar juntos ?*\n"
-          "👉 Entra no BeachMatch e fecha a dupla comigo : https://beachmatch.app/tournaments?id=$tournamentId"
+          "👉 Baixe o BeachMatch e fecha a dupla comigo :\n"
+          "🍏 iPhone (App Store) : $appStoreUrl\n"
+          "🤖 Android (Play Store) : $playStoreUrl\n"
+          "🌐 Link direto : $universalDownloadUrl"
         : "🆘 *SOS PARTENAIRE BEACH TENNIS !* 🏖️\n\n"
           "🏆 *Tournoi :* $tournamentName ($category)\n"
           "📅 *Dates :* $tournamentDates\n"
@@ -78,7 +85,10 @@ class WhatsAppShareService {
           "• Tableau visé : $draw\n"
           "• Objectif : $goal\n\n"
           "💬 *Tu es disponible pour faire équipe avec moi ?*\n"
-          "👉 Rejoins-moi directement sur BeachMatch : https://beachmatch.app/tournaments?id=$tournamentId";
+          "👉 Rejoins-moi sur l'application BeachMatch :\n"
+          "🍏 iPhone (App Store) : $appStoreUrl\n"
+          "🤖 Android (Play Store) : $playStoreUrl\n"
+          "🌐 En 1 clic : $universalDownloadUrl";
 
     await shareToWhatsAppOrNative(
       text: text,
@@ -107,16 +117,20 @@ class WhatsAppShareService {
           "📍 Local : $location\n"
           "${price != null && price.isNotEmpty ? "💲 Inscrição : $price\n" : ""}"
           "${phone != null && phone.isNotEmpty ? "📞 Inscrições : $phone\n" : ""}\n"
-          "👉 Veja a chave, os jogos ao vivo e encontre parceiro no BeachMatch :\n"
-          "https://beachmatch.app/tournaments?id=$tournamentId"
+          "👉 Veja a chave e os jogos ao vivo no BeachMatch :\n"
+          "🍏 iPhone (App Store) : $appStoreUrl\n"
+          "🤖 Android (Play Store) : $playStoreUrl\n"
+          "🌐 Link direto : $universalDownloadUrl"
         : "🎾 *TOURNOI BEACH TENNIS : $tournamentName* 🏆\n\n"
           "⭐ Catégorie : $category\n"
           "📅 Dates : $dates\n"
           "📍 Lieu : $location\n"
           "${price != null && price.isNotEmpty ? "💶 Tarif : $price\n" : ""}"
           "${phone != null && phone.isNotEmpty ? "📞 Inscriptions : $phone\n" : ""}\n"
-          "👉 Consultez le tableau, les matchs en direct et trouvez un partenaire sur BeachMatch :\n"
-          "https://beachmatch.app/tournaments?id=$tournamentId";
+          "👉 Consultez le tableau et les matchs en direct sur BeachMatch :\n"
+          "🍏 iPhone (App Store) : $appStoreUrl\n"
+          "🤖 Android (Play Store) : $playStoreUrl\n"
+          "🌐 En 1 clic : $universalDownloadUrl";
 
     await shareToWhatsAppOrNative(
       text: text,
@@ -143,14 +157,18 @@ class WhatsAppShareService {
           "📅 *Quando :* $matchDate\n"
           "📍 *Onde :* $courtName\n"
           "🎯 *Nível :* Nível $targetLevel • ($currentPlayers/$maxPlayers atletas)\n\n"
-          "👉 Garanta sua vaga no BeachMatch antes que feche a quadra :\n"
-          "https://beachmatch.app/match?id=$matchId"
+          "👉 Garanta sua vaga no BeachMatch :\n"
+          "🍏 iPhone (App Store) : $appStoreUrl\n"
+          "🤖 Android (Play Store) : $playStoreUrl\n"
+          "🌐 Link direto : $universalDownloadUrl"
         : "🚨 *URGENT BEACH TENNIS : RESTE $remaining PLACE${remaining > 1 ? 'S' : ''} !* 🏖️🎾\n\n"
           "📅 *Quand :* $matchDate\n"
           "📍 *Où :* $courtName\n"
           "🎯 *Niveau :* Niveau $targetLevel • ($currentPlayers/$maxPlayers joueurs)\n\n"
-          "👉 Prends vite ta place avant que le terrain ne soit complet :\n"
-          "https://beachmatch.app/match?id=$matchId";
+          "👉 Prends vite ta place sur BeachMatch avant que le terrain ne soit complet :\n"
+          "🍏 iPhone (App Store) : $appStoreUrl\n"
+          "🤖 Android (Play Store) : $playStoreUrl\n"
+          "🌐 En 1 clic : $universalDownloadUrl";
 
     await shareToWhatsAppOrNative(
       text: text,

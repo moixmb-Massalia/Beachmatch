@@ -21,10 +21,28 @@ class PlayersScreen extends StatefulWidget {
 
 class _PlayersScreenState extends State<PlayersScreen> {
   String _selectedLevelFilter = "ALL";
+  late final TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(
+      text: context.read<AppState>().playerSearchQuery,
+    );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final query = context.watch<AppState>().playerSearchQuery;
+    if (query.isEmpty && _searchController.text.isNotEmpty) {
+      _searchController.clear();
+    }
     final allPlayers = context.watch<AppState>().players;
     final currentUser = context.watch<AppState>().currentUser;
     final fftResults = context.watch<AppState>().fftSearchResults;
@@ -151,12 +169,16 @@ class _PlayersScreenState extends State<PlayersScreen> {
                   border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.2),
                 ),
                 child: TextField(
+                  controller: _searchController,
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   textInputAction: TextInputAction.search,
                   onSubmitted: (_) {
                     FocusScope.of(context).unfocus();
                   },
-                  onChanged: (val) => context.read<AppState>().updatePlayerSearch(val),
+                  onChanged: (val) {
+                    context.read<AppState>().updatePlayerSearch(val);
+                    setState(() {});
+                  },
                   decoration: InputDecoration(
                     hintText: isBr ? "Nome, sobrenome ou cidade..." : "Nom, prénom ou n° licence (ex: 4008757)...",
                     hintStyle: const TextStyle(fontSize: 14, color: Colors.white60, fontWeight: FontWeight.normal),
@@ -166,10 +188,15 @@ class _PlayersScreenState extends State<PlayersScreen> {
                             padding: EdgeInsets.all(12.0),
                             child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: AppColors.gold, strokeWidth: 2)),
                           )
-                        : (query.isNotEmpty 
+                        : ((_searchController.text.isNotEmpty || query.isNotEmpty) 
                             ? IconButton(
                                 icon: const Icon(Icons.clear, color: Colors.white70),
-                                onPressed: () => context.read<AppState>().updatePlayerSearch(""),
+                                splashRadius: 20,
+                                onPressed: () {
+                                  _searchController.clear();
+                                  context.read<AppState>().updatePlayerSearch("");
+                                  setState(() {});
+                                },
                               )
                             : null),
                     filled: false,
@@ -653,7 +680,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                       ElevatedButton.icon(
                         onPressed: () {
                           WhatsAppShareService.shareToWhatsAppOrNative(
-                            text: "Salut $fullName ! Viens me rejoindre sur l'application BeachMatch pour trouver des partenaires de Beach Tennis et participer aux tournois : https://beachmatch.app/download",
+                            text: "Salut $fullName ! Viens me rejoindre sur l'application BeachMatch pour trouver des partenaires de Beach Tennis et participer aux tournois :\n\n🍏 iPhone (App Store) : ${WhatsAppShareService.appStoreUrl}\n🤖 Android (Play Store) : ${WhatsAppShareService.playStoreUrl}\n🌐 En 1 clic : ${WhatsAppShareService.universalDownloadUrl}",
                           );
                         },
                         icon: const Icon(Icons.share, size: 14),

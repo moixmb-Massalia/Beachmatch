@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Télécharger BeachMatch · Application Officielle Beach Tennis</title>
+  <meta name="description" content="Rejoignez la communauté BeachMatch sur iOS et Android : tournois officiels FFT, score en direct, recherche de partenaires et réservation de terrains.">
+  <meta property="og:title" content="Rejoins-moi sur BeachMatch !">
+  <meta property="og:description" content="Tournois officiels, classement FFT, partenaires et clubs de Beach Tennis.">
+  <meta property="og:image" content="https://beach-tennis-216f4.web.app/icons/Icon-512.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="../favicon.png">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      background: radial-gradient(circle at 50% 20%, #1E293B 0%, #0F172A 70%, #020617 100%);
+      color: #FFFFFF;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1.5px solid rgba(255, 215, 0, 0.35);
+      border-radius: 28px;
+      padding: 40px 28px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 30px rgba(245, 158, 11, 0.15);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      animation: fadeIn 0.4s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .logo {
+      width: 90px;
+      height: 90px;
+      border-radius: 22px;
+      box-shadow: 0 12px 30px rgba(245, 158, 11, 0.3);
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #FFFFFF 40%, #F59E0B 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .tagline {
+      font-size: 13.5px;
+      color: rgba(255, 255, 255, 0.75);
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+    .redirect-msg {
+      font-size: 12px;
+      color: #F59E0B;
+      font-weight: 700;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(245, 158, 11, 0.3);
+      border-top-color: #F59E0B;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .btn-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+    }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 15px 20px;
+      border-radius: 16px;
+      font-size: 15px;
+      font-weight: 800;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .btn-apple {
+      background: #FFFFFF;
+      color: #000000;
+      box-shadow: 0 4px 14px rgba(255, 255, 255, 0.2);
+    }
+    .btn-apple:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 255, 255, 0.35);
+    }
+    .btn-google {
+      background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+      color: #FFFFFF;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+    }
+    .btn-google:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+    }
+    .btn-web {
+      background: rgba(255, 255, 255, 0.08);
+      color: #F59E0B;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+    .btn-web:hover {
+      background: rgba(245, 158, 11, 0.15);
+      transform: translateY(-2px);
+    }
+    .footer {
+      margin-top: 24px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.4);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="../icons/Icon-192.png" alt="BeachMatch Logo" class="logo" onerror="this.src='../favicon.png'">
+    <h1>BeachMatch Tennis</h1>
+    <p class="tagline">La plateforme n°1 du Beach Tennis : tournois, classements FFT, recherche de partenaires et clubs.</p>
+
+    <div id="redirectStatus" class="redirect-msg">
+      <div class="spinner"></div>
+      <span>Redirection vers votre store en cours...</span>
+    </div>
+
+    <div class="btn-stack">
+      <!-- Apple App Store -->
+      <a id="btnApple" href="https://apps.apple.com/app/beachmatch-tennis/id6828378600" class="btn btn-apple">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.62-.75 1.04-1.8 0.92-2.85-.9.04-1.99.6-2.64 1.35-.57.65-1.07 1.72-.94 2.74 1 .08 2.03-.49 2.66-1.24z"/>
+        </svg>
+        <span>Télécharger sur l'App Store</span>
+      </a>
+
+      <!-- Google Play Store -->
+      <a id="btnGoogle" href="https://play.google.com/store/apps/details?id=com.beachmatch.app" class="btn btn-google">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3.609 1.814L13.793 12 3.61 22.186c-.37-.367-.61-.88-.61-1.468V3.282c0-.588.24-1.101.609-1.468zm11.605 11.605l2.428-2.429-10.74-6.2 8.312 8.629zm0-2.838l-8.312 8.629 10.74-6.2-2.428-2.429zM18.82 9.61l-2.42 1.39 2.42 1.39 3.03-1.75c.42-.24.69-.69.69-1.18 0-.49-.27-.94-.69-1.18l-3.03-1.75z"/>
+        </svg>
+        <span>Disponible sur Google Play</span>
+      </a>
+
+      <!-- Web direct version -->
+      <a href="https://beach-tennis-216f4.web.app/" class="btn btn-web">
+        <span>🌐 Utiliser l'application Web</span>
+      </a>
+    </div>
+
+    <p class="footer">BeachMatch © 2026 · Tous droits réservés</p>
+  </div>
+
+  <script>
+    (function() {
+      const appleUrl = "https://apps.apple.com/app/beachmatch-tennis/id6828378600";
+      const playUrl = "https://play.google.com/store/apps/details?id=com.beachmatch.app";
+
+      const ua = navigator.userAgent || navigator.vendor || window.opera || "";
+      const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+      const isAndroid = /android/i.test(ua);
+
+      const status = document.getElementById("redirectStatus");
+
+      if (isIOS) {
+        status.querySelector("span").textContent = "Redirection vers l'App Store...";
+        setTimeout(function() {
+          window.location.href = appleUrl;
+        }, 350);
+      } else if (isAndroid) {
+        status.querySelector("span").textContent = "Redirection vers Google Play...";
+        setTimeout(function() {
+          window.location.href = playUrl;
+        }, 350);
+      } else {
+        // Desktop / Laptop
+        status.style.display = "none";
+      }
+    })();
+  </script>
+</body>
+</html>

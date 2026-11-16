@@ -5,10 +5,13 @@ import '../services/whatsapp_share_service.dart';
 import '../theme/colors.dart';
 
 void showClubInviteDialog(BuildContext context, {required String clubId, required String clubName, String? bannerUrl}) {
-  final inviteUrl = "https://beachmatch.app/club?id=$clubId";
+  const downloadUrl = WhatsAppShareService.universalDownloadUrl;
   final shareMessage = "🎾 Rejoins le Chat interne de $clubName sur BeachMatch !\n\n"
       "Trouve des partenaires de jeu, vote aux sondages du club, suis nos tournois et discute avec toute la communauté sur le sable 🏖️\n\n"
-      "👉 Clique ici pour nous rejoindre : $inviteUrl";
+      "👉 Télécharge l'application et rejoins-nous :\n"
+      "🍏 iPhone (App Store) : ${WhatsAppShareService.appStoreUrl}\n"
+      "🤖 Android (Play Store) : ${WhatsAppShareService.playStoreUrl}\n"
+      "🌐 En 1 clic : $downloadUrl";
 
   showModalBottomSheet(
     context: context,
@@ -165,7 +168,7 @@ void showClubInviteDialog(BuildContext context, {required String clubId, require
                         ],
                       ),
                       child: QrImageView(
-                        data: inviteUrl,
+                        data: downloadUrl,
                         version: QrVersions.auto,
                         size: 170.0,
                         eyeStyle: const QrEyeStyle(
@@ -197,7 +200,7 @@ void showClubInviteDialog(BuildContext context, {required String clubId, require
                   style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold, fontSize: 13),
                 ),
                 onPressed: () {
-                  Clipboard.setData(ClipboardData(text: inviteUrl));
+                  Clipboard.setData(const ClipboardData(text: downloadUrl));
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("Lien d'invitation copié dans le presse-papier ! 📋")),

@@ -295,9 +295,10 @@ class _ClubListScreenState extends State<ClubListScreen> {
                 prefixIcon: const Icon(Icons.search, color: AppColors.gold),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                suffixIcon: _searchQuery.isNotEmpty
+                suffixIcon: (_searchQuery.isNotEmpty || _searchController.text.isNotEmpty)
                     ? IconButton(
-                        icon: const Icon(Icons.clear, color: Colors.white),
+                        icon: const Icon(Icons.clear, color: Colors.white70),
+                        splashRadius: 20,
                         onPressed: () {
                           _searchController.clear();
                           setState(() {

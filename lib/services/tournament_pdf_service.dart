@@ -1339,7 +1339,7 @@ class TournamentPdfService {
                       height: 28,
                       child: pw.BarcodeWidget(
                         barcode: pw.Barcode.qrCode(),
-                        data: 'https://beachmatch.app/tournaments/${tournament.id}',
+                        data: 'https://beach-tennis-216f4.web.app/download',
                         drawText: false,
                         color: navyColor,
                       ),

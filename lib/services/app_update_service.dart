@@ -38,9 +38,9 @@ class AppUpdateService {
       final String message = data['message']?.toString() ??
           'Une nouvelle version de BeachMatch est disponible pour assurer le bon déroulement et la synchronisation des tournois.';
       final String playStoreUrl = data['playStoreUrl']?.toString() ??
-          'https://play.google.com/store/apps/details?id=com.beachmatch.mobile';
+          'https://play.google.com/store/apps/details?id=com.beachmatch.app';
       final String appStoreUrl = data['appStoreUrl']?.toString() ??
-          'https://apps.apple.com/app/beachmatch/id6470000000';
+          'https://apps.apple.com/app/beachmatch-tennis/id6828378600';
 
       // 1. Mise à jour FORCÉE (Bloquante)
       final bool isForceUpdate = currentBuild < minRequiredBuild || data['forceUpdate'] == true;

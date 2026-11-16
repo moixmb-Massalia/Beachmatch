@@ -132,13 +132,19 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
           "📅 $formattedDate\n"
           "📍 $courtName\n"
           "🎯 ${_isReiDaPraia ? '👑 Formato Rei da Praia (4 jogadores)' : 'Nível $_targetLevel • $_maxPlayers jogadores'}\n\n"
-          "Partiu praia ? Entra pelo BeachMatch pra fechar a quadra: https://beachmatch.app/match?id=$matchId\n\n"
+          "Partiu praia ? Baixe o BeachMatch pra fechar a quadra :\n"
+          "🍏 iPhone (App Store) : ${WhatsAppShareService.appStoreUrl}\n"
+          "🤖 Android (Play Store) : ${WhatsAppShareService.playStoreUrl}\n"
+          "🌐 Link direto : ${WhatsAppShareService.universalDownloadUrl}\n\n"
           "#BeachTennisBrasil #BeachMatch #PartiuPraia"
         : "🎾 Partie de Beach Tennis !\n\n"
           "📅 $formattedDate\n"
           "📍 $courtName\n"
           "🎯 ${_isReiDaPraia ? '👑 Roi de la plage (4 joueurs)' : 'Niveau $_targetLevel • $_maxPlayers joueurs max'}\n\n"
-          "Rejoins la partie sur BeachMatch pour compléter le terrain : https://beachmatch.app/match?id=$matchId";
+          "Rejoins la partie sur BeachMatch pour compléter le terrain :\n"
+          "🍏 iPhone (App Store) : ${WhatsAppShareService.appStoreUrl}\n"
+          "🤖 Android (Play Store) : ${WhatsAppShareService.playStoreUrl}\n"
+          "🌐 En 1 clic : ${WhatsAppShareService.universalDownloadUrl}";
 
     showDialog(
       context: context,
