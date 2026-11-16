@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../providers/app_state.dart';
@@ -1177,43 +1176,14 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
         debugPrint("Asset load fallback: $e");
       }
 
-      if (kIsWeb) {
-        // En Web, ouverture directe par URL ou Data URI sans aucun plugin requis
-        bool opened = false;
-        try {
-          final uri = Uri.parse('/dossier_orleans_20equipes_paysage.pdf');
-          opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-        } catch (_) {}
-
-        if (!opened && pdfBytes != null) {
-          try {
-            final dataUri = Uri.dataFromBytes(pdfBytes, mimeType: 'application/pdf');
-            await launchUrl(dataUri, mode: LaunchMode.externalApplication);
-            opened = true;
-          } catch (_) {}
-        }
-
-        if (!opened) {
-          final uri = Uri.parse('https://beach-tennis-216f4.web.app/dossier_orleans_20equipes_paysage.pdf');
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
+      if (pdfBytes != null) {
+        await TournamentPdfService.exportOrDownloadPdf(
+          bytes: pdfBytes,
+          filename: 'Dossier_Tournoi_BTCO_Orleans_20Equipes_Paysage.pdf',
+        );
       } else {
-        // Sur mobile / desktop
-        bool done = false;
-        if (pdfBytes != null) {
-          try {
-            done = await Printing.sharePdf(
-              bytes: pdfBytes,
-              filename: 'Dossier_Tournoi_BTCO_Orleans_20Equipes_Paysage.pdf',
-            );
-          } catch (e) {
-            debugPrint("Printing.sharePdf fallback: $e");
-          }
-        }
-        if (!done) {
-          final uri = Uri.parse('https://beach-tennis-216f4.web.app/dossier_orleans_20equipes_paysage.pdf');
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
+        final uri = Uri.parse('https://beach-tennis-216f4.web.app/dossier_orleans_20equipes_paysage.pdf');
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
 
       if (mounted) {

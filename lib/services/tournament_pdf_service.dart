@@ -2,11 +2,37 @@ import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../models/tournament.dart';
 import '../models/tournament_bracket_model.dart';
 
 class TournamentPdfService {
+  /// Exporte ou télécharge le document PDF de manière fiable sur Web et Mobile
+  static Future<void> exportOrDownloadPdf({
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    // 1. Tenter le téléchargement direct via Printing.sharePdf
+    // Sur Web : crée un Blob URL et déclenche le téléchargement immédiat dans le navigateur (aucun onglet blanc).
+    // Sur Mobile : ouvre la feuille de partage native (Enregistrer dans Fichiers, Imprimer, WhatsApp, etc.).
+    try {
+      final shared = await Printing.sharePdf(bytes: bytes, filename: filename);
+      if (shared) return;
+    } catch (e) {
+      debugPrint("Printing.sharePdf notice: $e");
+    }
+
+    // 2. En second recours, Printing.layoutPdf (ouvre la boîte d'impression native)
+    try {
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => bytes,
+        name: filename,
+      );
+      return;
+    } catch (e) {
+      debugPrint("Printing.layoutPdf notice: $e");
+    }
+  }
+
   /// Génère et ouvre la boîte de dialogue d'impression / export PDF officiel FFT
   static Future<void> generateAndExportPdf({
     required TournamentModel tournament,
@@ -60,37 +86,7 @@ class TournamentPdfService {
 
     final bytes = await pdf.save();
     final filename = 'FFT_Resultats_${tournament.id}_${bracket.category}.pdf';
-
-    if (kIsWeb) {
-      try {
-        await Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => bytes,
-          name: filename,
-        );
-        return;
-      } catch (_) {}
-
-      try {
-        final dataUri = Uri.dataFromBytes(bytes, mimeType: 'application/pdf');
-        await launchUrl(dataUri, mode: LaunchMode.externalApplication);
-        return;
-      } catch (e) {
-        debugPrint("PDF fallback error: $e");
-      }
-    } else {
-      try {
-        final shared = await Printing.sharePdf(bytes: bytes, filename: filename);
-        if (shared) return;
-      } catch (_) {}
-
-      try {
-        await Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => bytes,
-          name: filename,
-        );
-        return;
-      } catch (_) {}
-    }
+    await exportOrDownloadPdf(bytes: bytes, filename: filename);
   }
 
   /// Génère le Dossier Officiel Homologué A4 Paysage (Widescreen Landscape)
@@ -137,37 +133,7 @@ class TournamentPdfService {
 
     final bytes = await pdf.save();
     final filename = 'FFT_Dossier_Paysage_${tournament.id}_${bracket.category}.pdf';
-
-    if (kIsWeb) {
-      try {
-        await Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => bytes,
-          name: filename,
-        );
-        return;
-      } catch (_) {}
-
-      try {
-        final dataUri = Uri.dataFromBytes(bytes, mimeType: 'application/pdf');
-        await launchUrl(dataUri, mode: LaunchMode.externalApplication);
-        return;
-      } catch (e) {
-        debugPrint("PDF fallback error: $e");
-      }
-    } else {
-      try {
-        final shared = await Printing.sharePdf(bytes: bytes, filename: filename);
-        if (shared) return;
-      } catch (_) {}
-
-      try {
-        await Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => bytes,
-          name: filename,
-        );
-        return;
-      } catch (_) {}
-    }
+    await exportOrDownloadPdf(bytes: bytes, filename: filename);
   }
 
   /// Génère le Dossier Officiel Complet du Tournoi (Toutes les épreuves réunies : DH + DD + DX)
@@ -216,37 +182,7 @@ class TournamentPdfService {
 
     final bytes = await pdf.save();
     final filename = 'FFT_Dossier_Complet_${tournament.id}.pdf';
-
-    if (kIsWeb) {
-      try {
-        await Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => bytes,
-          name: filename,
-        );
-        return;
-      } catch (_) {}
-
-      try {
-        final dataUri = Uri.dataFromBytes(bytes, mimeType: 'application/pdf');
-        await launchUrl(dataUri, mode: LaunchMode.externalApplication);
-        return;
-      } catch (e) {
-        debugPrint("PDF fallback error: $e");
-      }
-    } else {
-      try {
-        final shared = await Printing.sharePdf(bytes: bytes, filename: filename);
-        if (shared) return;
-      } catch (_) {}
-
-      try {
-        await Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => bytes,
-          name: filename,
-        );
-        return;
-      } catch (_) {}
-    }
+    await exportOrDownloadPdf(bytes: bytes, filename: filename);
   }
 
   /// 🥇 Résolution infaillible du palmarès (Vainqueur, Finaliste, 3e place)
@@ -1218,10 +1154,8 @@ class TournamentPdfService {
       categories: categories,
     );
 
-    await Printing.layoutPdf(
-      onLayout: (format) async => pdfBytes,
-      name: 'Rotations_Terrains_${tournament.name.replaceAll(' ', '_')}.pdf',
-    );
+    final filename = 'Rotations_Terrains_${tournament.name.replaceAll(' ', '_')}.pdf';
+    await exportOrDownloadPdf(bytes: pdfBytes, filename: filename);
   }
 
   // =========================================================================
@@ -1808,36 +1742,6 @@ class TournamentPdfService {
 
     final cleanCategory = bracket.category.replaceAll('double_', '').toUpperCase();
     final filename = 'Tableau_Papillon_${tournament.name.replaceAll(' ', '_')}_$cleanCategory.pdf';
-
-    if (kIsWeb) {
-      try {
-        await Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => pdfBytes,
-          name: filename,
-        );
-        return;
-      } catch (_) {}
-
-      try {
-        final dataUri = Uri.dataFromBytes(pdfBytes, mimeType: 'application/pdf');
-        await launchUrl(dataUri, mode: LaunchMode.externalApplication);
-        return;
-      } catch (e) {
-        debugPrint("PDF fallback error: $e");
-      }
-    } else {
-      try {
-        final shared = await Printing.sharePdf(bytes: pdfBytes, filename: filename);
-        if (shared) return;
-      } catch (_) {}
-
-      try {
-        await Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => pdfBytes,
-          name: filename,
-        );
-        return;
-      } catch (_) {}
-    }
+    await exportOrDownloadPdf(bytes: pdfBytes, filename: filename);
   }
 }

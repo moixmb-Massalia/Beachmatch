@@ -1,10 +1,10 @@
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/tournament.dart';
 import '../models/tournament_bracket_model.dart';
+import 'tournament_pdf_service.dart';
 
 /// Service officiel d'homologation et de certification du tirage au sort Beach Tennis
 class DrawCertificationService {
@@ -288,9 +288,11 @@ class DrawCertificationService {
       ),
     );
 
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-      name: 'PV_Tirage_${tournament.id}_${bracket.category}.pdf',
+    final pdfBytes = await pdf.save();
+    final filename = 'PV_Tirage_${tournament.id}_${bracket.category}.pdf';
+    await TournamentPdfService.exportOrDownloadPdf(
+      bytes: pdfBytes,
+      filename: filename,
     );
   }
 
