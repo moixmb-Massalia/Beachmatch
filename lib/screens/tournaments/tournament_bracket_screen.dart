@@ -836,8 +836,8 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
               ),
             ),
           ),
-          // Bouton Réinitialiser / Supprimer le Tableau (uniquement si JAT et tableau non vide)
-          if (_isJat && _currentBracket != null && (_currentBracket!.pairs.isNotEmpty || _currentBracket!.mainMatches.isNotEmpty || _currentBracket!.pools.isNotEmpty)) ...[
+          // Bouton Réinitialiser / Supprimer le Tableau (toujours visible pour le JAT)
+          if (_isJat) ...[
             const SizedBox(width: 6),
             Tooltip(
               message: "Réinitialiser / Supprimer ce tableau",
@@ -2818,7 +2818,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                 ),
               ),
             ),
-            if (_isJat && _currentBracket != null && (_currentBracket!.pairs.isNotEmpty || _currentBracket!.mainMatches.isNotEmpty || _currentBracket!.pools.isNotEmpty)) ...[
+            if (_isJat) ...[
               const SizedBox(width: 8),
               Tooltip(
                 message: "Réinitialiser / Supprimer ce tableau",
