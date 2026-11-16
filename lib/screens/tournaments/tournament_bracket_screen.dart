@@ -1621,6 +1621,22 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                             );
                           },
                         ),
+                        if (_isJat) ...[
+                          const SizedBox(height: 16),
+                          Divider(color: Colors.redAccent.withValues(alpha: 0.3)),
+                          const SizedBox(height: 8),
+                          _buildExportOptionCard(
+                            icon: Icons.delete_sweep_rounded,
+                            accentColor: Colors.redAccent,
+                            title: "Réinitialiser / Supprimer ce tableau de test",
+                            subtitle: "Efface complètement toutes les paires, poules, matchs et scores pour repartir de zéro.",
+                            badge: "REMETTRE À VÉLO / VIERGE",
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              _confirmResetBracket();
+                            },
+                          ),
+                        ],
                         const SizedBox(height: 12),
                       ],
                     ),
@@ -2802,6 +2818,25 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                 ),
               ),
             ),
+            if (_isJat && _currentBracket != null && (_currentBracket!.pairs.isNotEmpty || _currentBracket!.mainMatches.isNotEmpty || _currentBracket!.pools.isNotEmpty)) ...[
+              const SizedBox(width: 8),
+              Tooltip(
+                message: "Réinitialiser / Supprimer ce tableau",
+                child: InkWell(
+                  onTap: _confirmResetBracket,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5), width: 1.2),
+                    ),
+                    child: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 20),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
