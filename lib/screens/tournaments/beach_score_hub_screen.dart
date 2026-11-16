@@ -230,7 +230,9 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
       buffer.writeln(isBr ? "⏰ *Início :* $date" : "⏰ *Coup d'envoi :* $date");
     }
     buffer.writeln("");
-    buffer.writeln(isBr ? "📲 Acompanhe todos os placares ao vivo no BeachMatch !" : "📲 Retrouve tous les scores en direct sur BeachMatch !");
+    buffer.writeln(isBr
+        ? "📲 Acompanhe todos os placares ao vivo no BeachMatch !\n🌐 ${WhatsAppShareService.universalDownloadUrl}"
+        : "📲 Retrouve tous les scores en direct sur BeachMatch !\n🌐 ${WhatsAppShareService.universalDownloadUrl}");
 
     WhatsAppShareService.shareToWhatsAppOrNative(
       text: buffer.toString(),

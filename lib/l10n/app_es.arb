@@ -137,7 +137,7 @@
   "homeNewsBadgeTuto": "TUTORIAL 🎓",
   "homeNewsBtnLive": "VER EN VIVO 🔴",
   "homeNewsBtnTuto": "INICIAR TUTORIAL EN VIDEO 🎬",
-  "homeMatchShareMessage": "¡Únete a mí para jugar Beach Tennis el {date}! \nNivel objetivo: {level}\nDescarga BeachMatch para unirte a mi partido: https://beachmatch.app/match/{id}",
+  "homeMatchShareMessage": "¡Únete a mí para jugar Beach Tennis el {date}! \nNivel objetivo: {level}\nDescarga BeachMatch para unirte a mi partido: https://beach-tennis-216f4.web.app/download",
   "@homeMatchShareMessage": {
     "placeholders": {
       "date": {

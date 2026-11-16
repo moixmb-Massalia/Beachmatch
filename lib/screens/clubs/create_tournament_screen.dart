@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../../models/club.dart';
 import '../../models/tournament.dart';
 import '../../providers/app_state.dart';
+import '../../services/whatsapp_share_service.dart';
 import '../../theme/colors.dart';
 
 class CreateTournamentScreen extends StatefulWidget {
@@ -257,7 +258,8 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
         "💰 *Tarif :* ${tournament.price ?? '20€'}\n"
         "👤 *JAT :* ${tournament.referee ?? 'Juge-Arbitre'}\n"
         "${tournament.contactPhone != null && tournament.contactPhone!.isNotEmpty ? '📞 *Contact :* ${tournament.contactPhone}\n' : ''}"
-        "\nInscriptions et suivi des scores en direct sur *BeachMatch* ! 🔥";
+        "\n📱 Inscriptions et suivi des scores en direct sur *BeachMatch* :\n"
+        "👉 ${WhatsAppShareService.universalDownloadUrl} 🔥";
 
     return AlertDialog(
       backgroundColor: const Color(0xFF0F172A),
@@ -316,11 +318,10 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
         ),
         ElevatedButton.icon(
           onPressed: () async {
-            final encoded = Uri.encodeComponent(message);
-            final url = Uri.parse("https://wa.me/?text=$encoded");
-            if (await canLaunchUrl(url)) {
-              await launchUrl(url, mode: LaunchMode.externalApplication);
-            }
+            await WhatsAppShareService.shareToWhatsAppOrNative(
+              text: message,
+              subject: "Beach Tennis : ${tournament.name}",
+            );
             if (dialogCtx.mounted) Navigator.of(dialogCtx).pop();
           },
           icon: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 16),

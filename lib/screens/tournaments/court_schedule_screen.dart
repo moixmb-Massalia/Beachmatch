@@ -573,6 +573,7 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
     }
 
     buffer.writeln("🎾 Beach Tennis FFT - Généré sur mesure par BeachMatch");
+    buffer.writeln("📱 Suivi des scores en direct : ${WhatsAppShareService.universalDownloadUrl}");
 
     await WhatsAppShareService.shareToWhatsAppOrNative(
       text: buffer.toString(),

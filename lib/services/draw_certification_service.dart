@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/tournament.dart';
 import '../models/tournament_bracket_model.dart';
 import 'tournament_pdf_service.dart';
+import 'whatsapp_share_service.dart';
 
 /// Service officiel d'homologation et de certification du tirage au sort Beach Tennis
 class DrawCertificationService {
@@ -506,7 +507,8 @@ class DrawCertificationService {
     }
 
     buf.writeln("");
-    buf.writeln("📄 *Le Procès-Verbal officiel et le live scoring sont consultables sur l'application BeachMatch.*");
+    buf.writeln("📄 *Le Procès-Verbal officiel et le live scoring sont consultables sur l'application BeachMatch :*");
+    buf.writeln("👉 ${WhatsAppShareService.universalDownloadUrl}");
     buf.writeln("Bonne chance à tous les compétiteurs ! 🏖️🔥");
 
     return buf.toString();
@@ -525,10 +527,9 @@ class DrawCertificationService {
       drawTimestamp: drawTimestamp,
       jatName: jatName,
     );
-    final encoded = Uri.encodeComponent(text);
-    final whatsappUrl = Uri.parse("https://wa.me/?text=$encoded");
-    if (await canLaunchUrl(whatsappUrl)) {
-      await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
-    }
+    await WhatsAppShareService.shareToWhatsAppOrNative(
+      text: text,
+      subject: "Tirage au sort officiel : ${tournament.name}",
+    );
   }
 }

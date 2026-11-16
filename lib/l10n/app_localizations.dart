@@ -419,7 +419,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeMatchShareMessage.
   ///
   /// In fr, this message translates to:
-  /// **'Rejoins-moi pour un Beach Tennis le {date} ! \nNiveau cible: {level}\nTélécharge BeachMatch pour rejoindre ma partie : https://beachmatch.app/match/{id}'**
+  /// **'Rejoins-moi pour un Beach Tennis le {date} ! \nNiveau cible: {level}\nTélécharge BeachMatch pour rejoindre ma partie : https://beach-tennis-216f4.web.app/download'**
   String homeMatchShareMessage(String date, int level, String id);
 
   /// No description provided for @homeMatchShareTooltip.

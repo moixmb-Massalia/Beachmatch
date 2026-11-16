@@ -59,7 +59,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
 
   Future<void> _launchUrl(String urlString) async {
     final Uri url = Uri.parse(urlString);
-    if (!await launchUrl(url)) {
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       debugPrint('Could not launch $urlString');
     }
   }
@@ -2482,7 +2482,10 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                     icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF25D366), size: 18),
                     tooltip: "Contacter sur WhatsApp",
                     onPressed: () {
-                      final cleanPhone = req.phone!.replaceAll(RegExp(r'\D'), '');
+                      var cleanPhone = req.phone!.replaceAll(RegExp(r'\D'), '');
+                      if (cleanPhone.startsWith('0') && cleanPhone.length == 10) {
+                        cleanPhone = '33${cleanPhone.substring(1)}';
+                      }
                       final msg = Uri.encodeComponent("Salut ${req.userName}, j'ai vu ton annonce sur BeachMatch pour le tournoi ${widget.tournament.name} ! Es-tu toujours dispo pour faire la paire ?");
                       _launchUrl("https://wa.me/$cleanPhone?text=$msg");
                     },
@@ -2873,7 +2876,10 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                 label: const Text("Lui écrire sur WhatsApp", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 onPressed: () {
                   Navigator.pop(ctx);
-                  final cleanPhone = req.phone!.replaceAll(RegExp(r'\D'), '');
+                  var cleanPhone = req.phone!.replaceAll(RegExp(r'\D'), '');
+                  if (cleanPhone.startsWith('0') && cleanPhone.length == 10) {
+                    cleanPhone = '33${cleanPhone.substring(1)}';
+                  }
                   final msg = Uri.encodeComponent("Salut ${req.userName}, j'ai vu ton annonce sur BeachMatch pour le tournoi ${widget.tournament.name} ! Es-tu toujours dispo pour faire la paire ?");
                   _launchUrl("https://wa.me/$cleanPhone?text=$msg");
                 },

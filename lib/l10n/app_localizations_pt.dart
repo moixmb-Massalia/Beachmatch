@@ -190,7 +190,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String homeMatchShareMessage(String date, int level, String id) {
-    return 'Junte-se a mim para jogar Beach Tennis no dia $date! \nNível alvo: $level\nBaixe o BeachMatch para entrar na minha partida: https://beachmatch.app/match/$id';
+    return 'Junte-se a mim para jogar Beach Tennis no dia $date! \nNível alvo: $level\nBaixe o BeachMatch para entrar na minha partida: https://beach-tennis-216f4.web.app/download';
   }
 
   @override
