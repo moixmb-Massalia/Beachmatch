@@ -217,6 +217,73 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
     }
   }
 
+  Future<void> _confirmResetBracket() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 24),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "Réinitialiser le Tableau ?",
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          "Êtes-vous sûr de vouloir supprimer ce tableau et toutes ses données (équipes, poules, matchs et scores) ?\n\nVous pourrez ensuite repartir d'un tableau totalement vierge.",
+          style: TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Annuler", style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Tout Supprimer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isSaving = true);
+      try {
+        await _bracketRef.delete();
+        await _legacyRef.delete();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Tableau réinitialisé avec succès !"),
+              backgroundColor: Color(0xFF10B981),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Erreur lors de la réinitialisation : $e"),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isSaving = false);
+      }
+    }
+  }
+
   void _scrollToRound(ScrollController controller, int roundIndex) {
     // Largeur de colonne (310) + marge (24) = 334px par tour
     final targetOffset = roundIndex * 334.0;
@@ -770,6 +837,26 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
               ),
             ),
           ),
+          // Bouton Réinitialiser / Supprimer le Tableau (uniquement si JAT et tableau non vide)
+          if (_isJat && _currentBracket != null && (_currentBracket!.pairs.isNotEmpty || _currentBracket!.mainMatches.isNotEmpty || _currentBracket!.pools.isNotEmpty)) ...[
+            const SizedBox(width: 6),
+            Tooltip(
+              message: "Réinitialiser / Supprimer ce tableau",
+              child: InkWell(
+                onTap: _confirmResetBracket,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4), width: 1.0),
+                  ),
+                  child: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 18),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
