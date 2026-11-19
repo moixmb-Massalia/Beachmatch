@@ -879,6 +879,8 @@ class AppState extends ChangeNotifier {
     int? eloScore,
     String? preferredPosition,
     String? availability,
+    String? racket,
+    bool clearRacket = false,
     String? clubId,
     String? clubName,
     String? cbtId,
@@ -947,6 +949,7 @@ class AppState extends ChangeNotifier {
       eloScore: eloScore ?? _currentUser!.eloScore,
       preferredPosition: preferredPosition ?? _currentUser!.preferredPosition,
       availability: availability ?? _currentUser!.availability,
+      racket: clearRacket ? null : (racket ?? _currentUser!.racket),
       clubId: clubId ?? _currentUser!.clubId,
       clubName: clubName ?? _currentUser!.clubName,
       cbtId: finalCbtId,
@@ -971,6 +974,7 @@ class AppState extends ChangeNotifier {
       if (eloScore != null) 'eloScore': eloScore,
       if (preferredPosition != null) 'preferredPosition': preferredPosition,
       if (availability != null) 'availability': availability,
+      if (clearRacket) 'racket': FieldValue.delete() else if (racket != null) 'racket': racket,
       if (clubId != null) 'clubId': clubId,
       if (clubName != null && clubName.isNotEmpty) 'clubName': clubName,
       if (finalCbtId != null && finalCbtId.isNotEmpty) 'cbtId': finalCbtId,
@@ -1012,6 +1016,8 @@ class AppState extends ChangeNotifier {
     String? availability,
     int? level,
     bool? isLookingForPartner,
+    String? racket,
+    bool clearRacket = false,
   }) async {
     if (_currentUser == null) return;
     
@@ -1020,6 +1026,7 @@ class AppState extends ChangeNotifier {
       availability: availability ?? _currentUser!.availability,
       level: level ?? _currentUser!.level,
       isLookingForPartner: isLookingForPartner ?? _currentUser!.isLookingForPartner,
+      racket: clearRacket ? null : (racket ?? _currentUser!.racket),
     );
     
     await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).set({
@@ -1027,6 +1034,8 @@ class AppState extends ChangeNotifier {
       if (availability != null) 'availability': availability,
       if (level != null) 'level': level,
       if (isLookingForPartner != null) 'isLookingForPartner': isLookingForPartner,
+      if (clearRacket) 'racket': FieldValue.delete()
+      else if (racket != null) 'racket': racket,
     }, SetOptions(merge: true));
     
     notifyListeners();

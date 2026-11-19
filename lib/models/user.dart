@@ -27,6 +27,7 @@ class UserModel {
   // Préférences de jeu
   final String? preferredPosition;
   final String? availability;
+  final String? racket;
   final bool isBanned;
   final bool isReferee;
   final List<String> blockedUserIds; // Apple UGC Guideline 1.2: Blocked users
@@ -68,6 +69,7 @@ class UserModel {
     this.alertRegion,
     this.preferredPosition,
     this.availability,
+    this.racket,
     this.isBanned = false,
     this.blockedUserIds = const [],
     this.clubId,
@@ -106,6 +108,8 @@ class UserModel {
     String? alertRegion,
     String? preferredPosition,
     String? availability,
+    String? racket,
+    bool clearRacket = false,
     bool? isBanned,
     bool? isReferee,
     List<String>? blockedUserIds,
@@ -144,6 +148,7 @@ class UserModel {
       alertRegion: alertRegion ?? this.alertRegion,
       preferredPosition: preferredPosition ?? this.preferredPosition,
       availability: availability ?? this.availability,
+      racket: clearRacket ? null : (racket ?? this.racket),
       isBanned: isBanned ?? this.isBanned,
       blockedUserIds: blockedUserIds ?? this.blockedUserIds,
       clubId: clubId ?? this.clubId,
@@ -213,6 +218,7 @@ class UserModel {
       alertRegion: data['alertRegion'],
       preferredPosition: data['preferredPosition'],
       availability: data['availability'],
+      racket: data['racket']?.toString() ?? data['racketModel']?.toString(),
       isBanned: data['isBanned'] ?? false,
       blockedUserIds: List<String>.from(data['blockedUserIds'] ?? []),
       clubId: data['clubId'],
@@ -259,6 +265,7 @@ class UserModel {
       'alertRegion': alertRegion,
       'preferredPosition': preferredPosition,
       'availability': availability,
+      if (racket != null) 'racket': racket,
       'isBanned': isBanned,
       'blockedUserIds': blockedUserIds,
       if (clubId != null) 'clubId': clubId,

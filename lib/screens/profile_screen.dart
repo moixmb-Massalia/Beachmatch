@@ -1178,6 +1178,14 @@ class ProfileScreen extends StatelessWidget {
           ),
           Divider(color: Colors.white.withValues(alpha: 0.2)),
           _buildListTile(
+            Icons.sports_tennis,
+            _isBr(context, user) ? "Sua Raquete" : "Raquette de Beach Tennis",
+            (user.racket != null && user.racket!.trim().isNotEmpty)
+                ? user.racket!
+                : (_isBr(context, user) ? "Não informada (Toque p/ editar)" : "Non renseignée (Toucher pour ajouter)"),
+          ),
+          Divider(color: Colors.white.withValues(alpha: 0.2)),
+          _buildListTile(
             Icons.handshake_rounded,
             _isBr(context, user) ? "Procurando parceiro(a)" : "Recherche partenaire",
             user.isLookingForPartner
@@ -1194,6 +1202,7 @@ class ProfileScreen extends StatelessWidget {
     String? selectedAvail = user.availability;
     int selectedLevel = user.level;
     bool isLooking = user.isLookingForPartner;
+    final racketController = TextEditingController(text: user.racket ?? '');
     final isBr = user.isBrazilian || Localizations.localeOf(context).languageCode == 'pt';
 
     final positions = isBr
@@ -1348,6 +1357,56 @@ class ProfileScreen extends StatelessWidget {
                       );
                     }),
                   ),
+                  const SizedBox(height: 18),
+
+                  // Raquette de Beach Tennis
+                  Text(
+                    isBr ? "Sua Raquete de Beach Tennis 🎾" : "Votre Raquette de Beach Tennis 🎾",
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: racketController,
+                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      hintText: isBr ? "Ex: Drop Shot Conqueror, Heroe's..." : "Ex: Drop Shot, Nox, Heroe's Predator, Sexy...",
+                      hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                      prefixIcon: const Icon(Icons.sports_tennis, color: AppColors.gold, size: 20),
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.08),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15))),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15))),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      "Drop Shot",
+                      "Heroe's",
+                      "Nox",
+                      "Sexy",
+                      "Vision",
+                      "Quicksand",
+                      "MBET",
+                    ].map((brand) => ActionChip(
+                      backgroundColor: Colors.white.withValues(alpha: 0.06),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.white.withValues(alpha: 0.15))),
+                      label: Text(brand, style: const TextStyle(color: Colors.white70, fontSize: 10)),
+                      onPressed: () {
+                        setModalState(() {
+                          if (racketController.text.isEmpty) {
+                            racketController.text = brand;
+                          } else if (!racketController.text.contains(brand)) {
+                            racketController.text = "$brand ${racketController.text}".trim();
+                          }
+                        });
+                      },
+                    )).toList(),
+                  ),
                   const SizedBox(height: 20),
 
                   // Recherche de partenaire switch
@@ -1408,6 +1467,8 @@ class ProfileScreen extends StatelessWidget {
                             availability: selectedAvail,
                             level: selectedLevel,
                             isLookingForPartner: isLooking,
+                            racket: racketController.text.trim().isNotEmpty ? racketController.text.trim() : null,
+                            clearRacket: racketController.text.trim().isEmpty,
                           );
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(

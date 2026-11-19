@@ -25,6 +25,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late TextEditingController _licenceController;
   late TextEditingController _rankingController;
   late TextEditingController _clubController;
+  late TextEditingController _racketController;
   int _selectedLevel = 1;
   bool _isSaving = false;
   bool _isVerifying = false;
@@ -50,6 +51,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _licenceController = TextEditingController(text: isBr ? (user?.cbtId ?? user?.licenceNumber ?? '') : (user?.licenceNumber ?? ''));
     _rankingController = TextEditingController(text: isBr ? (user?.cbtCategory ?? user?.ranking ?? '') : (user?.ranking ?? ''));
     _clubController = TextEditingController(text: user?.clubName ?? "");
+    _racketController = TextEditingController(text: user?.racket ?? "");
     _selectedLevel = user?.level ?? 1;
     _existingPhotoUrl = user?.photoUrl;
     _isLookingForPartner = user?.isLookingForPartner ?? false;
@@ -68,6 +70,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _licenceController.dispose();
     _rankingController.dispose();
     _clubController.dispose();
+    _racketController.dispose();
     super.dispose();
   }
 
@@ -253,6 +256,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         eloScore: (_isLicenceVerified && _verifiedEloScore > 0) ? _verifiedEloScore : appState.currentUser?.eloScore,
         preferredPosition: _preferredPosition,
         availability: _availability,
+        racket: _racketController.text.trim().isNotEmpty ? _racketController.text.trim() : null,
+        clearRacket: _racketController.text.trim().isEmpty,
         clubId: _clubId,
         clubName: clubNameToSave,
         cbtId: isBr ? licenceToSave : null,
@@ -721,6 +726,55 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                             ].map((val) => DropdownMenuItem(value: val, child: Text(val, style: const TextStyle(color: Colors.white)))).toList(),
                             onChanged: (val) => setState(() => _availability = val),
                             hint: Text(AppLocalizations.of(context).profileEditSelect, style: const TextStyle(color: Colors.white54)),
+                          ),
+                          const SizedBox(height: 18),
+
+                          // Raquette de Beach Tennis
+                          Text(
+                            isBr ? "Sua Raquete de Beach Tennis 🎾" : "Votre Raquette de Beach Tennis 🎾",
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _racketController,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            decoration: InputDecoration(
+                              hintText: isBr ? "Ex: Drop Shot Conqueror, Nox AR10, Heroe's..." : "Ex: Drop Shot Conqueror, Nox AR10, Heroe's Predator, Sexy...",
+                              hintStyle: const TextStyle(color: Colors.white54, fontSize: 13),
+                              prefixIcon: const Icon(Icons.sports_tennis, color: AppColors.gold),
+                              filled: true,
+                              fillColor: Colors.white.withValues(alpha: 0.15),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.25))),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              "Drop Shot",
+                              "Heroe's",
+                              "Nox",
+                              "Sexy",
+                              "Vision",
+                              "Quicksand",
+                              "MBET",
+                              "Turquoise",
+                            ].map((brand) => ActionChip(
+                              backgroundColor: Colors.white.withValues(alpha: 0.08),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.white.withValues(alpha: 0.2))),
+                              label: Text(brand, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                              onPressed: () {
+                                setState(() {
+                                  if (_racketController.text.isEmpty) {
+                                    _racketController.text = brand;
+                                  } else if (!_racketController.text.contains(brand)) {
+                                    _racketController.text = "$brand ${_racketController.text}".trim();
+                                  }
+                                });
+                              },
+                            )).toList(),
                           ),
                           const SizedBox(height: 24),
 

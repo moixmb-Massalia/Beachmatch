@@ -491,15 +491,22 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
                         // Préférences de jeu (si renseignées)
                         if ((player.preferredPosition != null && player.preferredPosition!.isNotEmpty) ||
-                            (player.availability != null && player.availability!.isNotEmpty)) ...[
+                            (player.availability != null && player.availability!.isNotEmpty) ||
+                            (player.racket != null && player.racket!.isNotEmpty)) ...[
                           _buildGlassCard(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(isPt ? "PREFERÊNCIAS DE JOGO" : "PRÉFÉRENCES DE JEU", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.gold, letterSpacing: 1.1)),
                                 const SizedBox(height: 14),
+                                if (player.racket != null && player.racket!.isNotEmpty) ...[
+                                  _buildInfoRow(Icons.sports_tennis, isPt ? "Raquete" : "Raquette", player.racket!),
+                                  if ((player.preferredPosition != null && player.preferredPosition!.isNotEmpty) ||
+                                      (player.availability != null && player.availability!.isNotEmpty))
+                                    const Divider(color: Colors.white24, height: 20),
+                                ],
                                 if (player.preferredPosition != null && player.preferredPosition!.isNotEmpty)
-                                  _buildInfoRow(Icons.sports_tennis, isPt ? "Posição preferida" : "Côté préféré", player.preferredPosition!),
+                                  _buildInfoRow(Icons.swap_horiz_rounded, isPt ? "Posição preferida" : "Côté préféré", player.preferredPosition!),
                                 if (player.preferredPosition != null && player.preferredPosition!.isNotEmpty &&
                                     player.availability != null && player.availability!.isNotEmpty)
                                   const Divider(color: Colors.white24, height: 20),
