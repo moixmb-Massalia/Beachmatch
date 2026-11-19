@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../models/tournament.dart';
 import '../models/tournament_bracket_model.dart';
+import 'web_file_downloader.dart';
 
 class TournamentPdfService {
   /// Exporte ou télécharge le document PDF de manière fiable sur Web et Mobile
@@ -11,8 +12,14 @@ class TournamentPdfService {
     required Uint8List bytes,
     required String filename,
   }) async {
-    // 1. Tenter le téléchargement direct via Printing.sharePdf
-    // Sur Web : crée un Blob URL et déclenche le téléchargement immédiat dans le navigateur (aucun onglet blanc).
+    // 1. Sur Web : Téléchargement natif direct immédiat dans le dossier Téléchargements du navigateur
+    if (kIsWeb) {
+      final downloaded = await WebFileDownloader.download(bytes, filename);
+      if (downloaded) return;
+    }
+
+    // 2. Tenter le téléchargement direct via Printing.sharePdf
+    // Sur Web fallback : crée un Blob URL et déclenche le téléchargement immédiat dans le navigateur.
     // Sur Mobile : ouvre la feuille de partage native (Enregistrer dans Fichiers, Imprimer, WhatsApp, etc.).
     try {
       final shared = await Printing.sharePdf(bytes: bytes, filename: filename);
@@ -21,7 +28,7 @@ class TournamentPdfService {
       debugPrint("Printing.sharePdf notice: $e");
     }
 
-    // 2. En second recours, Printing.layoutPdf (ouvre la boîte d'impression native)
+    // 3. En dernier recours, Printing.layoutPdf (ouvre la boîte d'impression native)
     try {
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => bytes,
@@ -1170,6 +1177,7 @@ class TournamentPdfService {
     Uint8List? clubLogoBytes,
     String? customRules,
     bool isA3 = false,
+    int numberOfCourts = 4,
   }) async {
     final pdf = pw.Document();
 
@@ -1292,7 +1300,7 @@ class TournamentPdfService {
                         crossAxisAlignment: pw.CrossAxisAlignment.end,
                         children: [
                           pw.Text(
-                            "FORMAT DES MATCHES",
+                            "FORMAT DES MATCHES · $numberOfCourts TERRAINS ALLOUÉS",
                             style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor),
                           ),
                           pw.SizedBox(height: 2),
@@ -1318,6 +1326,7 @@ class TournamentPdfService {
                   goldColor: goldColor,
                   borderColor: borderColor,
                   lightGray: lightGray,
+                  numberOfCourts: numberOfCourts,
                 ),
               ),
 
@@ -1388,6 +1397,7 @@ class TournamentPdfService {
     required PdfColor goldColor,
     required PdfColor borderColor,
     required PdfColor lightGray,
+    int numberOfCourts = 4,
   }) {
     // 8 matches au 1er tour
     final int matchCount = startingPairs.length ~/ 2;
@@ -1407,7 +1417,7 @@ class TournamentPdfService {
                 padding: const pw.EdgeInsets.symmetric(vertical: 2),
                 color: const PdfColor.fromInt(0xFFE2E8F0),
                 child: pw.Text(
-                  "◄── TABLEAU CONSOLANTE (PLACES 9 À 16)",
+                  "<< TABLEAU CONSOLANTE (PLACES 9 À 16)",
                   style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor),
                   textAlign: pw.TextAlign.center,
                 ),
@@ -1416,39 +1426,39 @@ class TournamentPdfService {
                 child: pw.Row(
                   crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                   children: [
-                    // Finales Consolante (Places 9-10 & 11-12)
+                    // Finales Consolante (Places 9-10 & 11-12 & 13-14 & 15-16)
                     pw.Expanded(
                       child: pw.Column(
                         mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                         children: [
-                          _buildMatchBox(label: "MATCH 31 · PLACES 9-10", navyColor: navyColor, goldColor: goldColor),
-                          _buildMatchBox(label: "MATCH 29 · PLACES 11-12", navyColor: navyColor, goldColor: goldColor),
-                          _buildMatchBox(label: "MATCH 27 · PLACES 13-14", navyColor: navyColor, goldColor: goldColor),
-                          _buildMatchBox(label: "MATCH 25 · PLACES 15-16", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 31 · PLACES 9-10", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(31, numberOfCourts)),
+                          _buildMatchBox(label: "MATCH 29 · PLACES 11-12", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(29, numberOfCourts)),
+                          _buildMatchBox(label: "MATCH 27 · PLACES 13-14", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(27, numberOfCourts)),
+                          _buildMatchBox(label: "MATCH 25 · PLACES 15-16", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(25, numberOfCourts)),
                         ],
                       ),
                     ),
-                    pw.SizedBox(width: 4),
+                    _buildConnectorColumn(forkCount: 2, pointingRight: false, color: borderColor),
                     // Demies Consolante
                     pw.Expanded(
                       child: pw.Column(
                         mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                         children: [
-                          _buildMatchBox(label: "MATCH 18 · DEMIE CONSO", navyColor: navyColor, goldColor: goldColor),
-                          _buildMatchBox(label: "MATCH 22 · DEMIE CONSO", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 18 · DEMIE CONSO", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(18, numberOfCourts)),
+                          _buildMatchBox(label: "MATCH 22 · DEMIE CONSO", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(22, numberOfCourts)),
                         ],
                       ),
                     ),
-                    pw.SizedBox(width: 4),
+                    _buildConnectorColumn(forkCount: 2, pointingRight: false, color: borderColor),
                     // Quarts Consolante (issus des perdants T1)
                     pw.Expanded(
                       child: pw.Column(
                         mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                         children: [
-                          _buildMatchBox(label: "MATCH 9 (Perd. 4 vs 1)", navyColor: navyColor, goldColor: goldColor),
-                          _buildMatchBox(label: "MATCH 10 (Perd. 3 vs 2)", navyColor: navyColor, goldColor: goldColor),
-                          _buildMatchBox(label: "MATCH 13 (Perd. 5 vs 7)", navyColor: navyColor, goldColor: goldColor),
-                          _buildMatchBox(label: "MATCH 14 (Perd. 6 vs 8)", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 9 (Perd. 4 vs 1)", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(9, numberOfCourts)),
+                          _buildMatchBox(label: "MATCH 10 (Perd. 3 vs 2)", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(10, numberOfCourts)),
+                          _buildMatchBox(label: "MATCH 13 (Perd. 5 vs 7)", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(13, numberOfCourts)),
+                          _buildMatchBox(label: "MATCH 14 (Perd. 6 vs 8)", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(14, numberOfCourts)),
                         ],
                       ),
                     ),
@@ -1459,7 +1469,8 @@ class TournamentPdfService {
           ),
         ),
 
-        pw.SizedBox(width: 6),
+        // Connecteur entre Quarts Consolante et Tour 1
+        _buildConnectorColumn(forkCount: 4, pointingRight: false, color: borderColor),
 
         // ==========================================
         // AU CENTRE : COLONNE 1ER TOUR (DÉPART)
@@ -1489,6 +1500,7 @@ class TournamentPdfService {
                         p2: startingPairs[i * 2 + 1],
                         navyColor: navyColor,
                         goldColor: goldColor,
+                        courtBadge: getCourtBadgeForMatch(_getMatchNumberForIndex(i), numberOfCourts),
                       ),
                     ],
                   ],
@@ -1498,7 +1510,8 @@ class TournamentPdfService {
           ),
         ),
 
-        pw.SizedBox(width: 6),
+        // Connecteur entre Tour 1 et Quarts Principaux
+        _buildConnectorColumn(forkCount: 4, pointingRight: true, color: borderColor),
 
         // ==========================================
         // DROITE : TABLEAU PRINCIPAL (Places 1 à 8)
@@ -1512,7 +1525,7 @@ class TournamentPdfService {
                 padding: const pw.EdgeInsets.symmetric(vertical: 2),
                 color: goldColor,
                 child: pw.Text(
-                  "TABLEAU PRINCIPAL (PLACES 1 À 8) ──►",
+                  "TABLEAU PRINCIPAL (PLACES 1 À 8) >>",
                   style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor),
                   textAlign: pw.TextAlign.center,
                 ),
@@ -1526,34 +1539,34 @@ class TournamentPdfService {
                       child: pw.Column(
                         mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                         children: [
-                          _buildMatchBox(label: "MATCH 11 (Vainq. 4 vs 1)", navyColor: navyColor, goldColor: goldColor),
-                          _buildMatchBox(label: "MATCH 12 (Vainq. 3 vs 2)", navyColor: navyColor, goldColor: goldColor),
-                          _buildMatchBox(label: "MATCH 15 (Vainq. 5 vs 7)", navyColor: navyColor, goldColor: goldColor),
-                          _buildMatchBox(label: "MATCH 16 (Vainq. 6 vs 8)", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 11 (Vainq. 4 vs 1)", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(11, numberOfCourts)),
+                          _buildMatchBox(label: "MATCH 12 (Vainq. 3 vs 2)", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(12, numberOfCourts)),
+                          _buildMatchBox(label: "MATCH 15 (Vainq. 5 vs 7)", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(15, numberOfCourts)),
+                          _buildMatchBox(label: "MATCH 16 (Vainq. 6 vs 8)", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(16, numberOfCourts)),
                         ],
                       ),
                     ),
-                    pw.SizedBox(width: 4),
+                    _buildConnectorColumn(forkCount: 2, pointingRight: true, color: borderColor),
                     // Demi-finales
                     pw.Expanded(
                       child: pw.Column(
                         mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                         children: [
-                          _buildMatchBox(label: "MATCH 20 · DEMI-FINALE 1", navyColor: navyColor, goldColor: goldColor),
-                          _buildMatchBox(label: "MATCH 24 · DEMI-FINALE 2", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 20 · DEMI-FINALE 1", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(20, numberOfCourts)),
+                          _buildMatchBox(label: "MATCH 24 · DEMI-FINALE 2", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(24, numberOfCourts)),
                         ],
                       ),
                     ),
-                    pw.SizedBox(width: 4),
+                    _buildConnectorColumn(forkCount: 2, pointingRight: true, color: borderColor),
                     // Finales (Places 1-2 & 3-4 & 5-6 & 7-8)
                     pw.Expanded(
                       child: pw.Column(
                         mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                         children: [
-                          _buildMatchBox(label: "MATCH 32 · GRANDE FINALE (1-2)", navyColor: navyColor, goldColor: goldColor, isFinal: true),
-                          _buildMatchBox(label: "MATCH 30 · PETITE FINALE (3-4)", navyColor: navyColor, goldColor: goldColor),
-                          _buildMatchBox(label: "MATCH 28 · PLACES 5-6", navyColor: navyColor, goldColor: goldColor),
-                          _buildMatchBox(label: "MATCH 26 · PLACES 7-8", navyColor: navyColor, goldColor: goldColor),
+                          _buildMatchBox(label: "MATCH 32 · GRANDE FINALE (1-2)", navyColor: navyColor, goldColor: goldColor, isFinal: true, courtBadge: getCourtBadgeForMatch(32, numberOfCourts)),
+                          _buildMatchBox(label: "MATCH 30 · PETITE FINALE (3-4)", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(30, numberOfCourts)),
+                          _buildMatchBox(label: "MATCH 28 · PLACES 5-6", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(28, numberOfCourts)),
+                          _buildMatchBox(label: "MATCH 26 · PLACES 7-8", navyColor: navyColor, goldColor: goldColor, courtBadge: getCourtBadgeForMatch(26, numberOfCourts)),
                         ],
                       ),
                     ),
@@ -1567,6 +1580,139 @@ class TournamentPdfService {
     );
   }
 
+  /// Connecteur vectoriel d'arbre (fourches reliant les confrontations pour suivre le sens des matchs)
+  static pw.Widget _buildConnectorColumn({
+    required int forkCount,
+    required bool pointingRight,
+    required PdfColor color,
+  }) {
+    return pw.Container(
+      width: 7,
+      child: pw.Column(
+        children: [
+          for (int i = 0; i < forkCount; i++)
+            pw.Expanded(
+              child: _buildSingleFork(pointingRight: pointingRight, color: color),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _buildSingleFork({
+    required bool pointingRight,
+    required PdfColor color,
+  }) {
+    return pw.Row(
+      children: [
+        if (pointingRight) ...[
+          pw.Expanded(
+            child: pw.Column(
+              children: [
+                pw.Expanded(
+                  child: pw.Container(
+                    margin: const pw.EdgeInsets.symmetric(vertical: 2),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border(
+                        right: pw.BorderSide(color: color, width: 0.8),
+                        bottom: pw.BorderSide(color: color, width: 0.8),
+                      ),
+                    ),
+                  ),
+                ),
+                pw.Expanded(
+                  child: pw.Container(
+                    margin: const pw.EdgeInsets.symmetric(vertical: 2),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border(
+                        right: pw.BorderSide(color: color, width: 0.8),
+                        top: pw.BorderSide(color: color, width: 0.8),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          pw.Container(width: 3.5, height: 0.8, color: color),
+        ] else ...[
+          pw.Container(width: 3.5, height: 0.8, color: color),
+          pw.Expanded(
+            child: pw.Column(
+              children: [
+                pw.Expanded(
+                  child: pw.Container(
+                    margin: const pw.EdgeInsets.symmetric(vertical: 2),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border(
+                        left: pw.BorderSide(color: color, width: 0.8),
+                        bottom: pw.BorderSide(color: color, width: 0.8),
+                      ),
+                    ),
+                  ),
+                ),
+                pw.Expanded(
+                  child: pw.Container(
+                    margin: const pw.EdgeInsets.symmetric(vertical: 2),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border(
+                        left: pw.BorderSide(color: color, width: 0.8),
+                        top: pw.BorderSide(color: color, width: 0.8),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Calcul et affiliation automatique du terrain et de la rotation selon le choix du JAT (3, 4, 5 ou 6 terrains)
+  static String getCourtBadgeForMatch(int matchNumber, int numberOfCourts) {
+    if (numberOfCourts < 1) numberOfCourts = 4;
+    // Tour 1: Matchs 1 à 8
+    if (matchNumber >= 1 && matchNumber <= 8) {
+      int idx = matchNumber - 1;
+      int court = (idx % numberOfCourts) + 1;
+      int rot = (idx ~/ numberOfCourts) + 1;
+      return "T$court · R$rot";
+    }
+    // Tour 2 (Quarts): Matchs 9 à 16
+    final t2Order = [11, 12, 15, 16, 9, 10, 13, 14];
+    int idxT2 = t2Order.indexOf(matchNumber);
+    if (idxT2 != -1) {
+      int t1Rotations = (8 / numberOfCourts).ceil();
+      int court = (idxT2 % numberOfCourts) + 1;
+      int rot = t1Rotations + (idxT2 ~/ numberOfCourts) + 1;
+      return "T$court · R$rot";
+    }
+    // Tour 3 (Demies & Class. 13-16 / 5-8): Matchs 17 à 24
+    final t3Order = [20, 24, 18, 22, 19, 23, 17, 21];
+    int idxT3 = t3Order.indexOf(matchNumber);
+    if (idxT3 != -1) {
+      int t1Rot = (8 / numberOfCourts).ceil();
+      int t2Rot = (8 / numberOfCourts).ceil();
+      int court = (idxT3 % numberOfCourts) + 1;
+      int rot = t1Rot + t2Rot + (idxT3 ~/ numberOfCourts) + 1;
+      return "T$court · R$rot";
+    }
+    // Tour 4 (Finales & Matchs de classement): Matchs 25 à 32
+    final t4Order = [32, 30, 28, 26, 31, 29, 27, 25];
+    int idxT4 = t4Order.indexOf(matchNumber);
+    if (idxT4 != -1) {
+      int t1Rot = (8 / numberOfCourts).ceil();
+      int t2Rot = (8 / numberOfCourts).ceil();
+      int t3Rot = (8 / numberOfCourts).ceil();
+      int court = (idxT4 % numberOfCourts) + 1;
+      int rot = t1Rot + t2Rot + t3Rot + (idxT4 ~/ numberOfCourts) + 1;
+      return "T$court · R$rot";
+    }
+    return "T${((matchNumber - 1) % numberOfCourts) + 1}";
+  }
+
   /// Numérotation officielle des matches du 1er tour selon le standard FFT de Narbonne
   static int _getMatchNumberForIndex(int idx) {
     const mapping = [4, 1, 3, 2, 5, 7, 6, 8];
@@ -1574,13 +1720,14 @@ class TournamentPdfService {
     return idx + 1;
   }
 
-  /// Boîte du 1er Tour (Centre)
+  /// Boîte du 1er Tour (Centre) avec badge terrain et rotation
   static pw.Widget _buildFirstRoundBox({
     required int matchNumber,
     required TournamentPair p1,
     required TournamentPair p2,
     required PdfColor navyColor,
     required PdfColor goldColor,
+    String? courtBadge,
   }) {
     const darkGray = PdfColor.fromInt(0xFF334155);
     return pw.Container(
@@ -1617,15 +1764,30 @@ class TournamentPdfService {
               ],
             ),
           ),
-          // Séparateur MATCH X
+          // Séparateur MATCH X avec badge terrain
           pw.Container(
             color: const PdfColor.fromInt(0xFFF1F5F9),
-            padding: const pw.EdgeInsets.symmetric(vertical: 1),
-            child: pw.Center(
-              child: pw.Text(
-                "MATCH $matchNumber",
-                style: pw.TextStyle(fontSize: 5.5, fontWeight: pw.FontWeight.bold, color: darkGray),
-              ),
+            padding: const pw.EdgeInsets.symmetric(vertical: 1, horizontal: 3),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  "MATCH $matchNumber",
+                  style: pw.TextStyle(fontSize: 5.5, fontWeight: pw.FontWeight.bold, color: darkGray),
+                ),
+                if (courtBadge != null)
+                  pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 2.5, vertical: 0.5),
+                    decoration: pw.BoxDecoration(
+                      color: navyColor,
+                      borderRadius: pw.BorderRadius.circular(2),
+                    ),
+                    child: pw.Text(
+                      courtBadge,
+                      style: pw.TextStyle(fontSize: 5, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+                    ),
+                  ),
+              ],
             ),
           ),
           // Ligne Paire 2
@@ -1658,12 +1820,13 @@ class TournamentPdfService {
     );
   }
 
-  /// Boîte standard de match (Quarts, Demies, Finales, Consolantes) avec lignes pour stylo
+  /// Boîte standard de match (Quarts, Demies, Finales, Consolantes) avec badge terrain et lignes pour stylo
   static pw.Widget _buildMatchBox({
     required String label,
     required PdfColor navyColor,
     required PdfColor goldColor,
     bool isFinal = false,
+    String? courtBadge,
   }) {
     return pw.Container(
       margin: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 2),
@@ -1694,6 +1857,22 @@ class TournamentPdfService {
                     maxLines: 1,
                   ),
                 ),
+                if (courtBadge != null)
+                  pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 2.5, vertical: 0.5),
+                    decoration: pw.BoxDecoration(
+                      color: isFinal ? navyColor : const PdfColor.fromInt(0xFF0F172A),
+                      borderRadius: pw.BorderRadius.circular(2),
+                    ),
+                    child: pw.Text(
+                      courtBadge,
+                      style: pw.TextStyle(
+                        fontSize: 5,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.white,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1731,6 +1910,7 @@ class TournamentPdfService {
     Uint8List? clubLogoBytes,
     String? customRules,
     bool isA3 = false,
+    int numberOfCourts = 4,
   }) async {
     final pdfBytes = await buildButterflyPosterPdfBytes(
       tournament: tournament,
@@ -1738,6 +1918,7 @@ class TournamentPdfService {
       clubLogoBytes: clubLogoBytes,
       customRules: customRules,
       isA3: isA3,
+      numberOfCourts: numberOfCourts,
     );
 
     final cleanCategory = bracket.category.replaceAll('double_', '').toUpperCase();

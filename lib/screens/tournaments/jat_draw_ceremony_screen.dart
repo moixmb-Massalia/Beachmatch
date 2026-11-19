@@ -72,6 +72,7 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
   TournamentPair? _swapSelectedPair;
   Uint8List? _customClubLogoBytes;
   bool _isA3Format = false;
+  int _allocatedCourts = 4;
   final String _customRulesText = "2 sets de 4 jeux · Tie-Break à 4/4 · 3e set = Super Tie-Break (10 pts) · No-Ad";
 
   late AnimationController _pulseController;
@@ -91,6 +92,17 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
             ? widget.initialBracket.pools.expand((p) => p.pairs).toList()
             : <TournamentPair>[]);
     _pairs = List<TournamentPair>.from(initialPairs);
+
+    if (widget.initialBracket.mainMatches.isNotEmpty || widget.initialBracket.pools.isNotEmpty) {
+      _generatedBracket = widget.initialBracket;
+      _drawCompleted = true;
+      _drawTimestamp = widget.initialBracket.updatedAt;
+      _certificateId = DrawCertificationService.generateCertificateId(
+        widget.tournament.id,
+        widget.categoryKey,
+        widget.initialBracket.updatedAt,
+      );
+    }
 
     _pulseController = AnimationController(
       vsync: this,
@@ -432,8 +444,8 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
     });
   }
 
-  /// Sélection d'une équipe par appui long pour échange
-  void _onPairLongPress(TournamentPair pair) {
+  /// Sélection d'une équipe pour échange (appui long ou clic direct)
+  void _selectPairForSwap(TournamentPair pair) {
     if (pair.isBye) return;
     HapticFeedback.heavyImpact();
     setState(() {
@@ -448,7 +460,7 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                "Équipe sélectionnée : ${pair.displayName}. Touchez la 2e équipe pour permuter !",
+                "Équipe sélectionnée : ${pair.displayName}. Touchez une 2e équipe pour permuter !",
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
@@ -460,43 +472,157 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
     );
   }
 
-  /// Clic sur une équipe (si une 1ère équipe est sélectionnée, effectue la permutation)
-  void _onPairTap(TournamentPair targetPair) {
-    if (_swapSelectedPair == null || _swapSelectedPair!.id == targetPair.id) return;
-    _swapTwoPairs(_swapSelectedPair!, targetPair);
+  void _onPairLongPress(TournamentPair pair) {
+    _selectPairForSwap(pair);
   }
 
-  /// Permutation immédiate de deux équipes et recalibrage du tableau
+  /// Clic sur une équipe : sélectionne la 1ère ou permute avec la 2e
+  void _onPairTap(TournamentPair targetPair) {
+    if (targetPair.isBye) return;
+    if (_swapSelectedPair == null) {
+      _selectPairForSwap(targetPair);
+    } else if (_swapSelectedPair!.id == targetPair.id) {
+      // Dé-sélection si on re-clique sur la même équipe
+      setState(() => _swapSelectedPair = null);
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    } else {
+      _swapTwoPairs(_swapSelectedPair!, targetPair);
+    }
+  }
+
+  /// Permutation immédiate et persistante de deux équipes dans le tableau
   void _swapTwoPairs(TournamentPair p1, TournamentPair p2) {
     HapticFeedback.mediumImpact();
     final idx1 = _pairs.indexWhere((p) => p.id == p1.id);
     final idx2 = _pairs.indexWhere((p) => p.id == p2.id);
 
     if (idx1 != -1 && idx2 != -1) {
+      final temp = _pairs[idx1];
+      _pairs[idx1] = _pairs[idx2];
+      _pairs[idx2] = temp;
+    }
+
+    if (_generatedBracket != null) {
+      TournamentBracket updated = _generatedBracket!;
+
+      // 1. Mise à jour des Poules si format poules
+      if (updated.pools.isNotEmpty) {
+        final updatedPools = updated.pools.map((pool) {
+          final updatedPairs = pool.pairs.map((p) {
+            if (p.id == p1.id) return p2;
+            if (p.id == p2.id) return p1;
+            return p;
+          }).toList();
+
+          final updatedMatches = pool.matches.map((m) {
+            TournamentPair? newP1 = m.pair1;
+            TournamentPair? newP2 = m.pair2;
+            bool changed = false;
+            if (m.pair1?.id == p1.id) {
+              newP1 = p2;
+              changed = true;
+            } else if (m.pair1?.id == p2.id) {
+              newP1 = p1;
+              changed = true;
+            }
+            if (m.pair2?.id == p1.id) {
+              newP2 = p2;
+              changed = true;
+            } else if (m.pair2?.id == p2.id) {
+              newP2 = p1;
+              changed = true;
+            }
+            if (changed) {
+              return m.copyWith(
+                pair1: newP1,
+                pair2: newP2,
+                clearScore: true,
+                clearWinner: true,
+                status: 'pending',
+              );
+            }
+            return m;
+          }).toList();
+
+          return pool.copyWith(pairs: updatedPairs, matches: updatedMatches);
+        }).toList();
+
+        updated = updated.copyWith(pools: updatedPools, pairs: _pairs);
+      }
+
+      // 2. Mise à jour du Tableau Élimination (Round 0)
+      if (updated.mainMatches.isNotEmpty) {
+        final updatedMain = updated.mainMatches.map((m) {
+          if (m.roundIndex == 0) {
+            TournamentPair? newP1 = m.pair1;
+            TournamentPair? newP2 = m.pair2;
+            bool changed = false;
+            if (m.pair1?.id == p1.id) {
+              newP1 = p2;
+              changed = true;
+            } else if (m.pair1?.id == p2.id) {
+              newP1 = p1;
+              changed = true;
+            }
+            if (m.pair2?.id == p1.id) {
+              newP2 = p2;
+              changed = true;
+            } else if (m.pair2?.id == p2.id) {
+              newP2 = p1;
+              changed = true;
+            }
+            if (changed) {
+              return m.copyWith(
+                pair1: newP1,
+                pair2: newP2,
+                clearScore: true,
+                clearWinner: true,
+                status: 'pending',
+              );
+            }
+          }
+          return m;
+        }).toList();
+
+        updated = updated.copyWith(mainMatches: updatedMain, pairs: _pairs);
+      }
+
       setState(() {
-        final temp = _pairs[idx1];
-        _pairs[idx1] = _pairs[idx2];
-        _pairs[idx2] = temp;
+        _generatedBracket = updated;
+        _swapSelectedPair = null;
+        _drawCompleted = true;
+      });
+    } else {
+      setState(() {
         _swapSelectedPair = null;
       });
-
-      // Régénérer instantanément le tableau avec les nouvelles positions
-      _startPreDoneDraw();
-
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("✅ Échange validé : ${p1.displayName} ⟷ ${p2.displayName}"),
-          backgroundColor: AppColors.gold,
-          duration: const Duration(seconds: 2),
-        ),
-      );
     }
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("✅ Échange validé : ${p1.displayName} ⟷ ${p2.displayName}"),
+        backgroundColor: AppColors.gold,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   /// Boîte de dialogue de téléchargement & impression du Tableau Papillon (Affichage Club)
   Future<void> _openButterflyPosterDialog() async {
-    if (_generatedBracket == null) return;
+    final bracketToExport = _generatedBracket ??
+        (widget.initialBracket.pairs.isNotEmpty
+            ? widget.initialBracket
+            : widget.initialBracket.copyWith(pairs: _pairs));
+    if (bracketToExport.pairs.isEmpty && _pairs.isEmpty && bracketToExport.mainMatches.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Ajoutez des paires avant d'imprimer le Tableau Papillon."),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
     HapticFeedback.mediumImpact();
 
     showModalBottomSheet(
@@ -582,6 +708,35 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
                   ),
                   const SizedBox(height: 18),
 
+                  // Nombre de terrains alloués (Affiliation automatique)
+                  const Text("Nombre de terrains alloués (Affiliation automatique) :", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      for (int courts in [3, 4, 5, 6]) ...[
+                        Expanded(
+                          child: ChoiceChip(
+                            label: Center(child: Text("$courts T")),
+                            selected: _allocatedCourts == courts,
+                            onSelected: (val) {
+                              setModalState(() => _allocatedCourts = courts);
+                              setState(() => _allocatedCourts = courts);
+                            },
+                            selectedColor: AppColors.gold,
+                            backgroundColor: const Color(0xFF1E293B),
+                            labelStyle: TextStyle(
+                              color: _allocatedCourts == courts ? Colors.black : Colors.white70,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        if (courts != 6) const SizedBox(width: 8),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+
                   // Logo Club
                   const Text("Logo du club organisateur :", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
@@ -650,13 +805,58 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
                     child: ElevatedButton.icon(
                       onPressed: () async {
                         Navigator.pop(ctx);
-                        await TournamentPdfService.generateAndExportButterflyPosterPdf(
-                          tournament: widget.tournament,
-                          bracket: _generatedBracket!,
-                          clubLogoBytes: _customClubLogoBytes,
-                          customRules: _customRulesText,
-                          isA3: _isA3Format,
+                        final scaffoldMessenger = ScaffoldMessenger.of(context);
+                        scaffoldMessenger.showSnackBar(
+                          const SnackBar(
+                            content: Row(
+                              children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                                ),
+                                SizedBox(width: 12),
+                                Text(
+                                  "Génération et téléchargement du Tableau Papillon...",
+                                  style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            backgroundColor: AppColors.gold,
+                            duration: Duration(seconds: 2),
+                          ),
                         );
+                        try {
+                          final targetBracket = _generatedBracket ??
+                              (widget.initialBracket.pairs.isNotEmpty
+                                  ? widget.initialBracket
+                                  : widget.initialBracket.copyWith(pairs: _pairs));
+                          await TournamentPdfService.generateAndExportButterflyPosterPdf(
+                            tournament: widget.tournament,
+                            bracket: targetBracket,
+                            clubLogoBytes: _customClubLogoBytes,
+                            customRules: _customRulesText,
+                            isA3: _isA3Format,
+                            numberOfCourts: _allocatedCourts,
+                          );
+                          if (mounted) {
+                            scaffoldMessenger.showSnackBar(
+                              const SnackBar(
+                                content: Text("✅ Tableau Papillon téléchargé avec succès !"),
+                                backgroundColor: Color(0xFF16A34A),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            scaffoldMessenger.showSnackBar(
+                              SnackBar(
+                                content: Text("Erreur génération PDF : $e"),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                          }
+                        }
                       },
                       icon: const Icon(Icons.download_rounded, color: Colors.black),
                       label: const Text(

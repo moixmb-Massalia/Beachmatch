@@ -1371,6 +1371,59 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                         ),
                         const SizedBox(height: 8),
 
+                        // 🦋 TABLEAU PAPILLON OFFICIEL FFT (A4 / A3 PAYSAGE - AFFICHAGE CLUB)
+                        _buildExportOptionCard(
+                          icon: Icons.print_rounded,
+                          accentColor: const Color(0xFFF59E0B),
+                          title: "Tableau Papillon Officiel (Affichage Club)",
+                          subtitle: "Format central 1er Tour, Consolante à gauche, Principal à droite avec rotation automatique des terrains",
+                          badge: "OFFICIEL AFFICHAGE CLUB",
+                          onTap: () async {
+                            Navigator.pop(ctx);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                                      ),
+                                      SizedBox(width: 12),
+                                      Text("Génération du Tableau Papillon...", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                  backgroundColor: AppColors.gold,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                            try {
+                              await TournamentPdfService.generateAndExportButterflyPosterPdf(
+                                tournament: widget.tournament,
+                                bracket: activeBracket,
+                                numberOfCourts: 4,
+                              );
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("✅ Tableau Papillon téléchargé avec succès !"),
+                                    backgroundColor: Color(0xFF16A34A),
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Erreur Tableau Papillon : $e"), backgroundColor: Colors.redAccent),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 10),
+
                         // DOSSIER OFFICIEL A4 PAYSAGE DYNAMIQUE (TOUS TOURNOIS)
                         _buildExportOptionCard(
                           icon: Icons.picture_as_pdf_rounded,
