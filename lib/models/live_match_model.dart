@@ -45,25 +45,57 @@ class LiveMatchModel {
 
   factory LiveMatchModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
+
+    final team1Name = (data['team1'] ?? 'Paire A').toString();
+    final team2Name = (data['team2'] ?? 'Paire B').toString();
+
+    // Résolution robuste et ultra-tolérante du vainqueur (entier, texte ou nom d'équipe)
+    int? parsedWinner;
+    final rawWinner = data['winner'];
+    if (rawWinner is num) {
+      parsedWinner = rawWinner.toInt();
+    } else if (rawWinner is String && rawWinner.trim().isNotEmpty) {
+      final asInt = int.tryParse(rawWinner.trim());
+      if (asInt != null) {
+        parsedWinner = asInt;
+      } else if (rawWinner.trim() == team1Name.trim()) {
+        parsedWinner = 1;
+      } else if (rawWinner.trim() == team2Name.trim()) {
+        parsedWinner = 2;
+      }
+    }
+
+    int parseNum(dynamic val, [int fallback = 0]) {
+      if (val is num) return val.toInt();
+      if (val is String) return int.tryParse(val) ?? fallback;
+      return fallback;
+    }
+
+    int? parseOptionalNum(dynamic val) {
+      if (val is num) return val.toInt();
+      if (val is String) return int.tryParse(val);
+      return null;
+    }
+
     return LiveMatchModel(
       id: doc.id,
-      tournamentId: data['tournamentId'] ?? '',
-      courtName: data['courtName'] ?? 'Court Central',
-      category: data['category'] ?? 'Double',
-      round: data['round'] ?? 'Match en direct',
-      team1: data['team1'] ?? 'Paire A',
-      team2: data['team2'] ?? 'Paire B',
-      set1Team1: data['set1Team1'] ?? 0,
-      set1Team2: data['set1Team2'] ?? 0,
-      set2Team1: data['set2Team1'] ?? 0,
-      set2Team2: data['set2Team2'] ?? 0,
-      set3Team1: data['set3Team1'],
-      set3Team2: data['set3Team2'],
-      currentSet: data['currentSet'] ?? 1,
-      servingTeam: data['servingTeam'] ?? 1,
-      status: data['status'] ?? 'LIVE',
-      winner: data['winner'],
-      refereeName: data['refereeName'],
+      tournamentId: (data['tournamentId'] ?? '').toString(),
+      courtName: (data['courtName'] ?? 'Court Central').toString(),
+      category: (data['category'] ?? 'Double').toString(),
+      round: (data['round'] ?? 'Match en direct').toString(),
+      team1: team1Name,
+      team2: team2Name,
+      set1Team1: parseNum(data['set1Team1'], 0),
+      set1Team2: parseNum(data['set1Team2'], 0),
+      set2Team1: parseNum(data['set2Team1'], 0),
+      set2Team2: parseNum(data['set2Team2'], 0),
+      set3Team1: parseOptionalNum(data['set3Team1']),
+      set3Team2: parseOptionalNum(data['set3Team2']),
+      currentSet: parseNum(data['currentSet'], 1),
+      servingTeam: parseNum(data['servingTeam'], 1),
+      status: (data['status'] ?? 'LIVE').toString(),
+      winner: parsedWinner,
+      refereeName: data['refereeName']?.toString(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
   }

@@ -1322,7 +1322,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final s1Ctrl = TextEditingController(text: d['set1']?.toString() ?? '');
     final s2Ctrl = TextEditingController(text: d['set2']?.toString() ?? '');
     final s3Ctrl = TextEditingController(text: d['set3']?.toString() ?? '');
-    int winner = (d['winner'] as num?)?.toInt() ?? int.tryParse('${d['winner']}') ?? 0;
+    int winner = 0;
+    final rawWinner = d['winner'];
+    if (rawWinner is num) {
+      winner = rawWinner.toInt();
+    } else if (rawWinner is String && rawWinner.trim().isNotEmpty) {
+      winner = int.tryParse(rawWinner.trim()) ?? (rawWinner.trim() == (d['team1'] ?? '').toString().trim() ? 1 : (rawWinner.trim() == (d['team2'] ?? '').toString().trim() ? 2 : 0));
+    }
 
     showDialog(
       context: context,

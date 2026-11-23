@@ -21,6 +21,8 @@ import '../widgets/link_fft_licence_modal.dart';
 import '../l10n/app_localizations.dart';
 import 'fft_rankings_screen.dart';
 import 'tutorial_screen.dart';
+import '../widgets/beach_racket_card.dart';
+import '../widgets/smart_racket_picker_dialog.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -156,6 +158,12 @@ class ProfileScreen extends StatelessWidget {
                         _buildRadarSection(context, user),
                         const SizedBox(height: 24),
                         _buildPreferences(context),
+                        const SizedBox(height: 24),
+                        BeachRacketCard(
+                          user: user,
+                          isEditable: true,
+                          onEdit: () => SmartRacketPickerDialog.show(context, currentUser: user),
+                        ),
                         const SizedBox(height: 24),
                         _buildLanguageSelector(context),
                         const SizedBox(height: 24),
@@ -1182,7 +1190,8 @@ class ProfileScreen extends StatelessWidget {
             _isBr(context, user) ? "Sua Raquete" : "Raquette de Beach Tennis",
             (user.racket != null && user.racket!.trim().isNotEmpty)
                 ? user.racket!
-                : (_isBr(context, user) ? "Não informada (Toque p/ editar)" : "Non renseignée (Toucher pour ajouter)"),
+                : (_isBr(context, user) ? "Configurar raquete ⚡" : "Configurer ma raquette ⚡"),
+            onTap: () => SmartRacketPickerDialog.show(context, currentUser: user),
           ),
           Divider(color: Colors.white.withValues(alpha: 0.2)),
           _buildListTile(
@@ -1360,9 +1369,30 @@ class ProfileScreen extends StatelessWidget {
                   const SizedBox(height: 18),
 
                   // Raquette de Beach Tennis
-                  Text(
-                    isBr ? "Sua Raquete de Beach Tennis 🎾" : "Votre Raquette de Beach Tennis 🎾",
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        isBr ? "Sua Raquete 🎾" : "Votre Raquette 🎾",
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          backgroundColor: const Color(0xFF00E5FF).withOpacity(0.15),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        icon: const Icon(Icons.auto_awesome, color: Color(0xFF00E5FF), size: 14),
+                        label: Text(
+                          isBr ? "Configurador Inteligente" : "Configurateur Intelligent",
+                          style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          await SmartRacketPickerDialog.show(context, currentUser: user);
+                        },
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -1818,8 +1848,8 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildListTile(IconData icon, String title, String trailing) {
-    return Padding(
+  Widget _buildListTile(IconData icon, String title, String trailing, {VoidCallback? onTap}) {
+    final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
@@ -1827,9 +1857,28 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(width: 16),
           Text(title, style: const TextStyle(fontSize: 15, color: Colors.white70)),
           const Spacer(),
-          Text(trailing, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          Flexible(
+            child: Text(
+              trailing,
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+              textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (onTap != null) ...[
+            const SizedBox(width: 8),
+            const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF00E5FF), size: 14),
+          ],
         ],
       ),
     );
+    if (onTap != null) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: row,
+      );
+    }
+    return row;
   }
 }

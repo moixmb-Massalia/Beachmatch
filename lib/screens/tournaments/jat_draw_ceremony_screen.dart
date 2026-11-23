@@ -507,47 +507,30 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
 
       // 1. Mise à jour des Poules si format poules
       if (updated.pools.isNotEmpty) {
-        final updatedPools = updated.pools.map((pool) {
-          final updatedPairs = pool.pairs.map((p) {
-            if (p.id == p1.id) return p2;
-            if (p.id == p2.id) return p1;
-            return p;
-          }).toList();
+        final poolA = updated.pools.firstWhere((p) => p.id == 'poule_a');
+        final hasPoolB = updated.pools.any((p) => p.id == 'poule_b');
+        final poolB = hasPoolB ? updated.pools.firstWhere((p) => p.id == 'poule_b') : null;
 
-          final updatedMatches = pool.matches.map((m) {
-            TournamentPair? newP1 = m.pair1;
-            TournamentPair? newP2 = m.pair2;
-            bool changed = false;
-            if (m.pair1?.id == p1.id) {
-              newP1 = p2;
-              changed = true;
-            } else if (m.pair1?.id == p2.id) {
-              newP1 = p1;
-              changed = true;
-            }
-            if (m.pair2?.id == p1.id) {
-              newP2 = p2;
-              changed = true;
-            } else if (m.pair2?.id == p2.id) {
-              newP2 = p1;
-              changed = true;
-            }
-            if (changed) {
-              return m.copyWith(
-                pair1: newP1,
-                pair2: newP2,
-                clearScore: true,
-                clearWinner: true,
-                status: 'pending',
-              );
-            }
-            return m;
-          }).toList();
-
-          return pool.copyWith(pairs: updatedPairs, matches: updatedMatches);
+        final newPairsA = poolA.pairs.map((p) {
+          if (p.id == p1.id) return p2;
+          if (p.id == p2.id) return p1;
+          return p;
         }).toList();
 
-        updated = updated.copyWith(pools: updatedPools, pairs: _pairs);
+        final newPairsB = poolB != null
+            ? poolB.pairs.map((p) {
+                if (p.id == p1.id) return p2;
+                if (p.id == p2.id) return p1;
+                return p;
+              }).toList()
+            : <TournamentPair>[];
+
+        updated = BracketGeneratorService.reassignPoolPairs(
+          bracket: updated,
+          pouleAPairs: newPairsA,
+          pouleBPairs: newPairsB,
+          numCourts: _numCourts,
+        );
       }
 
       // 2. Mise à jour du Tableau Élimination (Round 0)
@@ -602,6 +585,88 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text("✅ Échange validé : ${p1.displayName} ⟷ ${p2.displayName}"),
+        backgroundColor: AppColors.gold,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _movePairInPool(TournamentPool pool, int fromIndex, int toIndex) {
+    if (_generatedBracket == null) return;
+    if (toIndex < 0 || toIndex >= pool.pairs.length || fromIndex == toIndex) return;
+    HapticFeedback.lightImpact();
+    final updatedPairs = List<TournamentPair>.from(pool.pairs);
+    final movedPair = updatedPairs.removeAt(fromIndex);
+    updatedPairs.insert(toIndex, movedPair);
+
+    final pools = _generatedBracket!.pools;
+    final newPoolA = pool.id == 'poule_a'
+        ? updatedPairs
+        : (pools.firstWhere((p) => p.id == 'poule_a').pairs);
+    final newPoolB = pool.id == 'poule_b'
+        ? updatedPairs
+        : (pools.any((p) => p.id == 'poule_b') ? pools.firstWhere((p) => p.id == 'poule_b').pairs : <TournamentPair>[]);
+
+    final updated = BracketGeneratorService.reassignPoolPairs(
+      bracket: _generatedBracket!,
+      pouleAPairs: newPoolA,
+      pouleBPairs: newPoolB,
+      numCourts: _numCourts,
+    );
+
+    setState(() {
+      _generatedBracket = updated;
+      _swapSelectedPair = null;
+    });
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Position mise à jour : ${movedPair.displayName} ➔ Position ${toIndex + 1}"),
+        backgroundColor: AppColors.gold,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _transferPairToOtherPool(TournamentPair pair, String targetPoolId) {
+    if (_generatedBracket == null) return;
+    HapticFeedback.mediumImpact();
+    final pools = _generatedBracket!.pools;
+    final poolA = pools.firstWhere((p) => p.id == 'poule_a');
+    final hasPoolB = pools.any((p) => p.id == 'poule_b');
+    if (!hasPoolB) return;
+    final poolB = pools.firstWhere((p) => p.id == 'poule_b');
+
+    final pairsA = List<TournamentPair>.from(poolA.pairs);
+    final pairsB = List<TournamentPair>.from(poolB.pairs);
+
+    if (targetPoolId == 'poule_b') {
+      pairsA.removeWhere((p) => p.id == pair.id);
+      pairsB.add(pair);
+    } else {
+      pairsB.removeWhere((p) => p.id == pair.id);
+      pairsA.add(pair);
+    }
+
+    final updated = BracketGeneratorService.reassignPoolPairs(
+      bracket: _generatedBracket!,
+      pouleAPairs: pairsA,
+      pouleBPairs: pairsB,
+      numCourts: _numCourts,
+    );
+
+    final targetName = targetPoolId == 'poule_b' ? "Poule B" : "Poule A";
+
+    setState(() {
+      _generatedBracket = updated;
+      _swapSelectedPair = null;
+    });
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("✅ ${pair.displayName} déplacée vers $targetName"),
         backgroundColor: AppColors.gold,
         duration: const Duration(seconds: 2),
       ),
@@ -2131,79 +2196,232 @@ class _JatDrawCeremonyScreenState extends State<JatDrawCeremonyScreen> with Sing
 
           // Contenu du tirage (Poules ou 1er Tour)
           if ((_format == 'pools_and_bracket' || _format == 'single_pool') && _generatedBracket!.pools.isNotEmpty) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.touch_app_rounded, color: AppColors.gold, size: 18),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Glissez-déposez une paire (appui long) sur une autre pour permuter, ou utilisez les flèches ⬆️ ⬇️ / transfert pour ajuster sa position exacte.",
+                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             for (final pool in _generatedBracket!.pools) ...[
               Container(
-                margin: const EdgeInsets.only(bottom: 10),
+                margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.grid_3x3_rounded, color: AppColors.gold, size: 14),
+                        const Icon(Icons.grid_3x3_rounded, color: AppColors.gold, size: 16),
                         const SizedBox(width: 6),
                         Text(
-                          pool.name,
-                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                          pool.name.toUpperCase(),
+                          style: const TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 0.8),
+                        ),
+                        const Spacer(),
+                        Text(
+                          "${pool.pairs.length} équipes",
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     for (int i = 0; i < pool.pairs.length; i++) ...[
                       () {
                         final p = pool.pairs[i];
                         final isSelected = _swapSelectedPair?.id == p.id;
-                        return InkWell(
-                          onLongPress: () => _onPairLongPress(p),
-                          onTap: () => _onPairTap(p),
-                          borderRadius: BorderRadius.circular(6),
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(vertical: 2),
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isSelected ? AppColors.gold.withValues(alpha: 0.3) : Colors.transparent,
-                              borderRadius: BorderRadius.circular(6),
-                              border: isSelected ? Border.all(color: AppColors.gold, width: 1.5) : null,
+                        final isPouleA = pool.id == 'poule_a';
+                        final hasTwoPools = _generatedBracket!.pools.length >= 2;
+
+                        Widget rowContent = Container(
+                          margin: const EdgeInsets.symmetric(vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.gold.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.04),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isSelected ? AppColors.gold : Colors.white12,
+                              width: isSelected ? 1.5 : 1.0,
                             ),
-                            child: Row(
-                              children: [
-                                Text("${i + 1}. ", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
-                                Expanded(
-                                  child: Text(
-                                    p.displayName,
-                                    style: TextStyle(
-                                      color: isSelected ? AppColors.gold : Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 22,
+                                height: 22,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: AppColors.gold.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
                                 ),
-                                if (isSelected)
-                                  Container(
-                                    margin: const EdgeInsets.only(right: 6),
-                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                    decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(3)),
-                                    child: const Text("ÉCHANGE", style: TextStyle(color: Colors.black, fontSize: 8, fontWeight: FontWeight.w900)),
-                                  ),
-                                if (p.seed != null)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.gold,
-                                      borderRadius: BorderRadius.circular(4),
+                                child: Text(
+                                  "${i + 1}",
+                                  style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w900),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      p.displayName,
+                                      style: TextStyle(
+                                        color: isSelected ? AppColors.gold : Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
+                                    if (p.seed != null) ...[
+                                      const SizedBox(height: 2),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.gold,
+                                          borderRadius: BorderRadius.circular(3),
+                                        ),
+                                        child: Text(
+                                          "TÊTE DE SÉRIE ${p.seed}",
+                                          style: const TextStyle(color: Colors.black, fontSize: 8, fontWeight: FontWeight.w900),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+
+                              // Boutons réorganisation de position
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (i > 0)
+                                    IconButton(
+                                      icon: const Icon(Icons.arrow_upward_rounded, size: 16, color: Colors.white70),
+                                      tooltip: "Monter à la place ${i}",
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                      onPressed: () => _movePairInPool(pool, i, i - 1),
+                                    ),
+                                  if (i < pool.pairs.length - 1)
+                                    IconButton(
+                                      icon: const Icon(Icons.arrow_downward_rounded, size: 16, color: Colors.white70),
+                                      tooltip: "Descendre à la place ${i + 2}",
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                      onPressed: () => _movePairInPool(pool, i, i + 1),
+                                    ),
+                                  if (hasTwoPools) ...[
+                                    const SizedBox(width: 4),
+                                    InkWell(
+                                      onTap: () => _transferPairToOtherPool(p, isPouleA ? 'poule_b' : 'poule_a'),
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: isPouleA ? AppColors.coral.withValues(alpha: 0.25) : AppColors.gold.withValues(alpha: 0.25),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: isPouleA ? AppColors.coral : AppColors.gold, width: 0.8),
+                                        ),
+                                        child: Text(
+                                          isPouleA ? "➔ Poule B" : "➔ Poule A",
+                                          style: TextStyle(
+                                            color: isPouleA ? AppColors.coral : AppColors.gold,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+
+                        Widget dragTarget = DragTarget<TournamentPair>(
+                          onWillAcceptWithDetails: (details) => details.data.id != p.id,
+                          onAcceptWithDetails: (details) {
+                            _swapTwoPairs(details.data, p);
+                          },
+                          builder: (context, candidateData, rejectedData) {
+                            final isHovered = candidateData.isNotEmpty;
+                            if (isHovered) {
+                              return Container(
+                                decoration: BoxDecoration(
+                                  color: AppColors.gold.withValues(alpha: 0.4),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.gold, width: 2.0),
+                                ),
+                                child: rowContent,
+                              );
+                            }
+                            return rowContent;
+                          },
+                        );
+
+                        return LongPressDraggable<TournamentPair>(
+                          data: p,
+                          delay: const Duration(milliseconds: 200),
+                          onDragStarted: () {
+                            HapticFeedback.heavyImpact();
+                            setState(() => _swapSelectedPair = p);
+                          },
+                          feedback: Material(
+                            color: Colors.transparent,
+                            child: Container(
+                              width: 250,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1E293B),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppColors.gold, width: 2),
+                                boxShadow: const [
+                                  BoxShadow(color: Colors.black54, blurRadius: 10, offset: Offset(0, 4)),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.swap_horiz_rounded, color: AppColors.gold, size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
                                     child: Text(
-                                      "TS ${p.seed}",
-                                      style: const TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.bold),
+                                      p.displayName,
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                              ],
+                                ],
+                              ),
                             ),
+                          ),
+                          childWhenDragging: Opacity(
+                            opacity: 0.3,
+                            child: dragTarget,
+                          ),
+                          child: InkWell(
+                            onTap: () => _onPairTap(p),
+                            child: dragTarget,
                           ),
                         );
                       }(),

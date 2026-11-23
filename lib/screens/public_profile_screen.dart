@@ -9,6 +9,7 @@ import '../providers/app_state.dart';
 import 'chat_detail_screen.dart';
 import 'create_match_screen.dart';
 import 'clubs/club_detail_screen.dart';
+import '../widgets/beach_racket_card.dart';
 
 class PublicProfileScreen extends StatefulWidget {
   final UserModel? player;
@@ -516,6 +517,10 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
+                          if (player.racket != null && player.racket!.isNotEmpty) ...[
+                            BeachRacketCard(user: player, isEditable: false),
+                            const SizedBox(height: 16),
+                          ],
                         ],
 
                         // Detailed Card

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/club.dart';
 import '../../models/tournament.dart';
@@ -33,6 +32,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
   late final TextEditingController _phoneController;
   late final TextEditingController _emailController;
   late final TextEditingController _refereeController;
+  late final TextEditingController _ballsController;
   late String _selectedCategory;
   late List<String> _selectedFormats;
   bool _isLoading = false;
@@ -69,6 +69,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
     _phoneController = TextEditingController(text: t?.contactPhone ?? '');
     _emailController = TextEditingController(text: t?.contactEmail ?? '');
     _refereeController = TextEditingController(text: t?.referee ?? '');
+    _ballsController = TextEditingController(text: t?.balls ?? '');
     _selectedCategory = t != null && _categories.contains(t.category) ? t.category : 'BT 250';
 
     if (t != null && t.formats.isNotEmpty) {
@@ -88,6 +89,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
     _phoneController.dispose();
     _emailController.dispose();
     _refereeController.dispose();
+    _ballsController.dispose();
     super.dispose();
   }
 
@@ -205,6 +207,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
         'contactPhone': _phoneController.text.trim(),
         'contactEmail': _emailController.text.trim(),
         'referee': _refereeController.text.trim(),
+        'balls': _ballsController.text.trim(),
         'latitude': widget.initialTournament?.latitude,
         'longitude': widget.initialTournament?.longitude,
       };
@@ -645,6 +648,34 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        _buildGlassTextField(
+          controller: _ballsController,
+          label: "Balles officielles du tournoi",
+          hint: "Ex: Drop Shot Stage 2, MBT Tour...",
+          icon: Icons.sports_baseball_rounded,
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          children: [
+            'Drop Shot Stage 2',
+            'MBT Tour',
+            'Sandever BTB 900',
+            'Dunlop Stage 2',
+            'Quicksand',
+          ].map((b) => ActionChip(
+            label: Text(b, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+            backgroundColor: Colors.white.withValues(alpha: 0.08),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            padding: EdgeInsets.zero,
+            onPressed: () {
+              setState(() {
+                _ballsController.text = b;
+              });
+            },
+          )).toList(),
+        ),
       ],
     );
   }
@@ -715,7 +746,8 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
           _summaryRow("Club Hôte", widget.club.name),
           _summaryRow("Tableaux ouverts", _selectedFormats.join(' · ')),
           _summaryRow("Dates", _dateController.text.trim()),
-          _summaryRow("Spot / Lieu", _addressController.text.trim()),
+          _summaryRow("Lieu / Spot", _addressController.text.trim()),
+          _summaryRow("Balles officielles", _ballsController.text.trim().isNotEmpty ? _ballsController.text.trim() : 'Balles FFT'),
           _summaryRow("Frais inscription", _priceController.text.trim()),
           _summaryRow("JAT", _refereeController.text.trim().isNotEmpty ? _refereeController.text.trim() : 'Non renseigné'),
           _summaryRow("WhatsApp JAT", _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : 'Non renseigné'),

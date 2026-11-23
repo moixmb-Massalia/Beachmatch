@@ -365,6 +365,9 @@ class TournamentPool {
       if (a.points != b.points) return b.points.compareTo(a.points);
       if (a.diffSets != b.diffSets) return b.diffSets.compareTo(a.diffSets);
       if (a.diffGames != b.diffGames) return b.diffGames.compareTo(a.diffGames);
+      final idxA = pairs.indexWhere((p) => p.id == a.pair.id);
+      final idxB = pairs.indexWhere((p) => p.id == b.pair.id);
+      if (idxA != -1 && idxB != -1 && idxA != idxB) return idxA.compareTo(idxB);
       return a.pair.weight.compareTo(b.pair.weight);
     });
     return list;

@@ -474,90 +474,98 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
     );
   }
 
-  Widget _buildEmbeddedHeader({int? scheduledCount, int? liveCount, int? finishedCount}) {
+  Widget _buildEmbeddedTopBar() {
     final isBr = context.watch<AppState>().currentUser?.isBrazilian == true;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
       color: const Color(0xFF0F172A),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            children: [
-              ScaleTransition(
-                scale: _pulseAnimation,
-                child: Container(
-                  width: 9,
-                  height: 9,
-                  decoration: const BoxDecoration(
+          ScaleTransition(
+            scale: _pulseAnimation,
+            child: Container(
+              width: 9,
+              height: 9,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFF3B30),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
                     color: Color(0xFFFF3B30),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Color(0xFFFF3B30),
-                        blurRadius: 8,
-                        spreadRadius: 2,
-                      ),
-                    ],
+                    blurRadius: 8,
+                    spreadRadius: 2,
                   ),
-                ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                isBr ? "BEACHSCORE PRO" : "BEACHSCORE PRO",
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const Spacer(),
-              // 🎾 BOUTON MARQUEUR DE SCORE INTERACTIF
-              ElevatedButton.icon(
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const QuickScoreboardScreen()),
-                  );
-                },
-                icon: const Icon(Icons.sports_tennis_rounded, size: 14, color: Colors.black),
-                label: Text(
-                  isBr ? "Marcar Jogo" : "Marqueur Score",
-                  style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 11),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.gold,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  elevation: 2,
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                icon: const Icon(Icons.language_rounded, color: Colors.white70, size: 20),
-                tooltip: isBr ? "Portais & Canais Oficiais" : "Portails & Chaînes Officielles",
-                onPressed: () => _showFederationsAndChannelsSheet(context),
-              ),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                icon: const Icon(Icons.refresh_rounded, color: AppColors.gold, size: 20),
-                tooltip: isBr ? "Atualizar" : "Actualiser",
-                onPressed: _triggerRefresh,
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 10),
-          _buildSubTabBar(
+          const SizedBox(width: 8),
+          Text(
+            isBr ? "BEACHSCORE PRO" : "BEACHSCORE PRO",
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const Spacer(),
+          // 🎾 BOUTON MARQUEUR DE SCORE INTERACTIF
+          ElevatedButton.icon(
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const QuickScoreboardScreen()),
+              );
+            },
+            icon: const Icon(Icons.sports_tennis_rounded, size: 14, color: Colors.black),
+            label: Text(
+              isBr ? "Marcar Jogo" : "Marqueur Score",
+              style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 11),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.gold,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 2,
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            icon: const Icon(Icons.language_rounded, color: Colors.white70, size: 20),
+            tooltip: isBr ? "Portais & Canais Oficiais" : "Portails & Chaînes Officielles",
+            onPressed: () => _showFederationsAndChannelsSheet(context),
+          ),
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.gold, size: 20),
+            tooltip: isBr ? "Atualizar" : "Actualiser",
+            onPressed: _triggerRefresh,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmbeddedHeader({int? scheduledCount, int? liveCount, int? finishedCount}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildEmbeddedTopBar(),
+        Container(
+          color: const Color(0xFF0F172A),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: _buildSubTabBar(
             scheduledCount: scheduledCount,
             liveCount: liveCount,
             finishedCount: finishedCount,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -750,8 +758,10 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
             ? tournamentsSnap.data!.docs.map((d) => d.data() as Map<String, dynamic>).toList()
             : <Map<String, dynamic>>[];
         tournaments.sort((a, b) {
-          final ordA = (a['order'] as num?)?.toInt() ?? 99;
-          final ordB = (b['order'] as num?)?.toInt() ?? 99;
+          final rawA = a['order'];
+          final rawB = b['order'];
+          final ordA = rawA is num ? rawA.toInt() : (int.tryParse(rawA?.toString() ?? '') ?? 99);
+          final ordB = rawB is num ? rawB.toInt() : (int.tryParse(rawB?.toString() ?? '') ?? 99);
           return ordA.compareTo(ordB);
         });
 
@@ -830,75 +840,96 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
 
         final isBr = Provider.of<AppState>(context, listen: false).currentUser?.isBrazilian ?? false;
 
-        return Column(
-          children: [
-            if (widget.isEmbedded)
-              _buildEmbeddedHeader(
-                scheduledCount: scheduledMatches.length,
-                liveCount: liveMatches.length,
-                finishedCount: finishedMatches.length,
+        return NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) {
+            return [
+              // 1. En-tête Rétractable : Titre + Marqueur + Recherche & Filtres Catégories
+              // Dès qu'on commence à scroller vers le bas, cette partie remonte tranquillement pour laisser place aux matchs
+              SliverToBoxAdapter(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.isEmbedded) _buildEmbeddedTopBar(),
+                    _buildFilterBar(),
+                  ],
+                ),
               ),
-            _buildFilterBar(),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  // TAB 0 : RÉSULTATS HOMOLOGUÉS AVEC SCORES RÉELS
-                  _buildMatchesList(
-                    matches: finishedMatches,
-                    tourneyMap: tourneyMap,
-                    emptyIcon: Icons.emoji_events_outlined,
-                    emptyTitle: isBr
-                        ? "Nenhum resultado registrado para esta categoria"
-                        : "Aucun résultat pour cette sélection",
-                    emptySubtitle: isBr
-                        ? "Selecione 'Todos' ou faça outra busca !"
-                        : "Sélectionnez 'Tous les Résultats' ou modifiez votre recherche !",
-                    type: 'FINISHED',
-                  ),
-                  // TAB 1 : EN DIRECT (LIVE)
-                  _buildMatchesList(
-                    matches: liveMatches,
-                    tourneyMap: tourneyMap,
-                    emptyIcon: Icons.tv_off_rounded,
-                    emptyTitle: isBr
-                        ? "Nenhum jogo ao vivo no momento"
-                        : "Aucun match en direct actuellement",
-                    emptySubtitle: isBr
-                        ? "Consulte a aba Resultados para os placares homologados !"
-                        : "Consultez l'onglet Résultats pour les scores homologués !",
-                    type: 'LIVE',
-                    actionButton: ElevatedButton.icon(
-                      onPressed: () => _tabController.animateTo(0),
-                      icon: const Icon(Icons.emoji_events_rounded, size: 16),
-                      label: Text(isBr
-                          ? "Ver Resultados Homologados"
-                          : "Voir les Résultats Homologués"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: Colors.black,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
+
+              // 2. Barre d'onglets (Résultats, En direct, Programme) : Épinglée en haut pour navigation instantanée
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _PinnedHeaderDelegate(
+                  height: 52,
+                  child: Container(
+                    color: const Color(0xFF0F172A),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: _buildSubTabBar(
+                      scheduledCount: scheduledMatches.length,
+                      liveCount: liveMatches.length,
+                      finishedCount: finishedMatches.length,
                     ),
                   ),
-                  // TAB 2 : PROGRAMME (SCHEDULED)
-                  _buildMatchesList(
-                    matches: scheduledMatches,
-                    tourneyMap: tourneyMap,
-                    emptyIcon: Icons.calendar_today_rounded,
-                    emptyTitle: isBr
-                        ? "Nenhum jogo programado para estes filtros"
-                        : "Aucun match à venir pour ces critères",
-                    emptySubtitle: isBr
-                        ? "Altere a categoria ou busque por outro torneio !"
-                        : "Modifiez votre recherche ou sélectionnez une autre catégorie !",
-                    type: 'SCHEDULED',
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ];
+          },
+          body: TabBarView(
+            controller: _tabController,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              // TAB 0 : RÉSULTATS HOMOLOGUÉS AVEC SCORES RÉELS
+              _buildMatchesList(
+                matches: finishedMatches,
+                tourneyMap: tourneyMap,
+                emptyIcon: Icons.emoji_events_outlined,
+                emptyTitle: isBr
+                    ? "Nenhum resultado registrado para esta categoria"
+                    : "Aucun résultat pour cette sélection",
+                emptySubtitle: isBr
+                    ? "Selecione 'Todos' ou faça outra busca !"
+                    : "Sélectionnez 'Tous les Résultats' ou modifiez votre recherche !",
+                type: 'FINISHED',
+              ),
+              // TAB 1 : EN DIRECT (LIVE)
+              _buildMatchesList(
+                matches: liveMatches,
+                tourneyMap: tourneyMap,
+                emptyIcon: Icons.tv_off_rounded,
+                emptyTitle: isBr
+                    ? "Nenhum jogo ao vivo no momento"
+                    : "Aucun match en direct actuellement",
+                emptySubtitle: isBr
+                    ? "Consulte a aba Resultados para os placares homologados !"
+                    : "Consultez l'onglet Résultats pour les scores homologués !",
+                type: 'LIVE',
+                actionButton: ElevatedButton.icon(
+                  onPressed: () => _tabController.animateTo(0),
+                  icon: const Icon(Icons.emoji_events_rounded, size: 16),
+                  label: Text(isBr
+                      ? "Ver Resultados Homologados"
+                      : "Voir les Résultats Homologués"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.gold,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              // TAB 2 : PROGRAMME (SCHEDULED)
+              _buildMatchesList(
+                matches: scheduledMatches,
+                tourneyMap: tourneyMap,
+                emptyIcon: Icons.calendar_today_rounded,
+                emptyTitle: isBr
+                    ? "Nenhum jogo programado para estes filtros"
+                    : "Aucun match à venir pour ces critères",
+                emptySubtitle: isBr
+                    ? "Altere a categoria ou busque por outro torneio !"
+                    : "Modifiez votre recherche ou sélectionnez une autre catégorie !",
+                type: 'SCHEDULED',
+              ),
+            ],
+          ),
         );
       },
     );
@@ -1048,9 +1079,9 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
             ),
           ),
           ...sources.map((s) {
-            final label = s['label'] as String;
-            final url = s['url'] as String;
-            final color = s['color'] as Color;
+            final label = s['label']?.toString() ?? '';
+            final url = s['url']?.toString() ?? '';
+            final color = s['color'] is Color ? (s['color'] as Color) : AppColors.gold;
             return Padding(
               padding: const EdgeInsets.only(right: 6),
               child: InkWell(
@@ -1093,9 +1124,10 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
     Widget? actionButton,
   }) {
     if (matches.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
+      return SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(32.0),
+        child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1158,7 +1190,22 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
 
     final team1 = (m['team1']?.toString()) ?? 'Paire A';
     final team2 = (m['team2']?.toString()) ?? 'Paire B';
-    final rawWinner = (m['winner'] as num?)?.toInt() ?? int.tryParse(m['winner']?.toString() ?? '');
+    
+    // Résolution ultra-robuste du vainqueur (gère un chiffre 1/2, du texte ou le nom de l'équipe)
+    int? rawWinner;
+    final winnerObj = m['winner'];
+    if (winnerObj is num) {
+      rawWinner = winnerObj.toInt();
+    } else if (winnerObj is String && winnerObj.trim().isNotEmpty) {
+      final parsed = int.tryParse(winnerObj.trim());
+      if (parsed != null) {
+        rawWinner = parsed;
+      } else if (winnerObj.trim() == team1.trim()) {
+        rawWinner = 1;
+      } else if (winnerObj.trim() == team2.trim()) {
+        rawWinner = 2;
+      }
+    }
 
     final set1 = m['set1']?.toString();
     final set2 = m['set2']?.toString();
@@ -1829,4 +1876,27 @@ class _BeachScoreHubScreenState extends State<BeachScoreHubScreen> with TickerPr
       ),
     );
   }
+}
+
+class _PinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  final double height;
+  _PinnedHeaderDelegate({required this.child, this.height = 52});
+
+  @override
+  double get minExtent => height;
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return SizedBox(
+      height: height,
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _PinnedHeaderDelegate oldDelegate) =>
+      oldDelegate.child != child || oldDelegate.height != height;
 }

@@ -10,6 +10,7 @@ import '../theme/colors.dart';
 import '../providers/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/smart_city_autocomplete_field.dart';
+import '../widgets/smart_racket_picker_dialog.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({super.key});
@@ -730,9 +731,38 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                           const SizedBox(height: 18),
 
                           // Raquette de Beach Tennis
-                          Text(
-                            isBr ? "Sua Raquete de Beach Tennis 🎾" : "Votre Raquette de Beach Tennis 🎾",
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                isBr ? "Sua Raquete 🎾" : "Votre Raquette 🎾",
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
+                              TextButton.icon(
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  backgroundColor: const Color(0xFF00E5FF).withOpacity(0.15),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                icon: const Icon(Icons.auto_awesome, color: Color(0xFF00E5FF), size: 14),
+                                label: Text(
+                                  isBr ? "Configurador Inteligente" : "Configurateur Intelligent",
+                                  style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                                onPressed: () async {
+                                  final appState = context.read<AppState>();
+                                  final user = appState.currentUser;
+                                  await SmartRacketPickerDialog.show(context, currentUser: user);
+                                  if (!mounted) return;
+                                  final updated = appState.currentUser;
+                                  if (updated?.racket != null) {
+                                    setState(() {
+                                      _racketController.text = updated!.racket!;
+                                    });
+                                  }
+                                },
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 8),
                           TextFormField(

@@ -36,10 +36,12 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   bool _isAuthorized = false;
   bool _isCheckingAuth = true;
   int _selectedTabIndex = 0;
+  String? _currentBalls;
 
   @override
   void initState() {
     super.initState();
+    _currentBalls = widget.tournament.balls;
     _checkAuthorization();
   }
 
@@ -149,6 +151,157 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
       builder: (ctx) => CourtSchedulePresetsDialog(
         tournament: widget.tournament,
         isAuthorized: _isAuthorized,
+      ),
+    );
+  }
+
+  void _showEditBallsDialog() {
+    final controller = TextEditingController(text: _currentBalls ?? "");
+    final presets = ["Drop Shot Stage 2", "MBT Tour", "Sandever BTB 900", "Dunlop Stage 2", "Quicksand"];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 24,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(CupertinoIcons.circle_grid_hex, color: Color(0xFF00E5FF), size: 22),
+                        SizedBox(width: 10),
+                        Text(
+                          "Balles officielles",
+                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(CupertinoIcons.xmark_circle_fill, color: Colors.white54),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Sélectionnez ou saisissez les balles utilisées pour la compétition :",
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: presets.map((preset) {
+                    final isSelected = controller.text.trim().toLowerCase() == preset.toLowerCase();
+                    return ChoiceChip(
+                      label: Text(
+                        preset,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : Colors.white70,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 12,
+                        ),
+                      ),
+                      selected: isSelected,
+                      selectedColor: const Color(0xFF00E5FF).withValues(alpha: 0.3),
+                      backgroundColor: Colors.white.withValues(alpha: 0.05),
+                      side: BorderSide(
+                        color: isSelected ? const Color(0xFF00E5FF) : Colors.white24,
+                      ),
+                      onSelected: (val) {
+                        setModalState(() {
+                          controller.text = preset;
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: "Modèle de balle",
+                    labelStyle: const TextStyle(color: Colors.white60),
+                    hintText: "Ex: MBT Tour, Sandever BTB 900...",
+                    hintStyle: const TextStyle(color: Colors.white30),
+                    prefixIcon: const Icon(CupertinoIcons.sportscourt, color: Color(0xFF00E5FF), size: 20),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.06),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Colors.white12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00E5FF),
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    onPressed: () async {
+                      final newBalls = controller.text.trim();
+                      Navigator.pop(ctx);
+                      try {
+                        await FirebaseFirestore.instance
+                            .collection('tournaments')
+                            .doc(widget.tournament.id)
+                            .update({'balls': newBalls});
+                        if (mounted) {
+                          setState(() {
+                            _currentBalls = newBalls;
+                          });
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Balles officielles mises à jour avec succès !"),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text("Erreur lors de la mise à jour: $e"),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    child: const Text("Enregistrer", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -956,10 +1109,24 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                 _buildInfoRow(CupertinoIcons.time, AppLocalizations.of(context).tournamentDetailEvents, widget.tournament.scheduleDetails!),
                 const Divider(color: Colors.white12, height: 24),
               ],
-              if (widget.tournament.balls != null) ...[
-                _buildInfoRow(CupertinoIcons.circle_grid_hex, AppLocalizations.of(context).tournamentDetailBalls, widget.tournament.balls!),
-                const Divider(color: Colors.white12, height: 24),
-              ],
+              _buildInfoRow(
+                CupertinoIcons.circle_grid_hex,
+                AppLocalizations.of(context).tournamentDetailBalls,
+                (_currentBalls != null && _currentBalls!.isNotEmpty)
+                    ? _currentBalls!
+                    : (_isAuthorized ? "Non renseigné (Toucher pour définir)" : "Non renseigné"),
+                trailing: _isAuthorized
+                    ? IconButton(
+                        icon: const Icon(CupertinoIcons.pencil_circle_fill, color: Color(0xFF00E5FF), size: 24),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: _showEditBallsDialog,
+                        tooltip: "Modifier les balles",
+                      )
+                    : null,
+                onTap: _isAuthorized ? _showEditBallsDialog : null,
+              ),
+              const Divider(color: Colors.white12, height: 24),
               _buildInfoRow(
                 CupertinoIcons.money_euro_circle,
                 AppLocalizations.of(context).tournamentDetailPrice,
@@ -2138,8 +2305,8 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String title, String value) {
-    return Row(
+  Widget _buildInfoRow(IconData icon, String title, String value, {Widget? trailing, VoidCallback? onTap}) {
+    final rowContent = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, color: Colors.white70, size: 20),
@@ -2160,8 +2327,24 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
             ],
           ),
         ),
+        if (trailing != null) ...[
+          const SizedBox(width: 8),
+          trailing,
+        ],
       ],
     );
+
+    if (onTap != null) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: rowContent,
+        ),
+      );
+    }
+    return rowContent;
   }
 
   // 🆘 =========================================================================

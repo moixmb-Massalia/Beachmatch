@@ -7,6 +7,20 @@ import '../models/tournament_bracket_model.dart';
 import 'bracket_generator_service.dart';
 import 'web_file_downloader.dart';
 
+class PdfPairRanking {
+  final int rank;
+  final TournamentPair pair;
+  final String stage;
+  final String? score;
+
+  const PdfPairRanking({
+    required this.rank,
+    required this.pair,
+    required this.stage,
+    this.score,
+  });
+}
+
 class TournamentPdfService {
   /// Exporte ou télécharge le document PDF de manière fiable sur Web et Mobile
   static Future<void> exportOrDownloadPdf({
@@ -41,6 +55,452 @@ class TournamentPdfService {
     }
   }
 
+  /// Label complet officiel pour une épreuve
+  static String getCategoryFullLabel(String category) {
+    final cat = category.toLowerCase();
+    if (cat.contains('dame') || cat == 'dd') return "DOUBLE DAMES (DD)";
+    if (cat.contains('messieur') || cat == 'dh') return "DOUBLE MESSIEURS (DH)";
+    if (cat.contains('mixte') || cat == 'dx') return "DOUBLE MIXTE (DX)";
+    return category.toUpperCase();
+  }
+
+  /// Résout de façon sûre la paire gagnante d'un match (que winnerId ou pair1/pair2 soit utilisé)
+  static TournamentPair? _resolveWinner(BracketMatch? m) {
+    if (m == null) return null;
+    if (m.winner != null) return m.winner;
+    if (m.winnerId != null && m.winnerId!.isNotEmpty) {
+      if (m.pair1 != null && m.pair1!.id == m.winnerId) return m.pair1;
+      if (m.pair2 != null && m.pair2!.id == m.winnerId) return m.pair2;
+    }
+    return null;
+  }
+
+  /// Résout de façon sûre la paire perdante d'un match
+  static TournamentPair? _resolveLoser(BracketMatch? m) {
+    if (m == null) return null;
+    if (m.loser != null) return m.loser;
+    final w = _resolveWinner(m);
+    if (w != null) {
+      if (m.pair1 != null && m.pair1!.id == w.id) return m.pair2;
+      if (m.pair2 != null && m.pair2!.id == w.id) return m.pair1;
+    }
+    return null;
+  }
+
+  /// 🏆 Calcule le classement complet et sans doublon de toutes les paires engagées
+  static List<PdfPairRanking> computeCompleteRankings(TournamentBracket bracket) {
+    final List<PdfPairRanking> rankings = [];
+    final Set<String> placedIds = {'pair_bye', 'bye', 'exempt'};
+
+    // CAS 1 : POULE UNIQUE
+    if (bracket.pools.length == 1) {
+      final pool = bracket.pools.first;
+      final standings = pool.calculateStandings();
+      for (int i = 0; i < standings.length; i++) {
+        final st = standings[i];
+        if (placedIds.contains(st.pair.id)) continue;
+        placedIds.add(st.pair.id);
+
+        String stage;
+        if (i == 0) {
+          stage = "1ère Place (Vainqueur)";
+        } else if (i == 1) {
+          stage = "2ème Place (Finaliste)";
+        } else if (i == 2) {
+          stage = "3ème Place";
+        } else {
+          stage = "${i + 1}ème Place";
+        }
+
+        final scoreDesc = st.played > 0
+            ? "${st.won}V - ${st.lost}D (${st.points} pts, ${st.diffGames >= 0 ? '+' : ''}${st.diffGames})"
+            : "À jouer";
+        rankings.add(PdfPairRanking(
+          rank: i + 1,
+          pair: st.pair,
+          stage: stage,
+          score: scoreDesc,
+        ));
+      }
+    } else {
+      // CAS 2 : POULES MULTIPLES OU ARBRE ÉLIMINATION DIRECTE
+      BracketMatch? finalMatch;
+      BracketMatch? p34Match;
+      BracketMatch? p56Match;
+      BracketMatch? p78Match;
+      BracketMatch? p910Match;
+      BracketMatch? p1112Match;
+      BracketMatch? p1314Match;
+      final List<BracketMatch> semiMatches = [];
+
+      for (final m in bracket.mainMatches) {
+        final code = m.matchCode ?? '';
+        final id = m.id.toLowerCase();
+        final name = m.roundName.toLowerCase();
+        if (code == 'FINALE' || id == 'final_fin' || (name.contains('finale') && !name.contains('demi') && !name.contains('1/4') && !name.contains('1/8') && !name.contains('consolante') && !name.contains('3') && !name.contains('5') && !name.contains('7'))) {
+          finalMatch = m;
+        } else if (code == 'PLACE_3_4' || id == 'final_p34' || name.contains('place 3') || name.contains('3/4') || name.contains('3e') || name.contains('petite finale')) {
+          p34Match = m;
+        } else if (code == 'PLACE_5_6' || id == 'final_p56' || name.contains('place 5') || name.contains('5/6') || name.contains('5e')) {
+          p56Match = m;
+        } else if (code == 'PLACE_7_8' || id == 'final_p78' || name.contains('place 7') || name.contains('7/8') || name.contains('7e')) {
+          p78Match = m;
+        } else if (code.startsWith('DF') || id.contains('df') || name.contains('demi') || name.contains('1/2')) {
+          semiMatches.add(m);
+        }
+      }
+
+      for (final m in bracket.consolationMatches) {
+        final code = m.matchCode ?? '';
+        final id = m.id.toLowerCase();
+        final name = m.roundName.toLowerCase();
+        if (code == 'PLACE_9_10' || id == 'conso_2_0' || id == 'final_p910' || (name.contains('finale') && !name.contains('demi') && !name.contains('quart') && !name.contains('1/4') && !name.contains('1/8') && !name.contains('11') && !name.contains('13'))) {
+          p910Match = m;
+        } else if (code == 'PLACE_11_12' || id == 'conso_place_11_12' || id == 'final_p1112' || name.contains('11 & 12') || name.contains('11/12') || name.contains('11e')) {
+          p1112Match = m;
+        } else if (code == 'PLACE_13_14' || id == 'conso_place_13_14' || id == 'final_p1314' || name.contains('13 & 14') || name.contains('13/14') || name.contains('13e')) {
+          p1314Match = m;
+        }
+      }
+
+      // 1. FINALE (1er et 2e)
+      TournamentPair? wFin = _resolveWinner(finalMatch);
+      TournamentPair? lFin = _resolveLoser(finalMatch);
+      final finScore = finalMatch?.score?.trim();
+      if (wFin == null && finalMatch != null && (finalMatch.isCompleted || (finScore != null && finScore.isNotEmpty))) {
+        wFin = finalMatch.pair1;
+        lFin = finalMatch.pair2;
+      }
+      if (wFin != null) {
+        placedIds.add(wFin.id);
+        rankings.add(PdfPairRanking(
+          rank: 1,
+          pair: wFin,
+          stage: "Vainqueur (Champion)",
+          score: (finScore != null && finScore.isNotEmpty)
+              ? "Finale : $finScore"
+              : "Champion",
+        ));
+        if (lFin != null) {
+          placedIds.add(lFin.id);
+          rankings.add(PdfPairRanking(
+            rank: 2,
+            pair: lFin,
+            stage: "Finaliste",
+            score: (finScore != null && finScore.isNotEmpty)
+                ? "Finale : $finScore"
+                : "Finaliste",
+          ));
+        }
+      } else if (finalMatch != null) {
+        if (finalMatch.pair1 != null && !placedIds.contains(finalMatch.pair1!.id)) {
+          placedIds.add(finalMatch.pair1!.id);
+          rankings.add(PdfPairRanking(
+            rank: 1,
+            pair: finalMatch.pair1!,
+            stage: "Qualifié Finale",
+            score: "Finale à disputer",
+          ));
+        }
+        if (finalMatch.pair2 != null && !placedIds.contains(finalMatch.pair2!.id)) {
+          placedIds.add(finalMatch.pair2!.id);
+          rankings.add(PdfPairRanking(
+            rank: 2,
+            pair: finalMatch.pair2!,
+            stage: "Qualifié Finale",
+            score: "Finale à disputer",
+          ));
+        }
+      }
+
+      // 2. PETITE FINALE (3e et 4e)
+      TournamentPair? w34 = _resolveWinner(p34Match);
+      TournamentPair? l34 = _resolveLoser(p34Match);
+      final p34Score = p34Match?.score?.trim();
+      if (w34 == null && p34Match != null && (p34Match.isCompleted || (p34Score != null && p34Score.isNotEmpty))) {
+        w34 = p34Match.pair1;
+        l34 = p34Match.pair2;
+      }
+      if (w34 != null && !placedIds.contains(w34.id)) {
+        placedIds.add(w34.id);
+        rankings.add(PdfPairRanking(
+          rank: rankings.length + 1,
+          pair: w34,
+          stage: "3ème Place (Podium)",
+          score: (p34Score != null && p34Score.isNotEmpty)
+              ? "Petite Finale : $p34Score"
+              : "3e Place",
+        ));
+      }
+      if (l34 != null && !placedIds.contains(l34.id)) {
+        placedIds.add(l34.id);
+        rankings.add(PdfPairRanking(
+          rank: rankings.length + 1,
+          pair: l34,
+          stage: "4ème Place",
+          score: (p34Score != null && p34Score.isNotEmpty)
+              ? "Petite Finale : $p34Score"
+              : "4e Place",
+        ));
+      }
+
+      // Si pas de match 3/4 : regarder les perdants des demi-finales
+      if (p34Match == null || (w34 == null && l34 == null)) {
+        for (final sm in semiMatches) {
+          final sLoser = _resolveLoser(sm) ?? (sm.winner != null && sm.pair1 != null && sm.pair2 != null ? (sm.pair1!.id == sm.winner!.id ? sm.pair2 : sm.pair1) : null);
+          if (sLoser != null && !placedIds.contains(sLoser.id)) {
+            placedIds.add(sLoser.id);
+            rankings.add(PdfPairRanking(
+              rank: rankings.length + 1,
+              pair: sLoser,
+              stage: "1/2 Finaliste",
+              score: (sm.score != null && sm.score!.trim().isNotEmpty)
+                  ? "1/2 Finale : ${sm.score!.trim()}"
+                  : "Demi-finale",
+            ));
+          }
+        }
+      }
+
+      // 3. PLACES 5 & 6
+      TournamentPair? w56 = _resolveWinner(p56Match);
+      TournamentPair? l56 = _resolveLoser(p56Match);
+      final p56Score = p56Match?.score?.trim();
+      if (w56 == null && p56Match != null && (p56Match.isCompleted || (p56Score != null && p56Score.isNotEmpty))) {
+        w56 = p56Match.pair1;
+        l56 = p56Match.pair2;
+      }
+      if (w56 != null && !placedIds.contains(w56.id)) {
+        placedIds.add(w56.id);
+        rankings.add(PdfPairRanking(
+          rank: rankings.length + 1,
+          pair: w56,
+          stage: "5ème Place",
+          score: (p56Score != null && p56Score.isNotEmpty)
+              ? "Match 5/6 : $p56Score"
+              : "5e Place",
+        ));
+      }
+      if (l56 != null && !placedIds.contains(l56.id)) {
+        placedIds.add(l56.id);
+        rankings.add(PdfPairRanking(
+          rank: rankings.length + 1,
+          pair: l56,
+          stage: "6ème Place",
+          score: (p56Score != null && p56Score.isNotEmpty)
+              ? "Match 5/6 : $p56Score"
+              : "6e Place",
+        ));
+      }
+
+      // 4. PLACES 7 & 8
+      TournamentPair? w78 = _resolveWinner(p78Match);
+      TournamentPair? l78 = _resolveLoser(p78Match);
+      final p78Score = p78Match?.score?.trim();
+      if (w78 == null && p78Match != null && (p78Match.isCompleted || (p78Score != null && p78Score.isNotEmpty))) {
+        w78 = p78Match.pair1;
+        l78 = p78Match.pair2;
+      }
+      if (w78 != null && !placedIds.contains(w78.id)) {
+        placedIds.add(w78.id);
+        rankings.add(PdfPairRanking(
+          rank: rankings.length + 1,
+          pair: w78,
+          stage: "7ème Place",
+          score: (p78Score != null && p78Score.isNotEmpty)
+              ? "Match 7/8 : $p78Score"
+              : "7e Place",
+        ));
+      }
+      if (l78 != null && !placedIds.contains(l78.id)) {
+        placedIds.add(l78.id);
+        rankings.add(PdfPairRanking(
+          rank: rankings.length + 1,
+          pair: l78,
+          stage: "8ème Place",
+          score: (p78Score != null && p78Score.isNotEmpty)
+              ? "Match 7/8 : $p78Score"
+              : "8e Place",
+        ));
+      }
+
+      // 5. RESTANT DES POULES (si poules)
+      if (bracket.pools.isNotEmpty) {
+        final remainingPoolPairs = <({TournamentPair pair, String poolName, int poolRank, int points, int diffGames})>[];
+        for (final pool in bracket.pools) {
+          final standings = pool.calculateStandings();
+          for (int i = 0; i < standings.length; i++) {
+            final st = standings[i];
+            if (!placedIds.contains(st.pair.id)) {
+              remainingPoolPairs.add((
+                pair: st.pair,
+                poolName: pool.name,
+                poolRank: i + 1,
+                points: st.points,
+                diffGames: st.diffGames,
+              ));
+            }
+          }
+        }
+        remainingPoolPairs.sort((a, b) {
+          if (a.poolRank != b.poolRank) return a.poolRank.compareTo(b.poolRank);
+          if (a.points != b.points) return b.points.compareTo(a.points);
+          return b.diffGames.compareTo(a.diffGames);
+        });
+
+        for (final item in remainingPoolPairs) {
+          if (!placedIds.contains(item.pair.id)) {
+            placedIds.add(item.pair.id);
+            rankings.add(PdfPairRanking(
+              rank: rankings.length + 1,
+              pair: item.pair,
+              stage: "${item.poolName} (${item.poolRank}e)",
+              score: "${item.points} pts (${item.diffGames >= 0 ? '+' : ''}${item.diffGames})",
+            ));
+          }
+        }
+      }
+
+      // 5. PLACES 9 & 10 (Finale Consolante)
+      TournamentPair? w910 = _resolveWinner(p910Match);
+      TournamentPair? l910 = _resolveLoser(p910Match);
+      final p910Score = p910Match?.score?.trim();
+      if (w910 == null && p910Match != null && (p910Match.isCompleted || (p910Score != null && p910Score.isNotEmpty))) {
+        w910 = p910Match.pair1;
+        l910 = p910Match.pair2;
+      }
+      if (w910 != null && !placedIds.contains(w910.id)) {
+        placedIds.add(w910.id);
+        rankings.add(PdfPairRanking(
+          rank: rankings.length + 1,
+          pair: w910,
+          stage: "9ème Place (Vainqueur Consolante)",
+          score: (p910Score != null && p910Score.isNotEmpty) ? "Finale Conso : $p910Score" : "9e Place",
+        ));
+      }
+      if (l910 != null && !placedIds.contains(l910.id)) {
+        placedIds.add(l910.id);
+        rankings.add(PdfPairRanking(
+          rank: rankings.length + 1,
+          pair: l910,
+          stage: "10ème Place (Finaliste Consolante)",
+          score: (p910Score != null && p910Score.isNotEmpty) ? "Finale Conso : $p910Score" : "10e Place",
+        ));
+      }
+
+      // 6. PLACES 11 & 12
+      TournamentPair? w1112 = _resolveWinner(p1112Match);
+      TournamentPair? l1112 = _resolveLoser(p1112Match);
+      final p1112Score = p1112Match?.score?.trim();
+      if (w1112 == null && p1112Match != null && (p1112Match.isCompleted || (p1112Score != null && p1112Score.isNotEmpty))) {
+        w1112 = p1112Match.pair1;
+        l1112 = p1112Match.pair2;
+      }
+      if (w1112 != null && !placedIds.contains(w1112.id)) {
+        placedIds.add(w1112.id);
+        rankings.add(PdfPairRanking(
+          rank: rankings.length + 1,
+          pair: w1112,
+          stage: "11ème Place",
+          score: (p1112Score != null && p1112Score.isNotEmpty) ? "Match 11/12 : $p1112Score" : "11e Place",
+        ));
+      }
+      if (l1112 != null && !placedIds.contains(l1112.id)) {
+        placedIds.add(l1112.id);
+        rankings.add(PdfPairRanking(
+          rank: rankings.length + 1,
+          pair: l1112,
+          stage: "12ème Place",
+          score: (p1112Score != null && p1112Score.isNotEmpty) ? "Match 11/12 : $p1112Score" : "12e Place",
+        ));
+      }
+
+      // 7. PLACES 13 & 14
+      TournamentPair? w1314 = _resolveWinner(p1314Match);
+      TournamentPair? l1314 = _resolveLoser(p1314Match);
+      final p1314Score = p1314Match?.score?.trim();
+      if (w1314 == null && p1314Match != null && (p1314Match.isCompleted || (p1314Score != null && p1314Score.isNotEmpty))) {
+        w1314 = p1314Match.pair1;
+        l1314 = p1314Match.pair2;
+      }
+      if (w1314 != null && !placedIds.contains(w1314.id)) {
+        placedIds.add(w1314.id);
+        rankings.add(PdfPairRanking(
+          rank: rankings.length + 1,
+          pair: w1314,
+          stage: "13ème Place",
+          score: (p1314Score != null && p1314Score.isNotEmpty) ? "Match 13/14 : $p1314Score" : "13e Place",
+        ));
+      }
+      if (l1314 != null && !placedIds.contains(l1314.id)) {
+        placedIds.add(l1314.id);
+        rankings.add(PdfPairRanking(
+          rank: rankings.length + 1,
+          pair: l1314,
+          stage: "14ème Place",
+          score: (p1314Score != null && p1314Score.isNotEmpty) ? "Match 13/14 : $p1314Score" : "14e Place",
+        ));
+      }
+
+      // 8. AUTRES MATCHES DE CONSOLANTE (exclusion stricte des BYE / EXEMPT)
+      for (final cm in bracket.consolationMatches) {
+        final cw = _resolveWinner(cm);
+        final cl = _resolveLoser(cm);
+        if (cw != null && !cw.isBye && cw.id != 'pair_bye' && !placedIds.contains(cw.id)) {
+          placedIds.add(cw.id);
+          rankings.add(PdfPairRanking(
+            rank: rankings.length + 1,
+            pair: cw,
+            stage: "Consolante (${cm.roundName})",
+            score: cm.score ?? "NC",
+          ));
+        }
+        if (cl != null && !cl.isBye && cl.id != 'pair_bye' && !placedIds.contains(cl.id)) {
+          placedIds.add(cl.id);
+          rankings.add(PdfPairRanking(
+            rank: rankings.length + 1,
+            pair: cl,
+            stage: "Consolante",
+            score: cm.score ?? "NC",
+          ));
+        }
+      }
+    }
+
+    // 7. FILET DE SÉCURITÉ : toute paire inscrite non encore classée (exclusion stricte des BYE)
+    for (final p in bracket.pairs) {
+      if (!placedIds.contains(p.id) && !p.isBye && p.id != 'pair_bye') {
+        placedIds.add(p.id);
+        rankings.add(PdfPairRanking(
+          rank: rankings.length + 1,
+          pair: p,
+          stage: "Tour préliminaire",
+          score: "-",
+        ));
+      }
+    }
+
+    // Nettoyage absolu : exclure toute éventuelle entrée BYE / EXEMPT
+    final cleanRankings = rankings.where((r) {
+      if (r.pair.isBye || r.pair.id == 'pair_bye') return false;
+      final name = r.pair.displayName.toUpperCase();
+      if (name.contains('BYE') || name.contains('EXEMPT')) return false;
+      return true;
+    }).toList();
+
+    // Ré-indexation séquentielle stricte de 1 à N (exactement 14 équipes réelles)
+    for (int i = 0; i < cleanRankings.length; i++) {
+      cleanRankings[i] = PdfPairRanking(
+        rank: i + 1,
+        pair: cleanRankings[i].pair,
+        stage: cleanRankings[i].stage,
+        score: cleanRankings[i].score,
+      );
+    }
+
+    return cleanRankings;
+  }
+
   /// Génère et ouvre la boîte de dialogue d'impression / export PDF officiel FFT
   static Future<void> generateAndExportPdf({
     required TournamentModel tournament,
@@ -48,52 +508,40 @@ class TournamentPdfService {
   }) async {
     final pdf = pw.Document();
 
-    final isPoolFormat = bracket.format == 'pools_and_bracket';
-    final categoryLabel = bracket.category == 'double_messieurs' || bracket.category == 'DH'
-        ? 'DH'
-        : (bracket.category == 'double_dames' || bracket.category == 'DD' ? 'DD' : 'DX');
+    final categoryLabel = getCategoryFullLabel(bracket.category);
+    final shortCategory = _getCategoryLabel(bracket.category);
+    final rankings = computeCompleteRankings(bracket);
 
-    // Couleurs officielles
+    // Couleurs officielles prestigieuses
     const navyColor = PdfColor.fromInt(0xFF0F172A);
     const goldColor = PdfColor.fromInt(0xFFB8860B);
     const darkGray = PdfColor.fromInt(0xFF334155);
-    const lightGray = PdfColor.fromInt(0xFFF1F5F9);
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(28),
-        header: (context) => _buildHeader(tournament, categoryLabel, navyColor, goldColor),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+        header: (context) => _buildOfficialHeader(tournament, categoryLabel, shortCategory, navyColor, goldColor),
         footer: (context) => _buildFooter(context, darkGray),
         build: (context) => [
-          pw.SizedBox(height: 12),
+          pw.SizedBox(height: 6),
 
-          // 1. Synthèse Palmarès Officiel si matches finis
-          _buildPodiumSummary(bracket, navyColor, goldColor),
-          pw.SizedBox(height: 14),
+          // 1. Classement Officiel Unifié du 1er au dernier (1er en grand prestige or, 2e argent, 3e bronze, 4e à Ne continu)
+          _buildUnifiedRankingsSection(rankings, navyColor, goldColor),
+          pw.SizedBox(height: 10),
 
-          // 2. Si Poules : Tableaux des Poules A & B
-          if (isPoolFormat) ...[
-            for (final pool in bracket.pools) ...[
-              _buildPoolSection(pool, navyColor, lightGray),
-              pw.SizedBox(height: 12),
-            ],
-            // Phase finale
-            _buildFinalPhaseSection(bracket, navyColor, lightGray),
-          ] else ...[
-            // Élimination directe
-            _buildEliminationSection(bracket, navyColor, lightGray),
-          ],
+          // 2. Récapitulatif officiel exhaustif avec TOUS les scores des phases finales et des poules
+          _buildCleanScoresRecap(bracket, navyColor, darkGray),
+          pw.SizedBox(height: 10),
 
-          pw.SizedBox(height: 18),
-          // 3. Cadre d'homologation JAT
-          _buildJatSignatureBox(navyColor, darkGray),
+          // 3. Cadre d'homologation officielle et visa JAT
+          _buildJatSignatureBox(navyColor, darkGray, tournament: tournament, categoryLabel: categoryLabel),
         ],
       ),
     );
 
     final bytes = await pdf.save();
-    final filename = 'FFT_Resultats_${tournament.id}_${bracket.category}.pdf';
+    final filename = 'FFT_Resultats_${tournament.id}_$shortCategory.pdf';
     await exportOrDownloadPdf(bytes: bytes, filename: filename);
   }
 
@@ -104,43 +552,33 @@ class TournamentPdfService {
   }) async {
     final pdf = pw.Document();
 
-    final isPoolFormat = bracket.format == 'pools_and_bracket';
-    final categoryLabel = bracket.category == 'double_messieurs' || bracket.category == 'DH'
-        ? 'DH'
-        : (bracket.category == 'double_dames' || bracket.category == 'DD' ? 'DD' : 'DX');
+    final categoryLabel = getCategoryFullLabel(bracket.category);
+    final shortCategory = _getCategoryLabel(bracket.category);
+    final rankings = computeCompleteRankings(bracket);
 
     const navyColor = PdfColor.fromInt(0xFF0F172A);
     const goldColor = PdfColor.fromInt(0xFFB8860B);
     const darkGray = PdfColor.fromInt(0xFF334155);
-    const lightGray = PdfColor.fromInt(0xFFF1F5F9);
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4.landscape,
-        margin: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-        header: (context) => _buildHeader(tournament, "$categoryLabel (Homologation Paysage)", navyColor, goldColor),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+        header: (context) => _buildOfficialHeader(tournament, "$categoryLabel (Homologation Paysage)", shortCategory, navyColor, goldColor),
         footer: (context) => _buildFooter(context, darkGray),
         build: (context) => [
+          pw.SizedBox(height: 6),
+          _buildUnifiedRankingsSection(rankings, navyColor, goldColor),
           pw.SizedBox(height: 8),
-          _buildPodiumSummary(bracket, navyColor, goldColor),
-          pw.SizedBox(height: 12),
-          if (isPoolFormat) ...[
-            for (final pool in bracket.pools) ...[
-              _buildPoolSection(pool, navyColor, lightGray),
-              pw.SizedBox(height: 10),
-            ],
-            _buildFinalPhaseSection(bracket, navyColor, lightGray),
-          ] else ...[
-            _buildEliminationSection(bracket, navyColor, lightGray),
-          ],
-          pw.SizedBox(height: 14),
-          _buildJatSignatureBox(navyColor, darkGray),
+          _buildCleanScoresRecap(bracket, navyColor, darkGray),
+          pw.SizedBox(height: 8),
+          _buildJatSignatureBox(navyColor, darkGray, tournament: tournament, categoryLabel: categoryLabel),
         ],
       ),
     );
 
     final bytes = await pdf.save();
-    final filename = 'FFT_Dossier_Paysage_${tournament.id}_${bracket.category}.pdf';
+    final filename = 'FFT_Dossier_Paysage_${tournament.id}_$shortCategory.pdf';
     await exportOrDownloadPdf(bytes: bytes, filename: filename);
   }
 
@@ -342,7 +780,7 @@ class TournamentPdfService {
 
       buf.writeln("\n⚔️ PHASE FINALE :");
       for (final m in bracket.mainMatches) {
-        final scoreStr = m.isCompleted ? (m.score ?? 'Terminé') : 'À venir';
+        final scoreStr = m.isCompleted ? (m.score ?? 'NC') : 'À venir';
         if (m.isCompleted && m.winner != null) {
           buf.writeln("• ${m.roundName} : ${m.winner!.displayName} bat ${m.loser?.displayName ?? 'Adversaire'} ($scoreStr)");
         } else {
@@ -352,7 +790,7 @@ class TournamentPdfService {
     } else {
       buf.writeln("⚔️ TABLEAU PRINCIPAL :");
       for (final m in bracket.mainMatches) {
-        final scoreStr = m.isCompleted ? (m.score ?? 'Terminé') : (m.isBye ? 'BYE' : 'À venir');
+        final scoreStr = m.isCompleted ? (m.score ?? 'NC') : (m.isBye ? 'BYE' : 'À venir');
         if (m.isCompleted && m.winner != null) {
           buf.writeln("• ${m.roundName} : ${m.winner!.displayName} bat ${m.loser?.displayName ?? 'Adversaire'} ($scoreStr)");
         } else {
@@ -362,7 +800,7 @@ class TournamentPdfService {
       if (bracket.consolationMatches.isNotEmpty) {
         buf.writeln("\n🛡️ TABLEAU DE CONSOLANTE :");
         for (final m in bracket.consolationMatches) {
-          final scoreStr = m.isCompleted ? (m.score ?? 'Terminé') : 'À venir';
+          final scoreStr = m.isCompleted ? (m.score ?? 'NC') : 'À venir';
           if (m.isCompleted && m.winner != null) {
             buf.writeln("• ${m.roundName} : ${m.winner!.displayName} bat ${m.loser?.displayName ?? 'Adversaire'} ($scoreStr)");
           } else {
@@ -380,16 +818,17 @@ class TournamentPdfService {
     return buf.toString();
   }
 
-  static pw.Widget _buildHeader(
+  static pw.Widget _buildOfficialHeader(
     TournamentModel tournament,
-    String categoryLabel,
+    String fullCategoryLabel,
+    String shortCategory,
     PdfColor navyColor,
     PdfColor goldColor,
   ) {
     return pw.Container(
-      padding: const pw.EdgeInsets.only(bottom: 10),
+      padding: const pw.EdgeInsets.only(bottom: 8),
       decoration: const pw.BoxDecoration(
-        border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey400, width: 1.5)),
+        border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 1.5)),
       ),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -398,54 +837,123 @@ class TournamentPdfService {
           pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text(
-                "FÉDÉRATION FRANÇAISE DE TENNIS",
-                style: pw.TextStyle(
-                  fontSize: 10,
-                  fontWeight: pw.FontWeight.bold,
-                  color: darkGrayPdf,
-                ),
+              pw.Row(
+                children: [
+                  pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: pw.BoxDecoration(
+                      color: navyColor,
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+                    ),
+                    child: pw.Text(
+                      "FFT · BEACH TENNIS",
+                      style: pw.TextStyle(
+                        fontSize: 7.5,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  pw.SizedBox(width: 8),
+                  pw.Text(
+                    "FÉDÉRATION FRANÇAISE DE TENNIS",
+                    style: pw.TextStyle(
+                      fontSize: 8.5,
+                      fontWeight: pw.FontWeight.bold,
+                      color: darkGrayPdf,
+                    ),
+                  ),
+                ],
               ),
+              pw.SizedBox(height: 4),
               pw.Text(
-                "FEUILLE OFFICIELLE DE RÉSULTATS · BEACH TENNIS",
+                "FEUILLE OFFICIELLE DE CLASSEMENT",
                 style: pw.TextStyle(
-                  fontSize: 14,
+                  fontSize: 15,
                   fontWeight: pw.FontWeight.bold,
                   color: navyColor,
+                  letterSpacing: 0.5,
                 ),
               ),
-              pw.SizedBox(height: 3),
-              pw.Text(
-                "${tournament.name} · Épreuve : $categoryLabel",
-                style: pw.TextStyle(
-                  fontSize: 11,
-                  fontWeight: pw.FontWeight.bold,
-                  color: goldColor,
-                ),
+              pw.SizedBox(height: 2),
+              pw.Row(
+                children: [
+                  pw.Text(
+                    "ÉPREUVE : ",
+                    style: const pw.TextStyle(fontSize: 9.5, color: PdfColors.grey700),
+                  ),
+                  pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                    decoration: pw.BoxDecoration(
+                      color: const PdfColor.fromInt(0xFFFEF3C7),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+                      border: pw.Border.all(color: goldColor, width: 0.8),
+                    ),
+                    child: pw.Text(
+                      fullCategoryLabel,
+                      style: pw.TextStyle(
+                        fontSize: 9,
+                        fontWeight: pw.FontWeight.bold,
+                        color: const PdfColor.fromInt(0xFF92400E),
+                      ),
+                    ),
+                  ),
+                  pw.SizedBox(width: 8),
+                  pw.Text(
+                    "· ${cleanText(tournament.name)}",
+                    style: pw.TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: pw.FontWeight.bold,
+                      color: navyColor,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
           pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
-              pw.Text(
-                "Homologation : ${tournament.id}",
-                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: pw.BoxDecoration(
+                  color: const PdfColor.fromInt(0xFFF1F5F9),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                  border: pw.Border.all(color: PdfColors.grey300),
+                ),
+                child: pw.Text(
+                  "Homologation : ${cleanText(tournament.id)}",
+                  style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: navyColor),
+                ),
               ),
+              pw.SizedBox(height: 3),
               pw.Text(
-                "Lieu : ${tournament.location.isNotEmpty ? tournament.location : tournament.club}",
-                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+                "Club : ${cleanText(tournament.club)}",
+                style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
               ),
+              if (tournament.location.isNotEmpty && tournament.location != tournament.club)
+                pw.Text(
+                  "Lieu : ${cleanText(tournament.location)}",
+                  style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600),
+                ),
               pw.Text(
-                "Date : ${tournament.dateString}",
-                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+                "Dates : ${cleanText(tournament.dateString)}",
+                style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
               ),
+              if (tournament.referee?.isNotEmpty == true)
+                pw.Text(
+                  "JAT : ${cleanText(tournament.referee!)}",
+                  style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: navyColor),
+                ),
             ],
           ),
         ],
       ),
     );
   }
+
+
 
   static const darkGrayPdf = PdfColor.fromInt(0xFF475569);
 
@@ -469,41 +977,6 @@ class TournamentPdfService {
           ),
         ],
       ),
-    );
-  }
-
-  static pw.Widget _buildPodiumSummary(
-    TournamentBracket bracket,
-    PdfColor navyColor,
-    PdfColor goldColor,
-  ) {
-    final (winner, runnerUp, third) = resolvePalmares(bracket);
-
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(10),
-      decoration: pw.BoxDecoration(
-        color: const PdfColor.fromInt(0xFFF8FAFC),
-        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
-        border: pw.Border.all(color: PdfColors.grey300),
-      ),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-        children: [
-          _buildPodiumItem("1er (Vainqueurs)", winner?.displayName ?? "En cours...", goldColor, true),
-          _buildPodiumItem("2e (Finalistes)", runnerUp?.displayName ?? "En cours...", navyColor, false),
-          _buildPodiumItem("3e Place", third?.displayName ?? "En cours...", darkGrayPdf, false),
-        ],
-      ),
-    );
-  }
-
-  static pw.Widget _buildPodiumItem(String label, String names, PdfColor color, bool isBold) {
-    return pw.Column(
-      children: [
-        pw.Text(cleanText(label), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: color)),
-        pw.SizedBox(height: 2),
-        pw.Text(cleanText(names), style: pw.TextStyle(fontSize: 10, fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal)),
-      ],
     );
   }
 
@@ -744,33 +1217,844 @@ class TournamentPdfService {
     );
   }
 
-  static pw.Widget _buildJatSignatureBox(PdfColor navyColor, PdfColor darkGray) {
+  /// 🏆 Classement unifié et continu du tournoi (de la 1ère place à la dernière place)
+  /// avec 1er mis en grand prestige (Or), 2e (Argent), 3e (Bronze) et 4e à Ne continu
+  static pw.Widget _buildUnifiedRankingsSection(
+    List<PdfPairRanking> rankings,
+    PdfColor navyColor,
+    PdfColor goldColor,
+  ) {
+    if (rankings.isEmpty) {
+      return pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: pw.BoxDecoration(
+          color: const PdfColor.fromInt(0xFFF8FAFC),
+          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+          border: pw.Border.all(color: PdfColors.grey300, width: 0.8),
+        ),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text("CLASSEMENT DU TOURNOI :", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: navyColor)),
+            pw.Text("Classement en attente de la saisie des résultats", style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600)),
+          ],
+        ),
+      );
+    }
+
+    final first = rankings[0];
+    final second = rankings.length > 1 ? rankings[1] : null;
+    final third = rankings.length > 2 ? rankings[2] : null;
+    final others = rankings.length > 3 ? rankings.sublist(3) : <PdfPairRanking>[];
+
+    final firstName = "${first.pair.displayName}${first.pair.seed != null && first.pair.seed! > 0 ? ' [TS${first.pair.seed}]' : ''}";
+    final secondName = second != null ? "${second.pair.displayName}${second.pair.seed != null && second.pair.seed! > 0 ? ' [TS${second.pair.seed}]' : ''}" : "";
+    final thirdName = third != null ? "${third.pair.displayName}${third.pair.seed != null && third.pair.seed! > 0 ? ' [TS${third.pair.seed}]' : ''}" : "";
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        // En-tête de section principal
+        pw.Container(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: pw.BoxDecoration(
+            color: navyColor,
+            borderRadius: const pw.BorderRadius.vertical(top: pw.Radius.circular(4)),
+          ),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                "CLASSEMENT OFFICIEL DU TOURNOI (DU 1ER AU ${rankings.length}E)",
+                style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.white, letterSpacing: 0.5),
+              ),
+              pw.Text(
+                "${rankings.length} paires engagées · Homologation FFT",
+                style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFFFDE68A)),
+              ),
+            ],
+          ),
+        ),
+
+        // 🥇 1ER EN GROS PRESTIGE OR (Hero grand format)
+        pw.Container(
+          width: double.infinity,
+          padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: pw.BoxDecoration(
+            color: const PdfColor.fromInt(0xFFFEF9C3),
+            border: pw.Border.all(color: const PdfColor.fromInt(0xFFD97706), width: 1.6),
+          ),
+          child: pw.Row(
+            children: [
+              // Grand Badge Or
+              pw.Container(
+                width: 44,
+                height: 40,
+                decoration: const pw.BoxDecoration(
+                  color: PdfColor.fromInt(0xFFB45309),
+                  borderRadius: pw.BorderRadius.all(pw.Radius.circular(6)),
+                ),
+                child: pw.Center(
+                  child: pw.Column(
+                    mainAxisAlignment: pw.MainAxisAlignment.center,
+                    children: [
+                      pw.Text("1er", style: pw.TextStyle(color: PdfColors.white, fontSize: 13, fontWeight: pw.FontWeight.bold)),
+                      pw.Text("OR", style: pw.TextStyle(color: const PdfColor.fromInt(0xFFFEF08A), fontSize: 6.5, fontWeight: pw.FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
+              pw.SizedBox(width: 10),
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Row(
+                      children: [
+                        pw.Container(
+                          padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                          decoration: const pw.BoxDecoration(
+                            color: PdfColor.fromInt(0xFFD97706),
+                            borderRadius: pw.BorderRadius.all(pw.Radius.circular(3)),
+                          ),
+                          child: pw.Text(
+                            "CHAMPIONS / VAINQUEURS DU TOURNOI",
+                            style: pw.TextStyle(color: PdfColors.white, fontSize: 6.5, fontWeight: pw.FontWeight.bold, letterSpacing: 0.5),
+                          ),
+                        ),
+                        pw.SizedBox(width: 6),
+                        pw.Text(
+                          cleanText(first.stage),
+                          style: const pw.TextStyle(fontSize: 7, color: PdfColor.fromInt(0xFF92400E)),
+                        ),
+                      ],
+                    ),
+                    pw.SizedBox(height: 3),
+                    pw.Text(
+                      cleanText(firstName),
+                      maxLines: 1,
+                      style: pw.TextStyle(fontSize: 11.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF78350F)),
+                    ),
+                  ],
+                ),
+              ),
+              if (first.score != null && first.score!.isNotEmpty)
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: pw.BoxDecoration(
+                    color: const PdfColor.fromInt(0xFFFEF08A),
+                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                    border: pw.Border.all(color: const PdfColor.fromInt(0xFFD97706), width: 0.8),
+                  ),
+                  child: pw.Text(
+                    cleanText(first.score!),
+                    style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF92400E)),
+                  ),
+                ),
+            ],
+          ),
+        ),
+
+        // 🥈 2E (ARGENT) & 🥉 3E (BRONZE) CÔTE À CÔTE
+        if (second != null)
+          pw.Container(
+            decoration: const pw.BoxDecoration(
+              border: pw.Border(
+                left: pw.BorderSide(color: PdfColors.grey300, width: 0.8),
+                right: pw.BorderSide(color: PdfColors.grey300, width: 0.8),
+                bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.8),
+              ),
+            ),
+            child: pw.Row(
+              children: [
+                // 2e Place (Argent)
+                pw.Expanded(
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    color: const PdfColor.fromInt(0xFFF8FAFC),
+                    child: pw.Row(
+                      children: [
+                        pw.Container(
+                          width: 32,
+                          height: 30,
+                          decoration: const pw.BoxDecoration(
+                            color: PdfColor.fromInt(0xFF64748B),
+                            borderRadius: pw.BorderRadius.all(pw.Radius.circular(4)),
+                          ),
+                          child: pw.Center(
+                            child: pw.Column(
+                              mainAxisAlignment: pw.MainAxisAlignment.center,
+                              children: [
+                                pw.Text("2e", style: pw.TextStyle(color: PdfColors.white, fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                                pw.Text("ARGENT", style: pw.TextStyle(color: const PdfColor.fromInt(0xFFE2E8F0), fontSize: 5, fontWeight: pw.FontWeight.bold)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        pw.SizedBox(width: 8),
+                        pw.Expanded(
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text("FINALISTE", style: pw.TextStyle(color: const PdfColor.fromInt(0xFF64748B), fontSize: 6.5, fontWeight: pw.FontWeight.bold)),
+                              pw.Text(cleanText(secondName), maxLines: 1, style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF1E293B))),
+                              if (second.score != null && second.score!.isNotEmpty)
+                                pw.Text(cleanText(second.score!), maxLines: 1, style: const pw.TextStyle(fontSize: 6.5, color: PdfColor.fromInt(0xFF64748B))),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Séparateur vertical si 3e existe
+                if (third != null) ...[
+                  pw.Container(width: 1, height: 42, color: PdfColors.grey300),
+                  // 3e Place (Bronze)
+                  pw.Expanded(
+                    child: pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      color: const PdfColor.fromInt(0xFFFFEDD5),
+                      child: pw.Row(
+                        children: [
+                          pw.Container(
+                            width: 32,
+                            height: 30,
+                            decoration: const pw.BoxDecoration(
+                              color: PdfColor.fromInt(0xFFC2410C),
+                              borderRadius: pw.BorderRadius.all(pw.Radius.circular(4)),
+                            ),
+                            child: pw.Center(
+                              child: pw.Column(
+                                mainAxisAlignment: pw.MainAxisAlignment.center,
+                                children: [
+                                  pw.Text("3e", style: pw.TextStyle(color: PdfColors.white, fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                                  pw.Text("BRONZE", style: pw.TextStyle(color: const PdfColor.fromInt(0xFFFED7AA), fontSize: 5, fontWeight: pw.FontWeight.bold)),
+                                ],
+                              ),
+                            ),
+                          ),
+                          pw.SizedBox(width: 8),
+                          pw.Expanded(
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: [
+                                pw.Text("3e PLACE (PODIUM)", style: pw.TextStyle(color: const PdfColor.fromInt(0xFFC2410C), fontSize: 6.5, fontWeight: pw.FontWeight.bold)),
+                                pw.Text(cleanText(thirdName), maxLines: 1, style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF7C2D12))),
+                                if (third.score != null && third.score!.isNotEmpty)
+                                  pw.Text(cleanText(third.score!), maxLines: 1, style: const pw.TextStyle(fontSize: 6.5, color: PdfColor.fromInt(0xFFC2410C))),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+        // 4E À DERNIÈRE ÉQUIPE (DANS LA CONTINUITÉ DE LA MÊME LISTE)
+        if (others.isNotEmpty)
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+            columnWidths: const {
+              0: pw.FixedColumnWidth(36),
+              1: pw.FlexColumnWidth(6),
+              2: pw.FlexColumnWidth(3.5),
+              3: pw.FlexColumnWidth(3),
+            },
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFE2E8F0)),
+                children: [
+                  _thTable("RANG"),
+                  _thTable("ÉQUIPE (PAIRE)", alignLeft: true),
+                  _thTable("PARCOURS / STADE"),
+                  _thTable("SCORE / BILAN"),
+                ],
+              ),
+              for (int i = 0; i < others.length; i++) ...[
+                () {
+                  final r = others[i];
+                  final rowBg = (i % 2 == 0) ? PdfColors.white : const PdfColor.fromInt(0xFFF8FAFC);
+                  final pair = r.pair;
+                  final seed = pair.seed != null && pair.seed! > 0 ? " [TS${pair.seed}]" : "";
+                  final names = "${pair.player1Name} / ${pair.player2Name}$seed";
+
+                  return pw.TableRow(
+                    decoration: pw.BoxDecoration(color: rowBg),
+                    children: [
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 3.5, horizontal: 2),
+                        alignment: pw.Alignment.center,
+                        child: pw.Container(
+                          width: 22,
+                          height: 15,
+                          decoration: const pw.BoxDecoration(
+                            color: PdfColor.fromInt(0xFF94A3B8),
+                            borderRadius: pw.BorderRadius.all(pw.Radius.circular(3)),
+                          ),
+                          child: pw.Center(
+                            child: pw.Text(
+                              "${r.rank}e",
+                              style: pw.TextStyle(color: PdfColors.white, fontSize: 7, fontWeight: pw.FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 3.5, horizontal: 6),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              cleanText(names),
+                              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF0F172A)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 3.5, horizontal: 4),
+                        child: pw.Text(
+                          cleanText(r.stage),
+                          textAlign: pw.TextAlign.center,
+                          style: const pw.TextStyle(fontSize: 7.5, color: PdfColor.fromInt(0xFF334155)),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 3.5, horizontal: 4),
+                        child: pw.Text(
+                          cleanText(r.score ?? "-"),
+                          textAlign: pw.TextAlign.center,
+                          style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF0F172A)),
+                        ),
+                      ),
+                    ],
+                  );
+                }(),
+              ],
+            ],
+          ),
+      ],
+    );
+  }
+
+  static pw.Widget _thTable(String text, {bool alignLeft = false}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+      child: pw.Text(
+        cleanText(text),
+        textAlign: alignLeft ? pw.TextAlign.left : pw.TextAlign.center,
+        style: pw.TextStyle(
+          fontSize: 7.5,
+          fontWeight: pw.FontWeight.bold,
+          color: const PdfColor.fromInt(0xFF1E293B),
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  /// 🎾 Récapitulatif exhaustif et complet de tous les matches du tournoi
+  /// incluant impérativement tous les scores des phases finales et des poules
+  static pw.Widget _buildCleanScoresRecap(
+    TournamentBracket bracket,
+    PdfColor navyColor,
+    PdfColor darkGray,
+  ) {
+    // 1. EXTRACTION ET TRI DES MATCHES DE PHASE FINALE
+    final List<({
+      String tour,
+      String winnerName,
+      String loserName,
+      String score,
+      bool isFinal,
+      bool isP34,
+      PdfColor rowBg,
+      PdfColor scoreBg,
+      PdfColor scoreBorder,
+      PdfColor scoreTextColor,
+    })> finalMatchesList = [];
+
+    // Priorité de tri : Finale (1), Petite Finale (2), DF1 (3), DF2 (4), autres DF (5), Places 5-6 (6), Places 7-8 (7), QF (8), autres (10)
+    int getPhasePriority(BracketMatch m) {
+      final code = m.matchCode ?? '';
+      final id = m.id.toLowerCase();
+      final name = m.roundName.toLowerCase();
+      if (code == 'FINALE' || id == 'final_fin' || (name.contains('finale') && !name.contains('demi') && !name.contains('1/4') && !name.contains('1/8') && !name.contains('consolante') && !name.contains('3') && !name.contains('5') && !name.contains('7'))) return 1;
+      if (code == 'PLACE_3_4' || id == 'final_p34' || name.contains('place 3') || name.contains('3/4') || name.contains('petite finale')) return 2;
+      if (code == 'DF1' || id == 'final_df1') return 3;
+      if (code == 'DF2' || id == 'final_df2') return 4;
+      if (code.startsWith('DF') || name.contains('demi')) return 5;
+      if (code == 'PLACE_5_6' || id == 'final_p56' || name.contains('5/6') || name.contains('place 5')) return 6;
+      if (code == 'PLACE_7_8' || id == 'final_p78' || name.contains('7/8') || name.contains('place 7')) return 7;
+      if (code.startsWith('QF') || name.contains('quart') || name.contains('1/4')) return 8;
+      return 10;
+    }
+
+    final sortedMainMatches = List<BracketMatch>.from(bracket.mainMatches)
+      ..sort((a, b) => getPhasePriority(a).compareTo(getPhasePriority(b)));
+
+    for (final m in sortedMainMatches) {
+      final code = m.matchCode ?? '';
+      final id = m.id.toLowerCase();
+      final name = m.roundName.toLowerCase();
+      final isFin = code == 'FINALE' || id == 'final_fin' || (name.contains('finale') && !name.contains('demi') && !name.contains('1/4') && !name.contains('3') && !name.contains('5') && !name.contains('7'));
+      final isP34 = code == 'PLACE_3_4' || id == 'final_p34' || name.contains('place 3') || name.contains('3/4') || name.contains('petite finale');
+
+      String tourLabel = m.roundName;
+      if (isFin) {
+        tourLabel = "GRANDE FINALE (Places 1 & 2)";
+      } else if (isP34) {
+        tourLabel = "PETITE FINALE (Places 3 & 4)";
+      } else if (code == 'DF1' || id == 'final_df1') {
+        tourLabel = "DEMI-FINALE 1 (1A vs 2B)";
+      } else if (code == 'DF2' || id == 'final_df2') {
+        tourLabel = "DEMI-FINALE 2 (1B vs 2A)";
+      } else if (code == 'PLACE_5_6' || id == 'final_p56') {
+        tourLabel = "MATCH PLACES 5 & 6";
+      } else if (code == 'PLACE_7_8' || id == 'final_p78') {
+        tourLabel = "MATCH PLACES 7 & 8";
+      }
+
+      final w = _resolveWinner(m);
+      final l = _resolveLoser(m);
+
+      String wName;
+      String lName;
+      if (w != null) {
+        wName = w.displayName;
+        lName = (l != null ? l.displayName : (m.pair1?.id == w.id ? m.pair2?.displayName : m.pair1?.displayName)) ?? "Adversaire";
+      } else {
+        wName = m.pair1?.displayName ?? "Paire 1";
+        lName = m.pair2?.displayName ?? "Paire 2";
+      }
+
+      final sc = (m.score != null && m.score!.trim().isNotEmpty && m.score!.trim() != 'Terminé')
+          ? m.score!.trim()
+          : (m.isCompleted ? "NC" : "À disputer");
+
+      final rowBg = isFin
+          ? const PdfColor.fromInt(0xFFFEF9C3)
+          : (isP34
+              ? const PdfColor.fromInt(0xFFFFEDD5)
+              : (code.startsWith('DF') || id.contains('df') ? const PdfColor.fromInt(0xFFF1F5F9) : const PdfColor.fromInt(0xFFFFFFFF)));
+
+      final scoreBg = isFin
+          ? const PdfColor.fromInt(0xFFFEF08A)
+          : (isP34
+              ? const PdfColor.fromInt(0xFFFED7AA)
+              : const PdfColor.fromInt(0xFFE2E8F0));
+
+      final scoreBorder = isFin
+          ? const PdfColor.fromInt(0xFFD97706)
+          : (isP34
+              ? const PdfColor.fromInt(0xFFEA580C)
+              : const PdfColor.fromInt(0xFFCBD5E1));
+
+      final scoreTextColor = isFin
+          ? const PdfColor.fromInt(0xFF92400E)
+          : (isP34
+              ? const PdfColor.fromInt(0xFFC2410C)
+              : const PdfColor.fromInt(0xFF0F172A));
+
+      finalMatchesList.add((
+        tour: tourLabel,
+        winnerName: wName,
+        loserName: lName,
+        score: sc,
+        isFinal: isFin,
+        isP34: isP34,
+        rowBg: rowBg,
+        scoreBg: scoreBg,
+        scoreBorder: scoreBorder,
+        scoreTextColor: scoreTextColor,
+      ));
+    }
+
+    // 2. EXTRACTION DES MATCHES DE POULES
+    final List<({String tour, String winnerName, String loserName, String score})> poolMatchesList = [];
+    for (final pool in bracket.pools) {
+      for (final m in pool.matches) {
+        final w = _resolveWinner(m);
+        final l = _resolveLoser(m);
+        String wName;
+        String lName;
+        if (w != null) {
+          wName = w.displayName;
+          lName = (l != null ? l.displayName : (m.pair1?.id == w.id ? m.pair2?.displayName : m.pair1?.displayName)) ?? "Adversaire";
+        } else {
+          wName = m.pair1?.displayName ?? "Paire 1";
+          lName = m.pair2?.displayName ?? "Paire 2";
+        }
+        final sc = (m.score != null && m.score!.trim().isNotEmpty && m.score!.trim() != 'Terminé')
+            ? m.score!.trim()
+            : (m.isCompleted ? "NC" : "À jouer");
+
+        poolMatchesList.add((
+          tour: "${pool.name} · ${m.roundName}",
+          winnerName: wName,
+          loserName: lName,
+          score: sc,
+        ));
+      }
+    }
+
+    // 3. EXTRACTION DE LA CONSOLANTE
+    final List<({String tour, String winnerName, String loserName, String score})> consoMatchesList = [];
+    for (final m in bracket.consolationMatches) {
+      final w = _resolveWinner(m);
+      final l = _resolveLoser(m);
+      String wName;
+      String lName;
+      if (w != null) {
+        wName = w.displayName;
+        lName = (l != null ? l.displayName : (m.pair1?.id == w.id ? m.pair2?.displayName : m.pair1?.displayName)) ?? "Adversaire";
+      } else {
+        wName = m.pair1?.displayName ?? "Paire 1";
+        lName = m.pair2?.displayName ?? "Paire 2";
+      }
+      final sc = (m.score != null && m.score!.trim().isNotEmpty && m.score!.trim() != 'Terminé')
+          ? m.score!.trim()
+          : (m.isCompleted ? "NC" : "À jouer");
+      consoMatchesList.add((
+        tour: "Consolante · ${m.roundName}",
+        winnerName: wName,
+        loserName: lName,
+        score: sc,
+      ));
+    }
+
+    if (finalMatchesList.isEmpty && poolMatchesList.isEmpty) {
+      return pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: pw.BoxDecoration(
+          color: const PdfColor.fromInt(0xFFF8FAFC),
+          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+          border: pw.Border.all(color: PdfColors.grey300, width: 0.8),
+        ),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text("RÉCAPITULATIF DES MATCHES :", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: navyColor)),
+            pw.Text("Scores et résultats en cours de saisie par le JAT", style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600)),
+          ],
+        ),
+      );
+    }
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        // Grand bandeau d'en-tête de section
+        pw.Container(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: pw.BoxDecoration(
+            color: navyColor,
+            borderRadius: const pw.BorderRadius.vertical(top: pw.Radius.circular(4)),
+          ),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                "RÉCAPITULATIF OFFICIEL DE TOUS LES MATCHES & SCORES DU TOURNOI",
+                style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.white, letterSpacing: 0.5),
+              ),
+              pw.Text(
+                "${finalMatchesList.length + poolMatchesList.length} matches enregistrés · FFT",
+                style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFFFDE68A)),
+              ),
+            ],
+          ),
+        ),
+
+        // 🏆 SOUS-SECTION A : PHASES FINALES & MATCHES DE CLASSEMENT (AVEC TOUS LES SCORES)
+        if (finalMatchesList.isNotEmpty) ...[
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            color: const PdfColor.fromInt(0xFFE2E8F0),
+            child: pw.Row(
+              children: [
+                pw.Text(
+                  "PHASES FINALES & MATCHES DE CLASSEMENT (SCORES OFFICIELS)",
+                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+                ),
+              ],
+            ),
+          ),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+            columnWidths: const {
+              0: pw.FlexColumnWidth(3.0),
+              1: pw.FlexColumnWidth(3.8),
+              2: pw.FlexColumnWidth(3.8),
+              3: pw.FlexColumnWidth(2.4),
+            },
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFF1F5F9)),
+                children: [
+                  _thTable("TOUR / PHASE"),
+                  _thTable("VAINQUEUR / PAIRE 1", alignLeft: true),
+                  _thTable("ADVERSAIRE / PAIRE 2", alignLeft: true),
+                  _thTable("SCORE OFFICIEL"),
+                ],
+              ),
+              for (final fm in finalMatchesList)
+                pw.TableRow(
+                  decoration: pw.BoxDecoration(color: fm.rowBg),
+                  children: [
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 3.5, horizontal: 4),
+                      child: pw.Text(
+                        cleanText(fm.tour),
+                        textAlign: pw.TextAlign.center,
+                        style: pw.TextStyle(
+                          fontSize: 7.2,
+                          fontWeight: fm.isFinal ? pw.FontWeight.bold : pw.FontWeight.normal,
+                          color: fm.isFinal ? const PdfColor.fromInt(0xFF92400E) : const PdfColor.fromInt(0xFF334155),
+                        ),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 3.5, horizontal: 6),
+                      child: pw.Text(
+                        cleanText(fm.winnerName),
+                        style: pw.TextStyle(
+                          fontSize: 7.8,
+                          fontWeight: pw.FontWeight.bold,
+                          color: const PdfColor.fromInt(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 3.5, horizontal: 6),
+                      child: pw.Text(
+                        cleanText(fm.loserName),
+                        style: pw.TextStyle(
+                          fontSize: 7.5,
+                          color: const PdfColor.fromInt(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 2.5, horizontal: 4),
+                      child: pw.Container(
+                        alignment: pw.Alignment.center,
+                        padding: const pw.EdgeInsets.symmetric(vertical: 1.5, horizontal: 4),
+                        decoration: pw.BoxDecoration(
+                          color: fm.scoreBg,
+                          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+                          border: pw.Border.all(color: fm.scoreBorder, width: 0.6),
+                        ),
+                        child: pw.Text(
+                          cleanText(fm.score),
+                          textAlign: pw.TextAlign.center,
+                          style: pw.TextStyle(
+                            fontSize: 7.8,
+                            fontWeight: pw.FontWeight.bold,
+                            color: fm.scoreTextColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          pw.SizedBox(height: 6),
+        ],
+
+        // 🎾 SOUS-SECTION B : PHASES DE GROUPES / POULES (TOUS LES RÉSULTATS & SCORES)
+        if (poolMatchesList.isNotEmpty) ...[
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            color: const PdfColor.fromInt(0xFFE2E8F0),
+            child: pw.Row(
+              children: [
+                pw.Text(
+                  "PHASE PRÉLIMINAIRE EN POULES (TOUS LES MATCHES & SCORES)",
+                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+                ),
+              ],
+            ),
+          ),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+            columnWidths: const {
+              0: pw.FlexColumnWidth(2.6),
+              1: pw.FlexColumnWidth(4.0),
+              2: pw.FlexColumnWidth(4.0),
+              3: pw.FlexColumnWidth(2.4),
+            },
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFF1F5F9)),
+                children: [
+                  _thTable("POULE / TOUR"),
+                  _thTable("VAINQUEUR / PAIRE 1", alignLeft: true),
+                  _thTable("ADVERSAIRE / PAIRE 2", alignLeft: true),
+                  _thTable("SCORE"),
+                ],
+              ),
+              for (int i = 0; i < poolMatchesList.length; i++) ...[
+                () {
+                  final pm = poolMatchesList[i];
+                  final rowBg = (i % 2 == 0) ? PdfColors.white : const PdfColor.fromInt(0xFFF8FAFC);
+                  return pw.TableRow(
+                    decoration: pw.BoxDecoration(color: rowBg),
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 2.5, horizontal: 4),
+                        child: pw.Text(
+                          cleanText(pm.tour),
+                          textAlign: pw.TextAlign.center,
+                          style: const pw.TextStyle(fontSize: 7, color: PdfColor.fromInt(0xFF475569)),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 2.5, horizontal: 6),
+                        child: pw.Text(
+                          cleanText(pm.winnerName),
+                          style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF0F172A)),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 2.5, horizontal: 6),
+                        child: pw.Text(
+                          cleanText(pm.loserName),
+                          style: const pw.TextStyle(fontSize: 7.2, color: PdfColor.fromInt(0xFF64748B)),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 2.5, horizontal: 4),
+                        child: pw.Container(
+                          alignment: pw.Alignment.center,
+                          child: pw.Text(
+                            cleanText(pm.score),
+                            textAlign: pw.TextAlign.center,
+                            style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF1E293B)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }(),
+              ],
+            ],
+          ),
+        ],
+
+        // 🏅 SOUS-SECTION C : CONSOLANTE (si présente)
+        if (consoMatchesList.isNotEmpty) ...[
+          pw.SizedBox(height: 6),
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            color: const PdfColor.fromInt(0xFFE2E8F0),
+            child: pw.Text(
+              "TABLEAU CONSOLANTE (SCORES)",
+              style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+            ),
+          ),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+            columnWidths: const {
+              0: pw.FlexColumnWidth(2.6),
+              1: pw.FlexColumnWidth(4.0),
+              2: pw.FlexColumnWidth(4.0),
+              3: pw.FlexColumnWidth(2.4),
+            },
+            children: [
+              for (final cm in consoMatchesList)
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFF8FAFC)),
+                  children: [
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 2.5, horizontal: 4),
+                      child: pw.Text(cleanText(cm.tour), textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 7, color: PdfColor.fromInt(0xFF475569))),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 2.5, horizontal: 6),
+                      child: pw.Text(cleanText(cm.winnerName), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF0F172A))),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 2.5, horizontal: 6),
+                      child: pw.Text(cleanText(cm.loserName), style: const pw.TextStyle(fontSize: 7.2, color: PdfColor.fromInt(0xFF64748B))),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 2.5, horizontal: 4),
+                      child: pw.Text(cleanText(cm.score), textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF1E293B))),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  static pw.Widget _buildJatSignatureBox(
+    PdfColor navyColor,
+    PdfColor darkGray, {
+    TournamentModel? tournament,
+    String? categoryLabel,
+  }) {
+    final hasTournament = tournament != null;
     return pw.Container(
-      padding: const pw.EdgeInsets.all(10),
+      padding: const pw.EdgeInsets.all(8),
       decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey400),
+        color: const PdfColor.fromInt(0xFFF8FAFC),
+        border: pw.Border.all(color: PdfColors.grey300, width: 1),
         borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
       ),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text("Visa du Juge-Arbitre (JAT) :", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 3),
-              pw.Text("Tournoi clôturé et homologué sous contrôle FFT.", style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
-              pw.Text("Télétransmission des résultats effectuée à la ligue.", style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
-            ],
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  "HOMOLOGATION & VISA DU JUGE-ARBITRE (JAT)",
+                  style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+                ),
+                pw.SizedBox(height: 3),
+                if (hasTournament && categoryLabel != null) ...[
+                  pw.Text(
+                    cleanText("Je soussigné(e) certifie conformes et sincères les résultats ci-dessus pour l'épreuve $categoryLabel."),
+                    style: const pw.TextStyle(fontSize: 7.5, color: darkGrayPdf),
+                  ),
+                  pw.Text(
+                    cleanText("Tournoi : ${tournament.name} · Homologation FFT N° ${tournament.id}"),
+                    style: const pw.TextStyle(fontSize: 7.5, color: darkGrayPdf),
+                  ),
+                  pw.Text(
+                    cleanText("JAT Officiel : ${tournament.referee?.isNotEmpty == true ? tournament.referee! : 'Juge-Arbitre FFT'}"),
+                    style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+                  ),
+                ] else ...[
+                  pw.Text("Tournoi clôturé et homologué sous contrôle FFT.", style: const pw.TextStyle(fontSize: 7.5, color: darkGrayPdf)),
+                  pw.Text("Télétransmission des résultats effectuée à la ligue.", style: const pw.TextStyle(fontSize: 7.5, color: darkGrayPdf)),
+                ],
+              ],
+            ),
           ),
+          pw.SizedBox(width: 14),
           pw.Container(
-            width: 140,
-            height: 40,
+            width: 130,
+            height: 44,
             decoration: pw.BoxDecoration(
+              color: PdfColors.white,
               border: pw.Border.all(color: PdfColors.grey400, style: pw.BorderStyle.dashed),
+              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
             ),
             child: pw.Center(
-              child: pw.Text("Signature & Cachet JAT", style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500)),
+              child: pw.Text("Signature & Cachet JAT", style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey500)),
             ),
           ),
         ],
@@ -781,15 +2065,20 @@ class TournamentPdfService {
   static String cleanText(String text) {
     return text
         .replaceAll('🏆', '')
-        .replaceAll('🥇', '[1er]')
-        .replaceAll('🥈', '[2e]')
-        .replaceAll('🥉', '[3e]')
+        .replaceAll('🥇', '')
+        .replaceAll('🥈', '')
+        .replaceAll('🥉', '')
         .replaceAll('⚔️', '')
         .replaceAll('📊', '')
         .replaceAll('🛡️', '')
         .replaceAll('🏖️', '')
         .replaceAll('🔥', '')
+        .replaceAll('☕', '')
+        .replaceAll('🔄', '')
+        .replaceAll('✅', '')
         .replaceAll(RegExp(r'[\u{1F300}-\u{1F9FF}]', unicode: true), '')
+        .replaceAll(RegExp(r'[\u{2600}-\u{26FF}]', unicode: true), '')
+        .replaceAll(RegExp(r'[\u{2700}-\u{27BF}]', unicode: true), '')
         .trim();
   }
 
@@ -1180,6 +2469,14 @@ class TournamentPdfService {
     bool isA3 = false,
     int numberOfCourts = 4,
   }) async {
+    final tLoc = '${tournament.club} ${tournament.location} ${tournament.name}'.toLowerCase();
+    if (tLoc.contains('valentine') || tLoc.contains('tennis park')) {
+      if (bracket.numCourts > 0 && bracket.numCourts != 4) {
+        numberOfCourts = bracket.numCourts;
+      } else {
+        numberOfCourts = 3;
+      }
+    }
     final pdf = pw.Document();
 
     final pageFormat = isA3 ? PdfPageFormat.a3.landscape : PdfPageFormat.a4.landscape;
@@ -1199,86 +2496,39 @@ class TournamentPdfService {
       allRealPairs = bracket.pools.expand((p) => p.pairs).toList();
     }
 
-    // 2. Extraction des 16 paires pour les 8 cases du 1er tour papillon
+    final isPoolFormat = bracket.pools.isNotEmpty ||
+        bracket.format == 'pools_and_bracket' ||
+        bracket.format == 'single_pool';
+
+    // 2. Extraction des matches du 1er tour réel (Round 0)
+    List<BracketMatch> r0Matches = bracket.mainMatches
+        .where((m) => m.roundIndex == 0)
+        .toList()
+      ..sort((a, b) => a.matchIndex.compareTo(b.matchIndex));
+
+    if (!isPoolFormat && r0Matches.isEmpty && allRealPairs.isNotEmpty) {
+      final generated = BracketGeneratorService.generateBracket(
+        tournamentId: tournament.id,
+        category: bracket.category,
+        registeredPairs: allRealPairs,
+        numCourts: numberOfCourts,
+      );
+      r0Matches = generated.mainMatches
+          .where((m) => m.roundIndex == 0)
+          .toList()
+        ..sort((a, b) => a.matchIndex.compareTo(b.matchIndex));
+    }
+
     List<TournamentPair> startingPairs = [];
-    final r0Matches = bracket.mainMatches.where((m) => m.roundIndex == 0).toList();
-    r0Matches.sort((a, b) => a.matchIndex.compareTo(b.matchIndex));
-
-    if (r0Matches.length == 8) {
-      // 8 matches de 1er tour déjà formés
-      for (final m in r0Matches) {
-        startingPairs.add(m.pair1 ?? const TournamentPair(id: 'bye', player1Name: 'EXEMPT', player2Name: 'BYE', isBye: true));
-        startingPairs.add(m.pair2 ?? const TournamentPair(id: 'bye', player1Name: 'EXEMPT', player2Name: 'BYE', isBye: true));
-      }
-    } else {
-      // Construction automatique d'une grille officielle FFT 16 avec répartition des graines et BYEs
-      final seeded = BracketGeneratorService.assignSeeds(allRealPairs);
-      final seedMap = <int, TournamentPair>{};
-      final unseeded = <TournamentPair>[];
-      for (final p in seeded) {
-        if (p.seed != null) {
-          seedMap[p.seed!] = p;
-        } else {
-          unseeded.add(p);
-        }
-      }
-
-      final slots = List<TournamentPair?>.filled(16, null);
-      if (allRealPairs.length <= 12) {
-        // Formule FFT standard pour tableau 12 équipes avec 4 BYE (TS1, TS2, TS3, TS4)
-        if (seedMap.containsKey(2)) slots[0] = seedMap[2];
-        slots[1] = const TournamentPair(id: "bye_ts2", player1Name: "EXEMPT", player2Name: "BYE", isBye: true);
-
-        final remainingSlots = [2, 3, 4, 5, 10, 11, 12, 13];
-        for (int i = 0; i < remainingSlots.length; i++) {
-          if (i < unseeded.length) {
-            slots[remainingSlots[i]] = unseeded[i];
-          } else {
-            slots[remainingSlots[i]] = TournamentPair(
-              id: "bye_${i + 5}",
-              player1Name: "EXEMPT",
-              player2Name: "BYE #${i + 5}",
-              isBye: true,
-            );
-          }
-        }
-
-        slots[6] = const TournamentPair(id: "bye_ts3", player1Name: "EXEMPT", player2Name: "BYE", isBye: true);
-        if (seedMap.containsKey(3)) slots[7] = seedMap[3];
-
-        if (seedMap.containsKey(4)) slots[8] = seedMap[4];
-        slots[9] = const TournamentPair(id: "bye_ts4", player1Name: "EXEMPT", player2Name: "BYE", isBye: true);
-
-        slots[14] = const TournamentPair(id: "bye_ts1", player1Name: "EXEMPT", player2Name: "BYE", isBye: true);
-        if (seedMap.containsKey(1)) slots[15] = seedMap[1];
-      } else {
-        if (seedMap.containsKey(2)) slots[0] = seedMap[2];
-        if (seedMap.containsKey(1)) slots[15] = seedMap[1];
-        if (seedMap.containsKey(4)) slots[7] = seedMap[4];
-        if (seedMap.containsKey(3)) slots[8] = seedMap[3];
-
-        int unseededIdx = 0;
-        int byeIdx = 1;
-        for (int s = 0; s < 16; s++) {
-          if (slots[s] == null) {
-            if (unseededIdx < unseeded.length) {
-              slots[s] = unseeded[unseededIdx++];
-            } else {
-              slots[s] = TournamentPair(
-                id: "bye_$byeIdx",
-                player1Name: "EXEMPT",
-                player2Name: "BYE #$byeIdx",
-                isBye: true,
-              );
-              byeIdx++;
-            }
-          }
-        }
-      }
-
-      for (int s = 0; s < 16; s++) {
-        startingPairs.add(slots[s] ?? TournamentPair(id: "bye_$s", player1Name: "EXEMPT", player2Name: "BYE", isBye: true));
-      }
+    for (final m in r0Matches) {
+      startingPairs.add(m.pair1 ??
+          const TournamentPair(id: 'bye', player1Name: 'EXEMPT', player2Name: 'BYE', isBye: true));
+      startingPairs.add(m.pair2 ??
+          const TournamentPair(id: 'bye', player1Name: 'EXEMPT', player2Name: 'BYE', isBye: true));
+    }
+    while (startingPairs.length < 16 && r0Matches.length > 4) {
+      startingPairs.add(
+          const TournamentPair(id: 'bye', player1Name: 'EXEMPT', player2Name: 'BYE', isBye: true));
     }
 
     final categoryLabel = bracket.category == 'double_messieurs' || bracket.category == 'DH'
@@ -1343,11 +2593,13 @@ class TournamentPdfService {
                             style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: darkGray, letterSpacing: 0.8),
                           ),
                           pw.Text(
-                            cleanText("${tournament.name.toUpperCase()} · $categoryLabel"),
+                            cleanText("${tournament.name.toUpperCase()} · $categoryLabel${isPoolFormat ? ' · FORMAT POULES' : ''}"),
                             style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: navyColor),
                           ),
                           pw.Text(
-                            "Tableau Officiel à Classement Intégral · JAT : ${cleanText(tournament.referee ?? 'Juge-Arbitre Référent')}",
+                            isPoolFormat
+                                ? "Tableau Officiel des Poules & Phase Finale · JAT : ${cleanText(tournament.referee ?? 'Juge-Arbitre Référent')}"
+                                : "Tableau Officiel à Classement Intégral · JAT : ${cleanText(tournament.referee ?? 'Juge-Arbitre Référent')}",
                             style: const pw.TextStyle(fontSize: 7.5, color: darkGray),
                           ),
                         ],
@@ -1383,17 +2635,38 @@ class TournamentPdfService {
 
               pw.SizedBox(height: 6),
 
-              // 2. CORPS DU TABLEAU PAPILLON (CONSOLANTE ◄── DÉPART AU CENTRE ──► PRINCIPAL)
+              // 2. CORPS DU TABLEAU (POULES OU PAPILLON 8 / 16)
               pw.Expanded(
-                child: _buildButterflyGrid(
-                  startingPairs: startingPairs,
-                  bracket: bracket,
-                  navyColor: navyColor,
-                  goldColor: goldColor,
-                  borderColor: borderColor,
-                  lightGray: lightGray,
-                  numberOfCourts: numberOfCourts,
-                ),
+                child: isPoolFormat
+                    ? _buildPoolsPosterContent(
+                        bracket: bracket,
+                        navyColor: navyColor,
+                        goldColor: goldColor,
+                        borderColor: borderColor,
+                        lightGray: lightGray,
+                        darkGray: darkGray,
+                        numberOfCourts: numberOfCourts,
+                      )
+                    : (r0Matches.length == 4
+                        ? _buildButterflyGrid8(
+                            r0Matches: r0Matches,
+                            bracket: bracket,
+                            navyColor: navyColor,
+                            goldColor: goldColor,
+                            borderColor: borderColor,
+                            lightGray: lightGray,
+                            numberOfCourts: numberOfCourts,
+                          )
+                        : _buildButterflyGrid(
+                            r0Matches: r0Matches,
+                            startingPairs: startingPairs,
+                            bracket: bracket,
+                            navyColor: navyColor,
+                            goldColor: goldColor,
+                            borderColor: borderColor,
+                            lightGray: lightGray,
+                            numberOfCourts: numberOfCourts,
+                          )),
               ),
 
               pw.SizedBox(height: 4),
@@ -1457,6 +2730,7 @@ class TournamentPdfService {
 
   /// Grille papillon complète vectorielle (16 paires officielle FFT)
   static pw.Widget _buildButterflyGrid({
+    required List<BracketMatch> r0Matches,
     required List<TournamentPair> startingPairs,
     required TournamentBracket bracket,
     required PdfColor navyColor,
@@ -1465,24 +2739,32 @@ class TournamentPdfService {
     required PdfColor lightGray,
     int numberOfCourts = 4,
   }) {
-    // Map des têtes de série du tableau
-    final seedMap = <int, TournamentPair>{};
-    for (final p in startingPairs) {
-      if (p.seed != null && !p.isBye) {
-        seedMap[p.seed!] = p;
-      }
+    TournamentPair? getExempt(int matchIdx) {
+      if (matchIdx >= r0Matches.length) return null;
+      final m = r0Matches[matchIdx];
+      if (m.pair1?.isBye == true && m.pair2 != null && !m.pair2!.isBye) return m.pair2;
+      if (m.pair2?.isBye == true && m.pair1 != null && !m.pair1!.isBye) return m.pair1;
+      return null;
     }
 
-    // Récupération des matches de Quarts de finale réels s'ils existent
     final quart0 = bracket.mainMatches.where((m) => m.roundIndex == 1 && m.matchIndex == 0).firstOrNull;
     final quart1 = bracket.mainMatches.where((m) => m.roundIndex == 1 && m.matchIndex == 1).firstOrNull;
     final quart2 = bracket.mainMatches.where((m) => m.roundIndex == 1 && m.matchIndex == 2).firstOrNull;
     final quart3 = bracket.mainMatches.where((m) => m.roundIndex == 1 && m.matchIndex == 3).firstOrNull;
 
-    // Récupération des Demi-finales et Finale
     final demi0 = bracket.mainMatches.where((m) => m.roundIndex == 2 && m.matchIndex == 0).firstOrNull;
     final demi1 = bracket.mainMatches.where((m) => m.roundIndex == 2 && m.matchIndex == 1).firstOrNull;
     final finale = bracket.mainMatches.where((m) => m.roundIndex == 3 && m.matchIndex == 0).firstOrNull;
+    final petiteFinale = bracket.mainMatches.where((m) => m.roundIndex == 3 && m.matchIndex == 1).firstOrNull;
+
+    final ex0 = getExempt(0);
+    final ex1 = getExempt(1);
+    final ex2 = getExempt(2);
+    final ex3 = getExempt(3);
+    final ex4 = getExempt(4);
+    final ex5 = getExempt(5);
+    final ex6 = getExempt(6);
+    final ex7 = getExempt(7);
 
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
@@ -1580,36 +2862,36 @@ class TournamentPdfService {
                         mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                         children: [
                           _buildMatchBox(
-                            label: "MATCH 9 (Perd. 4 vs 1)",
+                            label: "MATCH 9 (Perd. 1 vs 2)",
                             navyColor: navyColor,
                             goldColor: goldColor,
                             courtBadge: getCourtBadgeForMatch(9, numberOfCourts),
-                            p1Placeholder: "Perdant Match 4 (Exempt)",
-                            p2Placeholder: "Perdant Match 1",
+                            p1Placeholder: "Perdant Match 1",
+                            p2Placeholder: "Perdant Match 2",
                           ),
                           _buildMatchBox(
-                            label: "MATCH 10 (Perd. 3 vs 2)",
+                            label: "MATCH 10 (Perd. 3 vs 4)",
                             navyColor: navyColor,
                             goldColor: goldColor,
                             courtBadge: getCourtBadgeForMatch(10, numberOfCourts),
                             p1Placeholder: "Perdant Match 3",
-                            p2Placeholder: "Perdant Match 2 (Exempt)",
+                            p2Placeholder: "Perdant Match 4",
                           ),
                           _buildMatchBox(
-                            label: "MATCH 13 (Perd. 5 vs 7)",
+                            label: "MATCH 13 (Perd. 5 vs 6)",
                             navyColor: navyColor,
                             goldColor: goldColor,
                             courtBadge: getCourtBadgeForMatch(13, numberOfCourts),
-                            p1Placeholder: "Perdant Match 5 (Exempt)",
-                            p2Placeholder: "Perdant Match 7",
+                            p1Placeholder: "Perdant Match 5",
+                            p2Placeholder: "Perdant Match 6",
                           ),
                           _buildMatchBox(
-                            label: "MATCH 14 (Perd. 6 vs 8)",
+                            label: "MATCH 14 (Perd. 7 vs 8)",
                             navyColor: navyColor,
                             goldColor: goldColor,
                             courtBadge: getCourtBadgeForMatch(14, numberOfCourts),
-                            p1Placeholder: "Perdant Match 6",
-                            p2Placeholder: "Perdant Match 8 (Exempt)",
+                            p1Placeholder: "Perdant Match 7",
+                            p2Placeholder: "Perdant Match 8",
                           ),
                         ],
                       ),
@@ -1647,14 +2929,14 @@ class TournamentPdfService {
                   children: [
                     for (int i = 0; i < 8; i++) ...[
                       _buildFirstRoundBox(
-                        matchNumber: _getMatchNumberForIndex(i),
-                        p1: startingPairs[i * 2],
-                        p2: startingPairs[i * 2 + 1],
+                        matchNumber: i + 1,
+                        p1: i * 2 < startingPairs.length ? startingPairs[i * 2] : const TournamentPair(id: 'bye', player1Name: 'EXEMPT', player2Name: 'BYE', isBye: true),
+                        p2: i * 2 + 1 < startingPairs.length ? startingPairs[i * 2 + 1] : const TournamentPair(id: 'bye', player1Name: 'EXEMPT', player2Name: 'BYE', isBye: true),
                         navyColor: navyColor,
                         goldColor: goldColor,
-                        courtBadge: getCourtBadgeForMatch(_getMatchNumberForIndex(i), numberOfCourts),
-                        targetQuartMatch: _getTargetQuartForIndex(i),
-                        targetSeed: _getTargetSeedForIndex(i, seedMap),
+                        courtBadge: getCourtBadgeForMatch(i + 1, numberOfCourts),
+                        targetQuartMatch: (i ~/ 2) + 1,
+                        targetSeed: i % 2 == 0 ? (i + 1 < 8 ? getExempt(i + 1) : null) : getExempt(i - 1),
                       ),
                     ],
                   ],
@@ -1694,48 +2976,52 @@ class TournamentPdfService {
                         mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                         children: [
                           _buildMatchBox(
-                            label: "MATCH 11 (Vainq. 4 vs 1)",
+                            label: "QUART 1 (M1 vs M2)",
                             navyColor: navyColor,
                             goldColor: goldColor,
-                            courtBadge: getCourtBadgeForMatch(11, numberOfCourts),
-                            p1: quart0?.pair1 ?? seedMap[2],
-                            p2: quart0?.pair2,
-                            p1Placeholder: "Vainqueur Match 4",
-                            p2Placeholder: "Vainqueur Match 1",
-                            p1Subtext: seedMap.containsKey(2) ? "Exempt T1 (TS2)" : null,
-                          ),
-                          _buildMatchBox(
-                            label: "MATCH 12 (Vainq. 3 vs 2)",
-                            navyColor: navyColor,
-                            goldColor: goldColor,
-                            courtBadge: getCourtBadgeForMatch(12, numberOfCourts),
-                            p1: quart1?.pair1,
-                            p2: quart1?.pair2 ?? seedMap[3],
-                            p1Placeholder: "Vainqueur Match 3",
+                            courtBadge: quart0?.court != null ? "Terrain ${quart0!.court}" : getCourtBadgeForMatch(11, numberOfCourts),
+                            p1: quart0?.pair1 ?? ex0,
+                            p2: quart0?.pair2 ?? ex1,
+                            p1Placeholder: "Vainqueur Match 1",
                             p2Placeholder: "Vainqueur Match 2",
-                            p2Subtext: seedMap.containsKey(3) ? "Exempt T1 (TS3)" : null,
+                            p1Subtext: ex0 != null ? "Exempt T1 (${ex0.seed != null ? 'TS' + ex0.seed.toString() : ''})" : null,
+                            p2Subtext: ex1 != null ? "Exempt T1 (${ex1.seed != null ? 'TS' + ex1.seed.toString() : ''})" : null,
                           ),
                           _buildMatchBox(
-                            label: "MATCH 15 (Vainq. 5 vs 7)",
+                            label: "QUART 2 (M3 vs M4)",
                             navyColor: navyColor,
                             goldColor: goldColor,
-                            courtBadge: getCourtBadgeForMatch(15, numberOfCourts),
-                            p1: quart2?.pair1 ?? seedMap[4],
-                            p2: quart2?.pair2,
+                            courtBadge: quart1?.court != null ? "Terrain ${quart1!.court}" : getCourtBadgeForMatch(12, numberOfCourts),
+                            p1: quart1?.pair1 ?? ex2,
+                            p2: quart1?.pair2 ?? ex3,
+                            p1Placeholder: "Vainqueur Match 3",
+                            p2Placeholder: "Vainqueur Match 4",
+                            p1Subtext: ex2 != null ? "Exempt T1 (${ex2.seed != null ? 'TS' + ex2.seed.toString() : ''})" : null,
+                            p2Subtext: ex3 != null ? "Exempt T1 (${ex3.seed != null ? 'TS' + ex3.seed.toString() : ''})" : null,
+                          ),
+                          _buildMatchBox(
+                            label: "QUART 3 (M5 vs M6)",
+                            navyColor: navyColor,
+                            goldColor: goldColor,
+                            courtBadge: quart2?.court != null ? "Terrain ${quart2!.court}" : getCourtBadgeForMatch(15, numberOfCourts),
+                            p1: quart2?.pair1 ?? ex4,
+                            p2: quart2?.pair2 ?? ex5,
                             p1Placeholder: "Vainqueur Match 5",
-                            p2Placeholder: "Vainqueur Match 7",
-                            p1Subtext: seedMap.containsKey(4) ? "Exempt T1 (TS4)" : null,
+                            p2Placeholder: "Vainqueur Match 6",
+                            p1Subtext: ex4 != null ? "Exempt T1 (${ex4.seed != null ? 'TS' + ex4.seed.toString() : ''})" : null,
+                            p2Subtext: ex5 != null ? "Exempt T1 (${ex5.seed != null ? 'TS' + ex5.seed.toString() : ''})" : null,
                           ),
                           _buildMatchBox(
-                            label: "MATCH 16 (Vainq. 6 vs 8)",
+                            label: "QUART 4 (M7 vs M8)",
                             navyColor: navyColor,
                             goldColor: goldColor,
-                            courtBadge: getCourtBadgeForMatch(16, numberOfCourts),
-                            p1: quart3?.pair1,
-                            p2: quart3?.pair2 ?? seedMap[1],
-                            p1Placeholder: "Vainqueur Match 6",
+                            courtBadge: quart3?.court != null ? "Terrain ${quart3!.court}" : getCourtBadgeForMatch(16, numberOfCourts),
+                            p1: quart3?.pair1 ?? ex6,
+                            p2: quart3?.pair2 ?? ex7,
+                            p1Placeholder: "Vainqueur Match 7",
                             p2Placeholder: "Vainqueur Match 8",
-                            p2Subtext: seedMap.containsKey(1) ? "Exempt T1 (TS1)" : null,
+                            p1Subtext: ex6 != null ? "Exempt T1 (${ex6.seed != null ? 'TS' + ex6.seed.toString() : ''})" : null,
+                            p2Subtext: ex7 != null ? "Exempt T1 (${ex7.seed != null ? 'TS' + ex7.seed.toString() : ''})" : null,
                           ),
                         ],
                       ),
@@ -1750,21 +3036,21 @@ class TournamentPdfService {
                             label: "MATCH 20 · DEMI-FINALE 1",
                             navyColor: navyColor,
                             goldColor: goldColor,
-                            courtBadge: getCourtBadgeForMatch(20, numberOfCourts),
+                            courtBadge: demi0?.court != null ? "Terrain ${demi0!.court}" : getCourtBadgeForMatch(20, numberOfCourts),
                             p1: demi0?.pair1,
                             p2: demi0?.pair2,
-                            p1Placeholder: "Vainqueur Match 11",
-                            p2Placeholder: "Vainqueur Match 12",
+                            p1Placeholder: "Vainqueur Quart 1",
+                            p2Placeholder: "Vainqueur Quart 2",
                           ),
                           _buildMatchBox(
                             label: "MATCH 24 · DEMI-FINALE 2",
                             navyColor: navyColor,
                             goldColor: goldColor,
-                            courtBadge: getCourtBadgeForMatch(24, numberOfCourts),
+                            courtBadge: demi1?.court != null ? "Terrain ${demi1!.court}" : getCourtBadgeForMatch(24, numberOfCourts),
                             p1: demi1?.pair1,
                             p2: demi1?.pair2,
-                            p1Placeholder: "Vainqueur Match 15",
-                            p2Placeholder: "Vainqueur Match 16",
+                            p1Placeholder: "Vainqueur Quart 3",
+                            p2Placeholder: "Vainqueur Quart 4",
                           ),
                         ],
                       ),
@@ -1780,35 +3066,35 @@ class TournamentPdfService {
                             navyColor: navyColor,
                             goldColor: goldColor,
                             isFinal: true,
-                            courtBadge: getCourtBadgeForMatch(32, numberOfCourts),
+                            courtBadge: finale?.court != null ? "Terrain ${finale!.court}" : getCourtBadgeForMatch(32, numberOfCourts),
                             p1: finale?.pair1,
                             p2: finale?.pair2,
-                            p1Placeholder: "Vainqueur Match 20",
-                            p2Placeholder: "Vainqueur Match 24",
+                            p1Placeholder: "Vainqueur Demi 1",
+                            p2Placeholder: "Vainqueur Demi 2",
                           ),
                           _buildMatchBox(
                             label: "MATCH 30 · PETITE FINALE (3-4)",
                             navyColor: navyColor,
                             goldColor: goldColor,
-                            courtBadge: getCourtBadgeForMatch(30, numberOfCourts),
-                            p1Placeholder: "Perdant Match 20",
-                            p2Placeholder: "Perdant Match 24",
+                            courtBadge: petiteFinale?.court != null ? "Terrain ${petiteFinale!.court}" : getCourtBadgeForMatch(30, numberOfCourts),
+                            p1Placeholder: "Perdant Demi 1",
+                            p2Placeholder: "Perdant Demi 2",
                           ),
                           _buildMatchBox(
                             label: "MATCH 28 · PLACES 5-6",
                             navyColor: navyColor,
                             goldColor: goldColor,
                             courtBadge: getCourtBadgeForMatch(28, numberOfCourts),
-                            p1Placeholder: "Vainqueur Match 21",
-                            p2Placeholder: "Vainqueur Match 23",
+                            p1Placeholder: "Vainqueur Conso Q1",
+                            p2Placeholder: "Vainqueur Conso Q2",
                           ),
                           _buildMatchBox(
                             label: "MATCH 26 · PLACES 7-8",
                             navyColor: navyColor,
                             goldColor: goldColor,
                             courtBadge: getCourtBadgeForMatch(26, numberOfCourts),
-                            p1Placeholder: "Perdant Match 21",
-                            p2Placeholder: "Perdant Match 23",
+                            p1Placeholder: "Perdant Conso Q1",
+                            p2Placeholder: "Perdant Conso Q2",
                           ),
                         ],
                       ),
@@ -1820,6 +3106,552 @@ class TournamentPdfService {
           ),
         ),
       ],
+    );
+  }
+
+  /// Grille papillon pour tableau de 8 paires (Quarts -> Demies -> Finales)
+  static pw.Widget _buildButterflyGrid8({
+    required List<BracketMatch> r0Matches,
+    required TournamentBracket bracket,
+    required PdfColor navyColor,
+    required PdfColor goldColor,
+    required PdfColor borderColor,
+    required PdfColor lightGray,
+    int numberOfCourts = 4,
+  }) {
+    final demi0 = bracket.mainMatches.where((m) => m.roundIndex == 1 && m.matchIndex == 0).firstOrNull;
+    final demi1 = bracket.mainMatches.where((m) => m.roundIndex == 1 && m.matchIndex == 1).firstOrNull;
+    final finale = bracket.mainMatches.where((m) => m.roundIndex == 2 && m.matchIndex == 0).firstOrNull;
+    final petiteFinale = bracket.mainMatches.where((m) => m.roundIndex == 2 && m.matchIndex == 1).firstOrNull;
+
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        // GAUCHE : CONSOLANTE (Places 5 à 8)
+        pw.Expanded(
+          flex: 4,
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                color: const PdfColor.fromInt(0xFFE2E8F0),
+                child: pw.Text(
+                  "<< CONSOLANTE (PLACES 5 À 8)",
+                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                  children: [
+                    // Finales Consolante
+                    pw.Expanded(
+                      child: pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildMatchBox(
+                            label: "MATCH 7 · PLACES 5-6",
+                            navyColor: navyColor,
+                            goldColor: goldColor,
+                            courtBadge: "T1",
+                            p1Placeholder: "Vainqueur Conso D1",
+                            p2Placeholder: "Vainqueur Conso D2",
+                          ),
+                          _buildMatchBox(
+                            label: "MATCH 8 · PLACES 7-8",
+                            navyColor: navyColor,
+                            goldColor: goldColor,
+                            courtBadge: "T2",
+                            p1Placeholder: "Perdant Conso D1",
+                            p2Placeholder: "Perdant Conso D2",
+                          ),
+                        ],
+                      ),
+                    ),
+                    _buildConnectorColumn(forkCount: 2, pointingRight: false, color: borderColor),
+                    // Demies Consolante
+                    pw.Expanded(
+                      child: pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildMatchBox(
+                            label: "CONSO DEMIE 1 (Perd. Q1 vs Q2)",
+                            navyColor: navyColor,
+                            goldColor: goldColor,
+                            courtBadge: "T1",
+                            p1Placeholder: "Perdant Quart 1",
+                            p2Placeholder: "Perdant Quart 2",
+                          ),
+                          _buildMatchBox(
+                            label: "CONSO DEMIE 2 (Perd. Q3 vs Q4)",
+                            navyColor: navyColor,
+                            goldColor: goldColor,
+                            courtBadge: "T2",
+                            p1Placeholder: "Perdant Quart 3",
+                            p2Placeholder: "Perdant Quart 4",
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Connecteur
+        _buildConnectorColumn(forkCount: 2, pointingRight: false, color: borderColor),
+
+        // AU CENTRE : QUARTS DE FINALE (DÉPART 8 PAIRES)
+        pw.Expanded(
+          flex: 4,
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                color: navyColor,
+                child: pw.Text(
+                  "1ER TOUR · QUARTS DE FINALE (8 PAIRES)",
+                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Column(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                  children: [
+                    for (int i = 0; i < 4; i++) ...[
+                      if (i < r0Matches.length)
+                        _buildFirstRoundBox(
+                          matchNumber: i + 1,
+                          p1: r0Matches[i].pair1 ?? const TournamentPair(id: 'bye', player1Name: 'EXEMPT', player2Name: 'BYE', isBye: true),
+                          p2: r0Matches[i].pair2 ?? const TournamentPair(id: 'bye', player1Name: 'EXEMPT', player2Name: 'BYE', isBye: true),
+                          navyColor: navyColor,
+                          goldColor: goldColor,
+                          courtBadge: r0Matches[i].court != null ? "Terrain ${r0Matches[i].court}" : "T${(i % numberOfCourts) + 1}",
+                          targetQuartMatch: (i ~/ 2) + 1,
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Connecteur
+        _buildConnectorColumn(forkCount: 2, pointingRight: true, color: borderColor),
+
+        // DROITE : TABLEAU PRINCIPAL (Places 1 à 4)
+        pw.Expanded(
+          flex: 4,
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                color: goldColor,
+                child: pw.Text(
+                  "TABLEAU PRINCIPAL (PLACES 1 À 4) >>",
+                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                  children: [
+                    // Demi-finales
+                    pw.Expanded(
+                      child: pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildMatchBox(
+                            label: "DEMI-FINALE 1 (Vainq. Q1 vs Q2)",
+                            navyColor: navyColor,
+                            goldColor: goldColor,
+                            courtBadge: demi0?.court != null ? "Terrain ${demi0!.court}" : "T1",
+                            p1: demi0?.pair1,
+                            p2: demi0?.pair2,
+                            p1Placeholder: "Vainqueur Quart 1",
+                            p2Placeholder: "Vainqueur Quart 2",
+                          ),
+                          _buildMatchBox(
+                            label: "DEMI-FINALE 2 (Vainq. Q3 vs Q4)",
+                            navyColor: navyColor,
+                            goldColor: goldColor,
+                            courtBadge: demi1?.court != null ? "Terrain ${demi1!.court}" : "T2",
+                            p1: demi1?.pair1,
+                            p2: demi1?.pair2,
+                            p1Placeholder: "Vainqueur Quart 3",
+                            p2Placeholder: "Vainqueur Quart 4",
+                          ),
+                        ],
+                      ),
+                    ),
+                    _buildConnectorColumn(forkCount: 2, pointingRight: true, color: borderColor),
+                    // Finales
+                    pw.Expanded(
+                      child: pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildMatchBox(
+                            label: "GRANDE FINALE (PLACES 1-2)",
+                            navyColor: navyColor,
+                            goldColor: goldColor,
+                            isFinal: true,
+                            courtBadge: finale?.court != null ? "Terrain ${finale!.court}" : "T1",
+                            p1: finale?.pair1,
+                            p2: finale?.pair2,
+                            p1Placeholder: "Vainqueur Demi 1",
+                            p2Placeholder: "Vainqueur Demi 2",
+                          ),
+                          _buildMatchBox(
+                            label: "PETITE FINALE (PLACES 3-4)",
+                            navyColor: navyColor,
+                            goldColor: goldColor,
+                            courtBadge: petiteFinale?.court != null ? "Terrain ${petiteFinale!.court}" : "T2",
+                            p1: petiteFinale?.pair1,
+                            p2: petiteFinale?.pair2,
+                            p1Placeholder: "Perdant Demi 1",
+                            p2Placeholder: "Perdant Demi 2",
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Grille officielle des Poules & Phase Finale (Afficheur Club Paysage)
+  static pw.Widget _buildPoolsPosterContent({
+    required TournamentBracket bracket,
+    required PdfColor navyColor,
+    required PdfColor goldColor,
+    required PdfColor borderColor,
+    required PdfColor lightGray,
+    required PdfColor darkGray,
+    int numberOfCourts = 4,
+  }) {
+    final poolA = bracket.pools.firstWhere(
+      (p) => p.id == "poule_a",
+      orElse: () => bracket.pools.first,
+    );
+    final poolB = bracket.pools.length > 1
+        ? bracket.pools.firstWhere(
+            (p) => p.id == "poule_b",
+            orElse: () => bracket.pools[1],
+          )
+        : null;
+
+    final poolAStandings = poolA.calculateStandings();
+    final poolBStandings = poolB?.calculateStandings() ?? [];
+
+    final demi0 = bracket.mainMatches.where((m) => m.roundIndex == 0 && m.matchIndex == 0).firstOrNull;
+    final demi1 = bracket.mainMatches.where((m) => m.roundIndex == 0 && m.matchIndex == 1).firstOrNull;
+    final finale = bracket.mainMatches.where((m) => m.roundIndex == 1 && m.matchIndex == 0).firstOrNull;
+    final petiteFinale = bracket.mainMatches.where((m) => m.roundIndex == 1 && m.matchIndex == 1).firstOrNull;
+
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        // POULE A
+        pw.Expanded(
+          flex: 4,
+          child: _buildSinglePoolPosterCard(
+            pool: poolA,
+            standings: poolAStandings,
+            navyColor: navyColor,
+            accentColor: goldColor,
+            isPoolA: true,
+            numberOfCourts: numberOfCourts,
+          ),
+        ),
+        pw.SizedBox(width: 8),
+
+        // POULE B
+        pw.Expanded(
+          flex: 4,
+          child: poolB != null
+              ? _buildSinglePoolPosterCard(
+                  pool: poolB,
+                  standings: poolBStandings,
+                  navyColor: navyColor,
+                  accentColor: const PdfColor.fromInt(0xFFEA580C),
+                  isPoolA: false,
+                  numberOfCourts: numberOfCourts,
+                )
+              : pw.Container(),
+        ),
+        pw.SizedBox(width: 8),
+
+        // PHASE FINALE CROISÉE
+        pw.Expanded(
+          flex: 3,
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(vertical: 3, horizontal: 6),
+                decoration: pw.BoxDecoration(
+                  color: goldColor,
+                  borderRadius: pw.BorderRadius.circular(4),
+                ),
+                child: pw.Text(
+                  "PHASE FINALE CROISÉE",
+                  style: pw.TextStyle(color: navyColor, fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              pw.SizedBox(height: 6),
+              pw.Expanded(
+                child: pw.Column(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildMatchBox(
+                      label: "DEMI-FINALE 1 (1er A vs 2e B)",
+                      navyColor: navyColor,
+                      goldColor: goldColor,
+                      courtBadge: demi0?.court != null ? "Terrain ${demi0!.court}" : "T1",
+                      p1: demi0?.pair1 ?? (poolAStandings.isNotEmpty ? poolAStandings.first.pair : null),
+                      p2: demi0?.pair2 ?? (poolBStandings.length > 1 ? poolBStandings[1].pair : null),
+                      p1Placeholder: "1er Poule A",
+                      p2Placeholder: "2e Poule B",
+                      p1Subtext: poolAStandings.isNotEmpty ? "1er Poule A" : null,
+                      p2Subtext: poolBStandings.length > 1 ? "2e Poule B" : null,
+                    ),
+                    _buildMatchBox(
+                      label: "DEMI-FINALE 2 (1er B vs 2e A)",
+                      navyColor: navyColor,
+                      goldColor: goldColor,
+                      courtBadge: demi1?.court != null ? "Terrain ${demi1!.court}" : "T2",
+                      p1: demi1?.pair1 ?? (poolBStandings.isNotEmpty ? poolBStandings.first.pair : null),
+                      p2: demi1?.pair2 ?? (poolAStandings.length > 1 ? poolAStandings[1].pair : null),
+                      p1Placeholder: "1er Poule B",
+                      p2Placeholder: "2e Poule A",
+                      p1Subtext: poolBStandings.isNotEmpty ? "1er Poule B" : null,
+                      p2Subtext: poolAStandings.length > 1 ? "2e Poule A" : null,
+                    ),
+                    _buildMatchBox(
+                      label: "GRANDE FINALE · TITRE (1-2)",
+                      navyColor: navyColor,
+                      goldColor: goldColor,
+                      isFinal: true,
+                      courtBadge: finale?.court != null ? "Terrain ${finale!.court}" : "T1",
+                      p1: finale?.pair1,
+                      p2: finale?.pair2,
+                      p1Placeholder: "Vainqueur Demi 1",
+                      p2Placeholder: "Vainqueur Demi 2",
+                    ),
+                    _buildMatchBox(
+                      label: "PETITE FINALE (3-4)",
+                      navyColor: navyColor,
+                      goldColor: goldColor,
+                      courtBadge: petiteFinale?.court != null ? "Terrain ${petiteFinale!.court}" : "T2",
+                      p1: petiteFinale?.pair1,
+                      p2: petiteFinale?.pair2,
+                      p1Placeholder: "Perdant Demi 1",
+                      p2Placeholder: "Perdant Demi 2",
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Carte d'une poule avec classement et liste ordonnée des matches
+  static pw.Widget _buildSinglePoolPosterCard({
+    required TournamentPool pool,
+    required List<PoolStanding> standings,
+    required PdfColor navyColor,
+    required PdfColor accentColor,
+    required bool isPoolA,
+    int numberOfCourts = 4,
+  }) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(6),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.white,
+        borderRadius: pw.BorderRadius.circular(6),
+        border: pw.Border.all(color: accentColor, width: 1.2),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(vertical: 3, horizontal: 6),
+            decoration: pw.BoxDecoration(
+              color: accentColor,
+              borderRadius: pw.BorderRadius.circular(4),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  pool.name.toUpperCase(),
+                  style: pw.TextStyle(color: PdfColors.white, fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                ),
+                pw.Text(
+                  "${pool.pairs.length} Équipes · Top 2 qualifiés",
+                  style: const pw.TextStyle(color: PdfColors.white, fontSize: 7),
+                ),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 4),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+            columnWidths: const {
+              0: pw.FixedColumnWidth(16),
+              1: pw.FlexColumnWidth(5),
+              2: pw.FlexColumnWidth(1.2),
+              3: pw.FlexColumnWidth(1.2),
+              4: pw.FlexColumnWidth(1.5),
+              5: pw.FlexColumnWidth(1.5),
+              6: pw.FlexColumnWidth(1.5),
+            },
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFF1F5F9)),
+                children: [
+                  _th("#"),
+                  _th("Équipe"),
+                  _th("V"),
+                  _th("D"),
+                  _th("Sets"),
+                  _th("+/-"),
+                  _th("Pts"),
+                ],
+              ),
+              for (int i = 0; i < standings.length; i++)
+                pw.TableRow(
+                  decoration: pw.BoxDecoration(
+                    color: i < 2 ? const PdfColor.fromInt(0xFFFEFCE8) : PdfColors.white,
+                  ),
+                  children: [
+                    _td("${i + 1}"),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      alignment: pw.Alignment.centerLeft,
+                      child: pw.Row(
+                        children: [
+                          pw.Expanded(
+                            child: pw.Text(
+                              standings[i].pair.displayName,
+                              style: pw.TextStyle(
+                                fontSize: 6.5,
+                                fontWeight: i < 2 ? pw.FontWeight.bold : pw.FontWeight.normal,
+                                color: navyColor,
+                              ),
+                              maxLines: 1,
+                            ),
+                          ),
+                          if (standings[i].pair.seed != null)
+                            pw.Container(
+                              margin: const pw.EdgeInsets.only(left: 2),
+                              padding: const pw.EdgeInsets.symmetric(horizontal: 2.5, vertical: 0.5),
+                              decoration: pw.BoxDecoration(color: accentColor, borderRadius: pw.BorderRadius.circular(2)),
+                              child: pw.Text("TS${standings[i].pair.seed}", style: const pw.TextStyle(fontSize: 5, color: PdfColors.white)),
+                            ),
+                        ],
+                      ),
+                    ),
+                    _td("${standings[i].won}"),
+                    _td("${standings[i].lost}"),
+                    _td("${standings[i].setsWon}-${standings[i].setsLost}"),
+                    _td(standings[i].diffGames >= 0 ? "+${standings[i].diffGames}" : "${standings[i].diffGames}"),
+                    _td("${standings[i].points}", isBold: true),
+                  ],
+                ),
+            ],
+          ),
+          pw.SizedBox(height: 5),
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+            color: const PdfColor.fromInt(0xFFF1F5F9),
+            child: pw.Text(
+              "CALENDRIER DES MATCHES DE POULE",
+              style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: navyColor),
+            ),
+          ),
+          pw.SizedBox(height: 2),
+          pw.Expanded(
+            child: pw.Column(
+              children: [
+                for (int mIdx = 0; mIdx < pool.matches.length; mIdx++) ...[
+                  pw.Container(
+                    margin: const pw.EdgeInsets.only(bottom: 2),
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                    decoration: pw.BoxDecoration(
+                      color: pool.matches[mIdx].isCompleted ? const PdfColor.fromInt(0xFFF0FDF4) : PdfColors.white,
+                      borderRadius: pw.BorderRadius.circular(3),
+                      border: pw.Border.all(color: PdfColors.grey300, width: 0.4),
+                    ),
+                    child: pw.Row(
+                      children: [
+                        pw.Container(
+                          padding: const pw.EdgeInsets.symmetric(horizontal: 2.5, vertical: 0.5),
+                          decoration: pw.BoxDecoration(
+                            color: navyColor,
+                            borderRadius: pw.BorderRadius.circular(2),
+                          ),
+                          child: pw.Text(
+                            pool.matches[mIdx].court != null ? "Terrain ${pool.matches[mIdx].court}" : "T${(mIdx % numberOfCourts) + 1}",
+                            style: const pw.TextStyle(fontSize: 5, color: PdfColors.white),
+                          ),
+                        ),
+                        pw.SizedBox(width: 4),
+                        pw.Expanded(
+                          child: pw.Text(
+                            "${pool.matches[mIdx].pair1?.displayName ?? '?'} vs ${pool.matches[mIdx].pair2?.displayName ?? '?'}",
+                            style: pw.TextStyle(
+                              fontSize: 6,
+                              fontWeight: pool.matches[mIdx].isCompleted ? pw.FontWeight.bold : pw.FontWeight.normal,
+                              color: navyColor,
+                            ),
+                            maxLines: 1,
+                          ),
+                        ),
+                        if (pool.matches[mIdx].score != null && pool.matches[mIdx].score!.isNotEmpty)
+                          pw.Container(
+                            padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 0.5),
+                            decoration: pw.BoxDecoration(
+                              color: const PdfColor.fromInt(0xFF16A34A),
+                              borderRadius: pw.BorderRadius.circular(2),
+                            ),
+                            child: pw.Text(
+                              pool.matches[mIdx].score!,
+                              style: const pw.TextStyle(fontSize: 5.5, color: PdfColors.white),
+                            ),
+                          )
+                        else
+                          pw.Text(
+                            "À jouer",
+                            style: const pw.TextStyle(fontSize: 5.5, color: PdfColors.grey500),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1913,89 +3745,37 @@ class TournamentPdfService {
     );
   }
 
-  /// Calcul et affiliation automatique du terrain et de la rotation selon le choix du JAT (3, 4, 5 ou 6 terrains)
+  /// Calcul et affiliation automatique du terrain selon le choix du JAT (3, 4, 5 ou 6 terrains)
   static String getCourtBadgeForMatch(int matchNumber, int numberOfCourts) {
     if (numberOfCourts < 1) numberOfCourts = 4;
     // Tour 1: Matchs 1 à 8
     if (matchNumber >= 1 && matchNumber <= 8) {
       int idx = matchNumber - 1;
       int court = (idx % numberOfCourts) + 1;
-      int rot = (idx ~/ numberOfCourts) + 1;
-      return "T$court · R$rot";
+      return "T$court";
     }
     // Tour 2 (Quarts): Matchs 9 à 16
     final t2Order = [11, 12, 15, 16, 9, 10, 13, 14];
     int idxT2 = t2Order.indexOf(matchNumber);
     if (idxT2 != -1) {
-      int t1Rotations = (8 / numberOfCourts).ceil();
       int court = (idxT2 % numberOfCourts) + 1;
-      int rot = t1Rotations + (idxT2 ~/ numberOfCourts) + 1;
-      return "T$court · R$rot";
+      return "T$court";
     }
     // Tour 3 (Demies & Class. 13-16 / 5-8): Matchs 17 à 24
     final t3Order = [20, 24, 18, 22, 19, 23, 17, 21];
     int idxT3 = t3Order.indexOf(matchNumber);
     if (idxT3 != -1) {
-      int t1Rot = (8 / numberOfCourts).ceil();
-      int t2Rot = (8 / numberOfCourts).ceil();
       int court = (idxT3 % numberOfCourts) + 1;
-      int rot = t1Rot + t2Rot + (idxT3 ~/ numberOfCourts) + 1;
-      return "T$court · R$rot";
+      return "T$court";
     }
     // Tour 4 (Finales & Matchs de classement): Matchs 25 à 32
     final t4Order = [32, 30, 28, 26, 31, 29, 27, 25];
     int idxT4 = t4Order.indexOf(matchNumber);
     if (idxT4 != -1) {
-      int t1Rot = (8 / numberOfCourts).ceil();
-      int t2Rot = (8 / numberOfCourts).ceil();
-      int t3Rot = (8 / numberOfCourts).ceil();
       int court = (idxT4 % numberOfCourts) + 1;
-      int rot = t1Rot + t2Rot + t3Rot + (idxT4 ~/ numberOfCourts) + 1;
-      return "T$court · R$rot";
+      return "T$court";
     }
     return "T${((matchNumber - 1) % numberOfCourts) + 1}";
-  }
-
-  /// Numérotation officielle des matches du 1er tour selon le standard FFT de Narbonne
-  static int _getMatchNumberForIndex(int idx) {
-    const mapping = [4, 1, 3, 2, 5, 7, 6, 8];
-    if (idx < mapping.length) return mapping[idx];
-    return idx + 1;
-  }
-
-  /// Détermine le Quart de finale cible (Tableau Principal) pour chaque case du 1er tour
-  static int _getTargetQuartForIndex(int idx) {
-    switch (idx) {
-      case 0: // Match 4 -> feeds Quart 11
-      case 1: // Match 1 -> feeds Quart 11
-        return 11;
-      case 2: // Match 3 -> feeds Quart 12
-      case 3: // Match 2 -> feeds Quart 12
-        return 12;
-      case 4: // Match 5 -> feeds Quart 15
-      case 5: // Match 7 -> feeds Quart 15
-        return 15;
-      case 6: // Match 6 -> feeds Quart 16
-      case 7: // Match 8 -> feeds Quart 16
-      default:
-        return 11;
-    }
-  }
-
-  /// Détermine la Tête de Série affrontée par le vainqueur du match du 1er tour
-  static TournamentPair? _getTargetSeedForIndex(int idx, Map<int, TournamentPair> seedMap) {
-    switch (idx) {
-      case 1: // Vainqueur Match 1 affronte TS2 au Match 11
-        return seedMap[2];
-      case 2: // Vainqueur Match 3 affronte TS3 au Match 12
-        return seedMap[3];
-      case 5: // Vainqueur Match 7 affronte TS4 au Match 15
-        return seedMap[4];
-      case 6: // Vainqueur Match 6 affronte TS1 au Match 16
-        return seedMap[1];
-      default:
-        return null;
-    }
   }
 
   /// Boîte du 1er Tour (Centre) avec affichage clair des exemptions ou du match joué
@@ -2078,7 +3858,7 @@ class TournamentPdfService {
               padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 1),
               color: const PdfColor.fromInt(0xFFF1F5F9),
               child: pw.Text(
-                "★ Avance au Match ${targetQuartMatch ?? 11} (Quarts de finale)",
+                "★ Avance en Quarts de finale (Quart ${targetQuartMatch ?? 1})",
                 style: pw.TextStyle(fontSize: 5, fontWeight: pw.FontWeight.bold, color: darkGray),
                 maxLines: 1,
               ),
@@ -2183,8 +3963,8 @@ class TournamentPdfService {
               ),
               child: pw.Text(
                 targetSeed != null
-                    ? "➔ Vainq. vs TS${targetSeed.seed} (${targetSeed.displayName}) au M$targetQuartMatch"
-                    : "➔ Vainq. qualifié au Match $targetQuartMatch (Quarts)",
+                    ? "➔ Vainq. vs TS${targetSeed.seed} (${targetSeed.displayName}) en Quarts"
+                    : "➔ Vainq. qualifié au Quart $targetQuartMatch",
                 style: const pw.TextStyle(fontSize: 4.8, color: PdfColor.fromInt(0xFF64748B)),
                 maxLines: 1,
               ),
@@ -2392,8 +4172,11 @@ class TournamentPdfService {
       numberOfCourts: numberOfCourts,
     );
 
+    final isPools = bracket.pools.isNotEmpty || bracket.format == 'pools_and_bracket' || bracket.format == 'single_pool';
     final cleanCategory = bracket.category.replaceAll('double_', '').toUpperCase();
-    final filename = 'Tableau_Papillon_${tournament.name.replaceAll(' ', '_')}_$cleanCategory.pdf';
+    final filename = isPools
+        ? 'Tableau_Poules_${tournament.name.replaceAll(' ', '_')}_$cleanCategory.pdf'
+        : 'Tableau_Papillon_${tournament.name.replaceAll(' ', '_')}_$cleanCategory.pdf';
     await exportOrDownloadPdf(bytes: pdfBytes, filename: filename);
   }
 }

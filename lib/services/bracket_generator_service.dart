@@ -74,11 +74,24 @@ class BracketGeneratorService {
         final nextMatchId = r < roundsCount - 1 ? "main_${r + 1}_${m ~/ 2}" : null;
         final nextSlot = r < roundsCount - 1 ? (m % 2 == 0 ? 1 : 2) : null;
 
-        // Consolante pour les matches du 1er tour (si le tableau fait au moins 8)
+        // Consolante et matches de classement FFT réglementaires
         String? consoId;
         int? consoSlot;
         if (r == 0 && bracketSize >= 8) {
+          // Perdants du 1er tour -> Consolante
           consoId = "conso_0_${m ~/ 2}";
+          consoSlot = m % 2 == 0 ? 1 : 2;
+        } else if (r == roundsCount - 2) {
+          // Demi-finales -> Petite Finale (Places 3 & 4)
+          consoId = "place_3_4";
+          consoSlot = m == 0 ? 1 : 2;
+        } else if (bracketSize >= 16 && r == 1) {
+          // Quarts de finale (tableau de 16) -> Demi-finales Places 5-8
+          consoId = m < 2 ? "df_5_8_1" : "df_5_8_2";
+          consoSlot = m % 2 == 0 ? 1 : 2;
+        } else if (bracketSize == 8 && r == 0) {
+          // Quarts de finale (tableau de 8) -> Demi-finales Places 5-8
+          consoId = m < 2 ? "df_5_8_1" : "df_5_8_2";
           consoSlot = m % 2 == 0 ? 1 : 2;
         }
 
@@ -93,6 +106,101 @@ class BracketGeneratorService {
           consolationSlot: consoSlot,
         ));
       }
+    }
+
+    // Ajout automatique des Matches de Classement Officiels FFT (Tableau Principal)
+    if (bracketSize >= 16) {
+      // 1. Demi-finales Places 5-8
+      mainMatches.add(const BracketMatch(
+        id: "df_5_8_1",
+        roundIndex: 3,
+        matchIndex: 0,
+        roundName: "Demi-finales Places 5-8",
+        nextMatchId: "place_5_6",
+        nextMatchSlot: 1,
+        consolationMatchId: "place_7_8",
+        consolationSlot: 1,
+      ));
+      mainMatches.add(const BracketMatch(
+        id: "df_5_8_2",
+        roundIndex: 3,
+        matchIndex: 1,
+        roundName: "Demi-finales Places 5-8",
+        nextMatchId: "place_5_6",
+        nextMatchSlot: 2,
+        consolationMatchId: "place_7_8",
+        consolationSlot: 2,
+      ));
+
+      // 2. Match Places 7 & 8
+      mainMatches.add(const BracketMatch(
+        id: "place_7_8",
+        roundIndex: 4,
+        matchIndex: 1,
+        roundName: "Match Places 7 & 8",
+        matchCode: "PLACE_7_8",
+      ));
+
+      // 3. Match Places 5 & 6
+      mainMatches.add(const BracketMatch(
+        id: "place_5_6",
+        roundIndex: 5,
+        matchIndex: 0,
+        roundName: "Match Places 5 & 6",
+        matchCode: "PLACE_5_6",
+      ));
+
+      // 4. Petite Finale (Places 3 & 4)
+      mainMatches.add(const BracketMatch(
+        id: "place_3_4",
+        roundIndex: 6,
+        matchIndex: 1,
+        roundName: "Petite Finale (Places 3 & 4)",
+        matchCode: "PLACE_3_4",
+      ));
+    } else if (bracketSize == 8) {
+      // Tableau de 8 : Demi-finales 5-8, Matchs 7/8, 5/6 et Petite Finale 3/4
+      mainMatches.add(const BracketMatch(
+        id: "df_5_8_1",
+        roundIndex: 2,
+        matchIndex: 1,
+        roundName: "Demi-finales Places 5-8",
+        nextMatchId: "place_5_6",
+        nextMatchSlot: 1,
+        consolationMatchId: "place_7_8",
+        consolationSlot: 1,
+      ));
+      mainMatches.add(const BracketMatch(
+        id: "df_5_8_2",
+        roundIndex: 2,
+        matchIndex: 2,
+        roundName: "Demi-finales Places 5-8",
+        nextMatchId: "place_5_6",
+        nextMatchSlot: 2,
+        consolationMatchId: "place_7_8",
+        consolationSlot: 2,
+      ));
+      mainMatches.add(const BracketMatch(
+        id: "place_7_8",
+        roundIndex: 3,
+        matchIndex: 1,
+        roundName: "Match Places 7 & 8",
+        matchCode: "PLACE_7_8",
+      ));
+      mainMatches.add(const BracketMatch(
+        id: "place_5_6",
+        roundIndex: 3,
+        matchIndex: 2,
+        roundName: "Match Places 5 & 6",
+        matchCode: "PLACE_5_6",
+      ));
+      mainMatches.add(const BracketMatch(
+        id: "place_3_4",
+        roundIndex: 3,
+        matchIndex: 3,
+        roundName: "Petite Finale (Places 3 & 4)",
+        matchCode: "PLACE_3_4",
+      ));
     }
 
     // 2. Placement FFT réglementaire des paires au 1er tour (Round 0)
@@ -236,6 +344,23 @@ class BracketGeneratorService {
           final nextMatchId = r < consoRounds - 1 ? "conso_${r + 1}_${m ~/ 2}" : null;
           final nextSlot = r < consoRounds - 1 ? (m % 2 == 0 ? 1 : 2) : null;
 
+          String? consoId;
+          int? consoSlot;
+          if (r == 1 && consoRounds >= 2) {
+            // Demi-finales consolante : perdants -> Match Places 11 & 12
+            consoId = "conso_place_11_12";
+            consoSlot = m == 0 ? 1 : 2;
+          } else if (r == 0 && consoRounds >= 3) {
+            // Quarts consolante : perdants des matches centraux -> Match Places 13 & 14
+            if (m == 1) {
+              consoId = "conso_place_13_14";
+              consoSlot = 1;
+            } else if (m == 2) {
+              consoId = "conso_place_13_14";
+              consoSlot = 2;
+            }
+          }
+
           consolationMatches.add(BracketMatch(
             id: matchId,
             roundIndex: r,
@@ -243,7 +368,66 @@ class BracketGeneratorService {
             matchIndex: m,
             nextMatchId: nextMatchId,
             nextMatchSlot: nextSlot,
+            consolationMatchId: consoId,
+            consolationSlot: consoSlot,
           ));
+        }
+      }
+
+      // Ajout automatique des matches de classement consolante FFT
+      if (consoSize >= 4) {
+        consolationMatches.add(const BracketMatch(
+          id: "conso_place_11_12",
+          roundIndex: 3,
+          matchIndex: 0,
+          roundName: "Match Places 11 & 12",
+          matchCode: "PLACE_11_12",
+        ));
+      }
+      if (consoSize >= 8) {
+        consolationMatches.add(const BracketMatch(
+          id: "conso_place_13_14",
+          roundIndex: 2,
+          matchIndex: 0,
+          roundName: "Match Places 13 & 14",
+          matchCode: "PLACE_13_14",
+        ));
+      }
+
+      // Exempts structurels : un match de consolante sans (ou avec un seul) participant possible
+      // n'est jamais joué -> marqué EXEMPT pour ne pas bloquer le tableau ni le planning.
+      final feedersPerConso0 = <String, int>{};
+      {
+        int idx = 0;
+        for (final _ in updatedMainMatches.where((x) => x.roundIndex == 0 && !x.isBye)) {
+          final target = "conso_0_${idx ~/ 2}";
+          feedersPerConso0[target] = (feedersPerConso0[target] ?? 0) + 1;
+          idx++;
+        }
+      }
+      final consoParticipants = <String, int>{};
+      for (int r = 0; r < consoRounds; r++) {
+        final matchesInRound = consoSize ~/ pow(2, r + 1);
+        for (int m = 0; m < matchesInRound; m++) {
+          final id = "conso_${r}_$m";
+          int participants;
+          if (r == 0) {
+            participants = feedersPerConso0[id] ?? 0;
+          } else {
+            final a = (consoParticipants["conso_${r - 1}_${m * 2}"] ?? 0) >= 1 ? 1 : 0;
+            final b = (consoParticipants["conso_${r - 1}_${m * 2 + 1}"] ?? 0) >= 1 ? 1 : 0;
+            participants = a + b;
+          }
+          consoParticipants[id] = participants;
+        }
+      }
+      for (int i = 0; i < consolationMatches.length; i++) {
+        final cm = consolationMatches[i];
+        if ((consoParticipants[cm.id] ?? 2) <= 1) {
+          consolationMatches[i] = cm.copyWith(
+            isBye: true,
+            status: (consoParticipants[cm.id] ?? 0) == 0 ? 'completed' : cm.status,
+          );
         }
       }
 
@@ -600,6 +784,24 @@ class BracketGeneratorService {
       mainMatches: smartFinalMatches,
       pools: pools,
       updatedAt: DateTime.now(),
+    );
+  }
+
+  /// Reconstruit et régénère les poules et leurs matches à partir d'une nouvelle répartition des paires (JAT)
+  static TournamentBracket reassignPoolPairs({
+    required TournamentBracket bracket,
+    required List<TournamentPair> pouleAPairs,
+    required List<TournamentPair> pouleBPairs,
+    int? numCourts,
+  }) {
+    final courts = numCourts ?? bracket.numCourts;
+    return generatePoolsAndBracket(
+      tournamentId: bracket.tournamentId,
+      category: bracket.category,
+      pouleAPairs: pouleAPairs,
+      pouleBPairs: pouleBPairs,
+      finalPhaseType: bracket.finalPhaseType ?? 'direct_finals',
+      numCourts: courts,
     );
   }
 
@@ -1161,33 +1363,39 @@ class BracketGeneratorService {
     // 1. Progression du vainqueur au tour suivant
     _applyWinnerProgression(targetList, updatedMatch);
 
-    // 2. Si match de phase finale avec consolante (ex: Petite Finale 3e/4e)
+    // 2. Si match de phase finale avec consolante (ex: Petite Finale 3e/4e ou matches de classement)
     if (match.consolationMatchId != null) {
       final loser = updatedMatch.loser;
       if (loser != null && !loser.isBye) {
-        if (bracket.format == 'pools_and_bracket') {
-          // Dans pools_and_bracket, la consolante est le match de place 3/4 dans mainMatches
-          final cIdx = targetList.indexWhere((m) => m.id == match.consolationMatchId);
-          if (cIdx != -1) {
-            final cm = targetList[cIdx];
-            targetList[cIdx] = cm.copyWith(
-              pair1: match.consolationSlot == 1 ? loser : cm.pair1,
-              pair2: match.consolationSlot == 2 ? loser : cm.pair2,
-            );
-          }
+        // Chercher d'abord dans la même liste (ex: mainMatches -> mainMatches pour place 3/4)
+        final cIdxInTarget = targetList.indexWhere((m) => m.id == match.consolationMatchId);
+        if (cIdxInTarget != -1) {
+          final cm = targetList[cIdxInTarget];
+          final p1 = match.consolationSlot == 1 ? loser : cm.pair1;
+          final p2 = match.consolationSlot == 2 ? loser : cm.pair2;
+          targetList[cIdxInTarget] = cm.copyWith(
+            pair1: p1,
+            pair2: p2,
+            status: (p1 != null && p2 != null && !cm.isBye) ? 'scheduled' : cm.status,
+          );
         } else {
-          // Dans elimination, bascule dans consolationMatches
-          List<BracketMatch> updatedConso = List<BracketMatch>.from(bracket.consolationMatches);
-          final consoIdx = updatedConso.indexWhere((m) => m.id == match.consolationMatchId);
-          if (consoIdx != -1) {
-            final cm = updatedConso[consoIdx];
-            updatedConso[consoIdx] = cm.copyWith(
-              pair1: match.consolationSlot == 1 ? loser : cm.pair1,
-              pair2: match.consolationSlot == 2 ? loser : cm.pair2,
+          // Sinon chercher dans l'autre liste (ex: mainMatches -> consolationMatches)
+          List<BracketMatch> otherList = isMain
+              ? List<BracketMatch>.from(bracket.consolationMatches)
+              : List<BracketMatch>.from(bracket.mainMatches);
+          final cIdxInOther = otherList.indexWhere((m) => m.id == match.consolationMatchId);
+          if (cIdxInOther != -1) {
+            final cm = otherList[cIdxInOther];
+            final p1 = match.consolationSlot == 1 ? loser : cm.pair1;
+            final p2 = match.consolationSlot == 2 ? loser : cm.pair2;
+            otherList[cIdxInOther] = cm.copyWith(
+              pair1: p1,
+              pair2: p2,
+              status: (p1 != null && p2 != null && !cm.isBye) ? 'scheduled' : cm.status,
             );
             return bracket.copyWith(
-              mainMatches: targetList,
-              consolationMatches: updatedConso,
+              mainMatches: isMain ? targetList : otherList,
+              consolationMatches: isMain ? otherList : targetList,
               updatedAt: DateTime.now(),
             );
           }
@@ -1387,10 +1595,29 @@ class BracketGeneratorService {
     if (nextIdx == -1) return;
 
     final nextMatch = matches[nextIdx];
-    matches[nextIdx] = nextMatch.copyWith(
+    var updatedNext = nextMatch.copyWith(
       pair1: completedMatch.nextMatchSlot == 1 ? winner : nextMatch.pair1,
       pair2: completedMatch.nextMatchSlot == 2 ? winner : nextMatch.pair2,
     );
+
+    // Exempt structurel (ex: consolante avec un nombre impair de perdants) :
+    // le match n'aura jamais d'adversaire -> la paire seule avance automatiquement.
+    if (updatedNext.isBye && !updatedNext.isCompleted) {
+      final lone = [updatedNext.pair1, updatedNext.pair2]
+          .where((p) => p != null && !p.isBye)
+          .toList();
+      if (lone.length == 1) {
+        updatedNext = updatedNext.copyWith(
+          winnerId: lone.first!.id,
+          status: 'completed',
+          score: 'EXEMPT',
+        );
+        matches[nextIdx] = updatedNext;
+        _applyWinnerProgression(matches, updatedNext);
+        return;
+      }
+    }
+    matches[nextIdx] = updatedNext;
   }
 
   static String _getRoundName(int roundsFromFinal) {
@@ -1507,7 +1734,19 @@ class BracketGeneratorService {
 
       int assignedCourt;
 
-      if (m.roundIndex == roundsCount - 1) {
+      if (m.id == 'place_3_4') {
+        // Petite Finale (Places 3 & 4)
+        assignedCourt = min(2, numCourts);
+      } else if (m.id == 'place_5_6') {
+        // Match Places 5 & 6
+        assignedCourt = min(3, numCourts);
+      } else if (m.id == 'place_7_8') {
+        // Match Places 7 & 8
+        assignedCourt = min(4, numCourts);
+      } else if (m.id.startsWith('df_5_8')) {
+        // Demi-finales Places 5-8
+        assignedCourt = (m.matchIndex == 0) ? min(3, numCourts) : min(4, numCourts);
+      } else if (m.roundIndex == roundsCount - 1 || m.id == 'main_${roundsCount - 1}_0') {
         // Grande Finale
         assignedCourt = 1;
       } else if (m.roundIndex == roundsCount - 2) {

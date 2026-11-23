@@ -28,6 +28,16 @@ class UserModel {
   final String? preferredPosition;
   final String? availability;
   final String? racket;
+  final String? racketBrand;
+  final String? racketModel;
+  final String? racketMaterial;
+  final String? racketBalance;
+  final String? racketSurface;
+  final int? racketWeight;
+  final int? racketPower;
+  final int? racketControl;
+  final int? racketSpin;
+  final String? racketPlayStyle;
   final bool isBanned;
   final bool isReferee;
   final List<String> blockedUserIds; // Apple UGC Guideline 1.2: Blocked users
@@ -70,6 +80,16 @@ class UserModel {
     this.preferredPosition,
     this.availability,
     this.racket,
+    this.racketBrand,
+    this.racketModel,
+    this.racketMaterial,
+    this.racketBalance,
+    this.racketSurface,
+    this.racketWeight,
+    this.racketPower,
+    this.racketControl,
+    this.racketSpin,
+    this.racketPlayStyle,
     this.isBanned = false,
     this.blockedUserIds = const [],
     this.clubId,
@@ -109,6 +129,16 @@ class UserModel {
     String? preferredPosition,
     String? availability,
     String? racket,
+    String? racketBrand,
+    String? racketModel,
+    String? racketMaterial,
+    String? racketBalance,
+    String? racketSurface,
+    int? racketWeight,
+    int? racketPower,
+    int? racketControl,
+    int? racketSpin,
+    String? racketPlayStyle,
     bool clearRacket = false,
     bool? isBanned,
     bool? isReferee,
@@ -149,6 +179,16 @@ class UserModel {
       preferredPosition: preferredPosition ?? this.preferredPosition,
       availability: availability ?? this.availability,
       racket: clearRacket ? null : (racket ?? this.racket),
+      racketBrand: clearRacket ? null : (racketBrand ?? this.racketBrand),
+      racketModel: clearRacket ? null : (racketModel ?? this.racketModel),
+      racketMaterial: clearRacket ? null : (racketMaterial ?? this.racketMaterial),
+      racketBalance: clearRacket ? null : (racketBalance ?? this.racketBalance),
+      racketSurface: clearRacket ? null : (racketSurface ?? this.racketSurface),
+      racketWeight: clearRacket ? null : (racketWeight ?? this.racketWeight),
+      racketPower: clearRacket ? null : (racketPower ?? this.racketPower),
+      racketControl: clearRacket ? null : (racketControl ?? this.racketControl),
+      racketSpin: clearRacket ? null : (racketSpin ?? this.racketSpin),
+      racketPlayStyle: clearRacket ? null : (racketPlayStyle ?? this.racketPlayStyle),
       isBanned: isBanned ?? this.isBanned,
       blockedUserIds: blockedUserIds ?? this.blockedUserIds,
       clubId: clubId ?? this.clubId,
@@ -219,6 +259,40 @@ class UserModel {
       preferredPosition: data['preferredPosition'],
       availability: data['availability'],
       racket: data['racket']?.toString() ?? data['racketModel']?.toString(),
+      racketBrand: data['racketBrand']?.toString(),
+      racketModel: data['racketModel']?.toString(),
+      racketMaterial: data['racketMaterial']?.toString(),
+      racketBalance: data['racketBalance']?.toString(),
+      racketSurface: data['racketSurface']?.toString(),
+      racketWeight: () {
+        final w = data['racketWeight'];
+        if (w is int) return w;
+        if (w is num) return w.toInt();
+        if (w is String) return int.tryParse(w);
+        return null;
+      }(),
+      racketPower: () {
+        final p = data['racketPower'];
+        if (p is int) return p;
+        if (p is num) return p.toInt();
+        if (p is String) return int.tryParse(p);
+        return null;
+      }(),
+      racketControl: () {
+        final c = data['racketControl'];
+        if (c is int) return c;
+        if (c is num) return c.toInt();
+        if (c is String) return int.tryParse(c);
+        return null;
+      }(),
+      racketSpin: () {
+        final s = data['racketSpin'];
+        if (s is int) return s;
+        if (s is num) return s.toInt();
+        if (s is String) return int.tryParse(s);
+        return null;
+      }(),
+      racketPlayStyle: data['racketPlayStyle']?.toString(),
       isBanned: data['isBanned'] ?? false,
       blockedUserIds: List<String>.from(data['blockedUserIds'] ?? []),
       clubId: data['clubId'],
@@ -266,6 +340,16 @@ class UserModel {
       'preferredPosition': preferredPosition,
       'availability': availability,
       if (racket != null) 'racket': racket,
+      if (racketBrand != null) 'racketBrand': racketBrand,
+      if (racketModel != null) 'racketModel': racketModel,
+      if (racketMaterial != null) 'racketMaterial': racketMaterial,
+      if (racketBalance != null) 'racketBalance': racketBalance,
+      if (racketSurface != null) 'racketSurface': racketSurface,
+      if (racketWeight != null) 'racketWeight': racketWeight,
+      if (racketPower != null) 'racketPower': racketPower,
+      if (racketControl != null) 'racketControl': racketControl,
+      if (racketSpin != null) 'racketSpin': racketSpin,
+      if (racketPlayStyle != null) 'racketPlayStyle': racketPlayStyle,
       'isBanned': isBanned,
       'blockedUserIds': blockedUserIds,
       if (clubId != null) 'clubId': clubId,

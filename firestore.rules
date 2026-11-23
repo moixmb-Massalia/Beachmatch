@@ -96,12 +96,26 @@ service cloud.firestore {
 
       match /bracket/{bracketId} {
         allow read: if true;
-        allow write: if isJatOrAdmin();
+        allow create: if isJatOrAdmin();
+        allow delete: if isAdmin();
+        allow update: if isJatOrAdmin() && (
+          !('mainMatches' in resource.data) ||
+          !('mainMatches' in request.resource.data) ||
+          resource.data.mainMatches.size() < 16 ||
+          request.resource.data.mainMatches.size() >= resource.data.mainMatches.size()
+        );
       }
 
       match /brackets/{bracketId} {
         allow read: if true;
-        allow write: if isJatOrAdmin();
+        allow create: if isJatOrAdmin();
+        allow delete: if isAdmin();
+        allow update: if isJatOrAdmin() && (
+          !('mainMatches' in resource.data) ||
+          !('mainMatches' in request.resource.data) ||
+          resource.data.mainMatches.size() < 16 ||
+          request.resource.data.mainMatches.size() >= resource.data.mainMatches.size()
+        );
       }
 
       match /court_schedules/{scheduleId} {

@@ -51,11 +51,26 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
   List<CourtSchedulePreset> _availablePresets = [];
   int _delayOffsetMinutes = 0; // Décalage horaire dynamique (+15 min pluie/retard)
 
+  // ⏱️ Horaires, Durées & Pauses JAT
+  int _startHour = 9;
+  int _startMinute = 0;
+  int _rotationDurationMinutes = 75;
+  int _lunchBreakDurationMinutes = 0;
+  int _lunchBreakAfterRotation = 0;
+  Map<String, String> _customRotationTimes = {};
+  Map<String, int> _customMatchRotations = {};
+  Map<String, int> _customMatchCourts = {};
+
   @override
   void initState() {
     super.initState();
     _selectedCategories = Set.from(widget.initialCategories.isEmpty ? {'DH', 'DD'} : widget.initialCategories);
-    _numCourts = widget.bracket?.numCourts ?? widget.initialNumCourts;
+    int detectedCourts = widget.bracket?.numCourts ?? widget.initialNumCourts;
+    final tLoc = '${widget.tournament.club} ${widget.tournament.location} ${widget.tournament.name}'.toLowerCase();
+    if (tLoc.contains('valentine') || tLoc.contains('tennis park')) {
+      detectedCourts = 3;
+    }
+    _numCourts = detectedCourts;
     _currentPresetId = widget.initialPresetId;
     if (widget.initialBrackets != null && widget.initialBrackets!.isNotEmpty) {
       _brackets = List.from(widget.initialBrackets!);
@@ -120,8 +135,22 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
         _currentPresetId = activePreset.id;
         _currentPresetName = activePreset.name;
         _currentPresetIsOfficial = activePreset.isOfficial;
-        _numCourts = activePreset.numCourts;
+        final tLoc = '${widget.tournament.club} ${widget.tournament.location} ${widget.tournament.name}'.toLowerCase();
+        final isValentine = tLoc.contains('valentine') || tLoc.contains('tennis park');
+        if (isValentine && (activePreset.numCourts == 4 || activePreset.numCourts == 5)) {
+          _numCourts = 3;
+        } else {
+          _numCourts = activePreset.numCourts;
+        }
         _selectedCategories = activePreset.categories.toSet();
+        _startHour = activePreset.startHour;
+        _startMinute = activePreset.startMinute;
+        _rotationDurationMinutes = activePreset.rotationDurationMinutes;
+        _lunchBreakDurationMinutes = activePreset.lunchBreakDurationMinutes;
+        _lunchBreakAfterRotation = activePreset.lunchBreakAfterRotation;
+        _customRotationTimes = Map.from(activePreset.customRotationTimes);
+        _customMatchRotations = Map.from(activePreset.customMatchRotations);
+        _customMatchCourts = Map.from(activePreset.customMatchCourts);
       } else if (presetsList.isEmpty) {
         // Enregistrer la première répartition automatiquement
         final newDoc = FirebaseFirestore.instance
@@ -171,7 +200,39 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
       _numCourts = p.numCourts;
       _selectedCategories = p.categories.toSet();
       _selectedRotationIndex = 0;
+      _startHour = p.startHour;
+      _startMinute = p.startMinute;
+      _rotationDurationMinutes = p.rotationDurationMinutes;
+      _lunchBreakDurationMinutes = p.lunchBreakDurationMinutes;
+      _lunchBreakAfterRotation = p.lunchBreakAfterRotation;
+      _customRotationTimes = Map.from(p.customRotationTimes);
+      _customMatchRotations = Map.from(p.customMatchRotations);
+      _customMatchCourts = Map.from(p.customMatchCourts);
     });
+  }
+
+  Future<void> _savePresetCustomSchedule() async {
+    if (_currentPresetId == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('tournaments')
+          .doc(widget.tournament.id)
+          .collection('court_schedules')
+          .doc(_currentPresetId)
+          .update({
+        'startHour': _startHour,
+        'startMinute': _startMinute,
+        'rotationDurationMinutes': _rotationDurationMinutes,
+        'lunchBreakDurationMinutes': _lunchBreakDurationMinutes,
+        'lunchBreakAfterRotation': _lunchBreakAfterRotation,
+        'customRotationTimes': _customRotationTimes,
+        'customMatchRotations': _customMatchRotations,
+        'customMatchCourts': _customMatchCourts,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint("Erreur sauvegarde preset custom schedule: $e");
+    }
   }
 
   // Modèle d'un match programmé sur un court (dynamique sur mesure basé sur les vrais brackets)
@@ -232,8 +293,20 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
   }
 
   String _formatRotationTime(int rotIndex) {
-    final startMinutes = 9 * 60 + rotIndex * 75 + _delayOffsetMinutes; // 1h15 par rotation FFT + décalage dynamique
-    final endMinutes = startMinutes + 75;
+    if (_customRotationTimes.containsKey(rotIndex.toString())) {
+      return _customRotationTimes[rotIndex.toString()]!;
+    }
+
+    int minutesAccumulated = _startHour * 60 + _startMinute + _delayOffsetMinutes;
+    for (int i = 0; i < rotIndex; i++) {
+      minutesAccumulated += _rotationDurationMinutes;
+      if (_lunchBreakDurationMinutes > 0 && _lunchBreakAfterRotation == (i + 1)) {
+        minutesAccumulated += _lunchBreakDurationMinutes;
+      }
+    }
+
+    final startMinutes = minutesAccumulated;
+    final endMinutes = startMinutes + _rotationDurationMinutes;
     final startH = (startMinutes ~/ 60).toString().padLeft(2, '0');
     final startM = (startMinutes % 60).toString().padLeft(2, '0');
     final endH = (endMinutes ~/ 60).toString().padLeft(2, '0');
@@ -293,8 +366,8 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
             'tour': "${pool.name} - ${m.roundName.contains('Tour') ? m.roundName : 'Match ${m.matchIndex + 1}'}",
             'p1': p1Name,
             'p2': p2Name,
-            'p1Id': m.pair1?.id ?? p1Name,
-            'p2Id': m.pair2?.id ?? p2Name,
+            'p1Id': m.pair1?.id ?? "${m.id}_s1",
+            'p2Id': m.pair2?.id ?? "${m.id}_s2",
             'phaseOrder': m.roundIndex * 2,
             'score': m.score,
             'winner': m.winnerId == null
@@ -326,8 +399,8 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
           'tour': "$catCode ${m.roundName}",
           'p1': p1Name,
           'p2': p2Name,
-          'p1Id': m.pair1?.id ?? p1Name,
-          'p2Id': m.pair2?.id ?? p2Name,
+          'p1Id': m.pair1?.id ?? "${m.id}_s1",
+          'p2Id': m.pair2?.id ?? "${m.id}_s2",
           'phaseOrder': hasPools ? (10 + m.roundIndex * 2) : (m.roundIndex * 2),
           'score': m.score,
           'winner': m.winnerId == null
@@ -341,19 +414,21 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
       // 3. Matches de Consolante
       for (final m in b.consolationMatches) {
         if (m.isBye) continue;
-        final p1Name = m.pair1?.displayName ?? "Repêché";
-        final p2Name = m.pair2?.displayName ?? "Repêché";
+        // Au 1er tour de consolante : perdants du tableau principal ; ensuite : vainqueurs de consolante
+        final consoPlaceholder = m.roundIndex == 0 ? "Perdant du 1er tour" : "Vainqueur consolante";
+        final p1Name = m.pair1?.displayName ?? consoPlaceholder;
+        final p2Name = m.pair2?.displayName ?? consoPlaceholder;
 
         rawMatchList.add({
           'matchId': m.id,
           'bracketCategory': b.category,
           'cat': catCode,
           'type': catCode,
-          'tour': "$catCode ${m.roundName}",
+          'tour': "$catCode ${m.roundName.replaceFirst('Consolante ', 'Consolante · ')}",
           'p1': p1Name,
           'p2': p2Name,
-          'p1Id': m.pair1?.id ?? p1Name,
-          'p2Id': m.pair2?.id ?? p2Name,
+          'p1Id': m.pair1?.id ?? "${m.id}_s1",
+          'p2Id': m.pair2?.id ?? "${m.id}_s2",
           'phaseOrder': (hasPools ? 11 : 1) + m.roundIndex * 2,
           'score': m.score,
           'winner': m.winnerId == null
@@ -388,18 +463,57 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
 
       for (int court = 1; court <= _numCourts; court++) {
         int pickedIndex = -1;
+
+        // 1. Match forcé par le JAT sur CE court et CETTE rotation précise
         for (int i = 0; i < unassigned.length; i++) {
           if (scheduledIndices.contains(i)) continue;
           final m = unassigned[i];
-          final p1Id = m['p1Id'] as String;
-          final p2Id = m['p2Id'] as String;
-
-          final hasCollision = (p1Id.isNotEmpty && playingPairIds.contains(p1Id)) ||
-              (p2Id.isNotEmpty && playingPairIds.contains(p2Id));
-
-          if (!hasCollision) {
+          final mId = m['matchId']?.toString();
+          if (mId != null &&
+              _customMatchRotations[mId] == rotId &&
+              _customMatchCourts[mId] == court) {
             pickedIndex = i;
             break;
+          }
+        }
+
+        // 2. Si aucun forcé sur ce court précis, chercher match forcé sur CETTE rotation sans court spécifique
+        if (pickedIndex == -1) {
+          for (int i = 0; i < unassigned.length; i++) {
+            if (scheduledIndices.contains(i)) continue;
+            final m = unassigned[i];
+            final mId = m['matchId']?.toString();
+            if (mId != null &&
+                _customMatchRotations[mId] == rotId &&
+                !_customMatchCourts.containsKey(mId)) {
+              pickedIndex = i;
+              break;
+            }
+          }
+        }
+
+        // 3. Sinon, algorithme automatique classique (sans collision et en évitant les matches réservés pour une autre rotation)
+        if (pickedIndex == -1) {
+          for (int i = 0; i < unassigned.length; i++) {
+            if (scheduledIndices.contains(i)) continue;
+            final m = unassigned[i];
+            final mId = m['matchId']?.toString();
+
+            // Si ce match est réservé par le JAT pour une autre rotation, ne pas le piocher ici
+            if (mId != null && _customMatchRotations.containsKey(mId) && _customMatchRotations[mId] != rotId) {
+              continue;
+            }
+
+            final p1Id = m['p1Id'] as String;
+            final p2Id = m['p2Id'] as String;
+
+            final hasCollision = (p1Id.isNotEmpty && playingPairIds.contains(p1Id)) ||
+                (p2Id.isNotEmpty && playingPairIds.contains(p2Id));
+
+            if (!hasCollision) {
+              pickedIndex = i;
+              break;
+            }
           }
         }
 
@@ -421,7 +535,9 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
             'p1': m['p1'],
             'p2': m['p2'],
             'score': m['score'] ?? (m['isFinished'] == true ? "Terminé" : "À jouer"),
-            'pause': "Pause FFT 1h15 garantie",
+            'pause': (_lunchBreakDurationMinutes > 0 && _lunchBreakAfterRotation == rotId + 1)
+                ? "Pause repas $_lunchBreakDurationMinutes min garantie"
+                : "Pause FFT $_rotationDurationMinutes min garantie",
             'next': m['next'],
             'isFinished': m['isFinished'] ?? false,
             'winner': m['winner'],
@@ -808,6 +924,563 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
     );
   }
 
+  void _showScheduleTimeConfigDialog() {
+    int tempNumCourts = _numCourts;
+    int tempStartHour = _startHour;
+    int tempStartMinute = _startMinute;
+    int tempRotDuration = _rotationDurationMinutes;
+    int tempBreakDuration = _lunchBreakDurationMinutes;
+    int tempBreakAfter = _lunchBreakAfterRotation;
+
+    final startTimes = [
+      {'h': 8, 'm': 0, 'label': '08h00'},
+      {'h': 8, 'm': 30, 'label': '08h30'},
+      {'h': 9, 'm': 0, 'label': '09h00 (Défaut)'},
+      {'h': 9, 'm': 30, 'label': '09h30'},
+      {'h': 10, 'm': 0, 'label': '10h00'},
+      {'h': 13, 'm': 30, 'label': '13h30 (Après-midi)'},
+      {'h': 14, 'm': 0, 'label': '14h00'},
+    ];
+
+    final durations = [45, 60, 75, 90];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.access_time_rounded, color: AppColors.gold, size: 22),
+                            SizedBox(width: 8),
+                            Text(
+                              "Horaires & Pauses JAT",
+                              style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      "Personnalisez l'horaire de coup d'envoi et la durée des rotations :",
+                      style: TextStyle(color: Colors.white60, fontSize: 12),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // 0. Terrains du site
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("TERRAINS DISPONIBLES :", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4ADE80).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFF4ADE80)),
+                          ),
+                          child: Text(
+                            "$tempNumCourts terrains",
+                            style: const TextStyle(color: Color(0xFF4ADE80), fontWeight: FontWeight.bold, fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [2, 3, 4, 5, 6].map((nc) {
+                        final isSel = tempNumCourts == nc;
+                        final label = nc == 3 ? "3 terrains (Valentine)" : "$nc terrains";
+                        return ChoiceChip(
+                          label: Text(
+                            label,
+                            style: TextStyle(
+                              color: isSel ? Colors.black : Colors.white,
+                              fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                          selected: isSel,
+                          selectedColor: const Color(0xFF4ADE80),
+                          backgroundColor: Colors.white.withValues(alpha: 0.06),
+                          side: BorderSide(color: isSel ? const Color(0xFF4ADE80) : Colors.white24),
+                          onSelected: (val) {
+                            if (val) setSheetState(() => tempNumCourts = nc);
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // 1. Heure de début
+                    const Text("1. HEURE DE DÉBUT DU TOURNOI :", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: startTimes.map((st) {
+                        final isSel = tempStartHour == st['h'] && tempStartMinute == st['m'];
+                        return ChoiceChip(
+                          label: Text(
+                            st['label'] as String,
+                            style: TextStyle(
+                              color: isSel ? Colors.black : Colors.white,
+                              fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                          selected: isSel,
+                          selectedColor: AppColors.gold,
+                          backgroundColor: Colors.white.withValues(alpha: 0.06),
+                          side: BorderSide(color: isSel ? AppColors.gold : Colors.white24),
+                          onSelected: (val) {
+                            if (val) {
+                              setSheetState(() {
+                                tempStartHour = st['h'] as int;
+                                tempStartMinute = st['m'] as int;
+                              });
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // 2. Durée par rotation
+                    const Text("2. DURÉE D'UNE ROTATION :", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: durations.map((d) {
+                        final isSel = tempRotDuration == d;
+                        final label = d == 75 ? "1h15 (75 min · FFT)" : (d == 60 ? "1h00 (60 min)" : "$d min");
+                        return ChoiceChip(
+                          label: Text(
+                            label,
+                            style: TextStyle(
+                              color: isSel ? Colors.black : Colors.white,
+                              fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                          selected: isSel,
+                          selectedColor: const Color(0xFF00E5FF),
+                          backgroundColor: Colors.white.withValues(alpha: 0.06),
+                          side: BorderSide(color: isSel ? const Color(0xFF00E5FF) : Colors.white24),
+                          onSelected: (val) {
+                            if (val) setSheetState(() => tempRotDuration = d);
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // 3. Décalage direct
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("3. DÉCALAGE EN DIRECT (RETARDS) :", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _delayOffsetMinutes > 0 ? AppColors.gold.withValues(alpha: 0.2) : Colors.white10,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: _delayOffsetMinutes > 0 ? AppColors.gold : Colors.white24),
+                          ),
+                          child: Text(
+                            _delayOffsetMinutes > 0 ? "+$_delayOffsetMinutes min" : "À l'heure",
+                            style: TextStyle(
+                              color: _delayOffsetMinutes > 0 ? AppColors.gold : Colors.white70,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [0, 10, 15, 20, 30, 45].map((del) {
+                        final isSel = _delayOffsetMinutes == del;
+                        final label = del == 0 ? "0 min (À l'heure)" : "+$del min";
+                        return ChoiceChip(
+                          label: Text(
+                            label,
+                            style: TextStyle(
+                              color: isSel ? Colors.black : Colors.white,
+                              fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                          selected: isSel,
+                          selectedColor: AppColors.gold,
+                          backgroundColor: Colors.white.withValues(alpha: 0.06),
+                          side: BorderSide(color: isSel ? AppColors.gold : Colors.white24),
+                          onSelected: (val) {
+                            if (val) setSheetState(() => _delayOffsetMinutes = del);
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Text("Ajuster pas à pas :", style: TextStyle(color: Colors.white60, fontSize: 11)),
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: _delayOffsetMinutes >= 5
+                              ? () => setSheetState(() => _delayOffsetMinutes = (_delayOffsetMinutes - 5).clamp(0, 300))
+                              : null,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _delayOffsetMinutes >= 5 ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.02),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: _delayOffsetMinutes >= 5 ? Colors.white24 : Colors.white10),
+                            ),
+                            child: Text("- 5 min", style: TextStyle(color: _delayOffsetMinutes >= 5 ? Colors.white : Colors.white24, fontSize: 11, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        InkWell(
+                          onTap: () => setSheetState(() => _delayOffsetMinutes += 5),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.gold.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.gold),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.add, color: AppColors.gold, size: 13),
+                                SizedBox(width: 2),
+                                Text("5m", style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        InkWell(
+                          onTap: () => setSheetState(() => _delayOffsetMinutes += 10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.gold.withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.gold),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.add, color: AppColors.gold, size: 13),
+                                SizedBox(width: 2),
+                                Text("10m", style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (_delayOffsetMinutes > 0) ...[
+                          const Spacer(),
+                          InkWell(
+                            onTap: () => setSheetState(() => _delayOffsetMinutes = 0),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.redAccent.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.refresh_rounded, color: Colors.redAccent, size: 13),
+                                  SizedBox(width: 3),
+                                  Text("RÀZ", style: TextStyle(color: Colors.redAccent, fontSize: 10.5, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Bouton Enregistrer
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.gold,
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        icon: const Icon(Icons.check_circle_rounded, size: 20),
+                        label: const Text("Appliquer & Recalculer le Planning", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          setState(() {
+                            _numCourts = tempNumCourts;
+                            _startHour = tempStartHour;
+                            _startMinute = tempStartMinute;
+                            _rotationDurationMinutes = tempRotDuration;
+                            _lunchBreakDurationMinutes = tempBreakDuration;
+                            _lunchBreakAfterRotation = tempBreakAfter;
+                          });
+                          await _savePresetCustomSchedule();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Horaires & pauses mis à jour avec succès !"),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showMoveMatchDialog(Map<String, dynamic> matchData, int currentRotation, int currentCourt) {
+    final matchId = matchData['matchId']?.toString();
+    if (matchId == null || matchId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Ce créneau est libre ou ne correspond pas à un match déplaçable.")),
+      );
+      return;
+    }
+
+    int selectedRot = _customMatchRotations[matchId] ?? currentRotation;
+    int selectedCourt = _customMatchCourts[matchId] ?? currentCourt;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.swap_horiz_rounded, color: AppColors.gold, size: 22),
+                          SizedBox(width: 8),
+                          Text(
+                            "Déplacer le Match",
+                            style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          matchData['tour'] ?? "Match",
+                          style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "${matchData['p1']}  VS  ${matchData['p2']}",
+                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Choix de la rotation
+                  const Text("1. CHOISIR LA ROTATION :", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: List.generate(8, (i) {
+                      final isSel = selectedRot == i;
+                      return ChoiceChip(
+                        label: Text(
+                          "Rot. ${i + 1} (${_formatRotationTime(i).split(' - ').first})",
+                          style: TextStyle(
+                            color: isSel ? Colors.black : Colors.white,
+                            fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                        selected: isSel,
+                        selectedColor: AppColors.gold,
+                        backgroundColor: Colors.white.withValues(alpha: 0.06),
+                        side: BorderSide(color: isSel ? AppColors.gold : Colors.white24),
+                        onSelected: (val) {
+                          if (val) setSheetState(() => selectedRot = i);
+                        },
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Choix du terrain
+                  const Text("2. CHOISIR LE TERRAIN :", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: List.generate(_numCourts, (i) {
+                      final courtNum = i + 1;
+                      final isSel = selectedCourt == courtNum;
+                      return ChoiceChip(
+                        label: Text(
+                          courtNum == 1 ? "Court 1 (Central)" : "Court $courtNum",
+                          style: TextStyle(
+                            color: isSel ? Colors.black : Colors.white,
+                            fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                        selected: isSel,
+                        selectedColor: const Color(0xFF00E5FF),
+                        backgroundColor: Colors.white.withValues(alpha: 0.06),
+                        side: BorderSide(color: isSel ? const Color(0xFF00E5FF) : Colors.white24),
+                        onSelected: (val) {
+                          if (val) setSheetState(() => selectedCourt = courtNum);
+                        },
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Bouton d'action
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: const Icon(Icons.check_circle_rounded, size: 20),
+                      label: const Text("Appliquer & Enregistrer", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        setState(() {
+                          _customMatchRotations[matchId] = selectedRot;
+                          _customMatchCourts[matchId] = selectedCourt;
+                          _selectedRotationIndex = selectedRot;
+                        });
+                        await _savePresetCustomSchedule();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text("Match déplacé sur le Court $selectedCourt en Rotation ${selectedRot + 1} !"),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showConfigDialog() {
     showModalBottomSheet(
       context: context,
@@ -1139,8 +1812,6 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
                 // Sélecteur de Rotation (Rot 1 à 8)
                 _buildRotationSelector(rotations),
 
-                // Filtres de catégories rapides
-                _buildCategoryFilterChips(),
 
                 // Contenu des Terrains
                 Expanded(
@@ -1224,16 +1895,16 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
             // Bouton Retard / Pluie (+15 min)
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
-                foregroundColor: _delayOffsetMinutes > 0 ? AppColors.gold : Colors.white70,
+                foregroundColor: _delayOffsetMinutes > 0 ? AppColors.gold : Colors.amberAccent,
                 side: BorderSide(
-                  color: _delayOffsetMinutes > 0 ? AppColors.gold : Colors.white24,
+                  color: _delayOffsetMinutes > 0 ? AppColors.gold : Colors.amberAccent.withValues(alpha: 0.5),
                   width: 1,
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                backgroundColor: _delayOffsetMinutes > 0 ? AppColors.gold.withValues(alpha: 0.15) : Colors.transparent,
+                backgroundColor: _delayOffsetMinutes > 0 ? AppColors.gold.withValues(alpha: 0.18) : Colors.amber.withValues(alpha: 0.08),
               ),
-              icon: const Icon(Icons.more_time_rounded, size: 15),
+              icon: Icon(Icons.more_time_rounded, size: 15, color: _delayOffsetMinutes > 0 ? AppColors.gold : Colors.amberAccent),
               label: Text(
                 _delayOffsetMinutes > 0 ? "+${_delayOffsetMinutes}m" : "+15m",
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
@@ -1392,6 +2063,13 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
               ],
             ),
           ),
+          // Bouton Horaires & Pauses (JAT)
+          if (widget.isAuthorized)
+            IconButton(
+              tooltip: "Horaires, Durées & Pauses JAT",
+              icon: const Icon(Icons.access_time_rounded, color: AppColors.gold, size: 20),
+              onPressed: _showScheduleTimeConfigDialog,
+            ),
           // Bouton Config
           IconButton(
             tooltip: "Paramètres terrains & tableaux",
@@ -1403,18 +2081,6 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
             tooltip: _isTableView ? "Vue Cartes Terrains" : "Vue Tableur Global",
             icon: Icon(_isTableView ? Icons.dashboard_rounded : Icons.table_chart_rounded, color: AppColors.gold, size: 20),
             onPressed: () => setState(() => _isTableView = !_isTableView),
-          ),
-          // Bouton Partager WhatsApp
-          IconButton(
-            tooltip: "Partager sur WhatsApp",
-            icon: const Icon(Icons.share_rounded, color: Color(0xFF25D366), size: 20),
-            onPressed: _shareScheduleWhatsApp,
-          ),
-          // Bouton PDF
-          IconButton(
-            tooltip: "Ouvrir PDF Officiel",
-            icon: const Icon(Icons.picture_as_pdf_rounded, color: Colors.redAccent, size: 20),
-            onPressed: _openPdf,
           ),
         ],
       ),
@@ -1457,15 +2123,31 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
               ),
             ],
           ),
-          const Row(
-            children: [
-              Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 14),
-              SizedBox(width: 4),
-              Text(
-                "Pause FFT 1h15 garantie",
-                style: TextStyle(color: Colors.greenAccent, fontSize: 10.5, fontWeight: FontWeight.bold),
+          InkWell(
+            onTap: widget.isAuthorized ? _showScheduleTimeConfigDialog : null,
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
               ),
-            ],
+              child: Row(
+                children: [
+                  const Icon(Icons.access_time_rounded, color: Colors.greenAccent, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    "${_startHour}h${_startMinute.toString().padLeft(2, '0')} · ${_rotationDurationMinutes}m/rot${_lunchBreakDurationMinutes > 0 ? " · ☕ ${_lunchBreakDurationMinutes}m" : ""}${_delayOffsetMinutes > 0 ? " (+$_delayOffsetMinutes m)" : ""}",
+                    style: const TextStyle(color: Colors.greenAccent, fontSize: 10.5, fontWeight: FontWeight.bold),
+                  ),
+                  if (widget.isAuthorized) ...[
+                    const SizedBox(width: 4),
+                    const Icon(Icons.edit, color: Colors.greenAccent, size: 11),
+                  ],
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -1484,8 +2166,9 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
         itemBuilder: (context, index) {
           final rot = rotations[index];
           final isSelected = _selectedRotationIndex == index;
+          final showBreakAfter = _lunchBreakDurationMinutes > 0 && _lunchBreakAfterRotation == index + 1;
 
-          return InkWell(
+          final rotWidget = InkWell(
             onTap: () {
               HapticFeedback.selectionClick();
               setState(() => _selectedRotationIndex = index);
@@ -1531,6 +2214,80 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
               ),
             ),
           );
+
+          if (showBreakAfter) {
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                rotWidget,
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: widget.isAuthorized ? _showScheduleTimeConfigDialog : null,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.6)),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.coffee_rounded, color: Colors.amberAccent, size: 12),
+                            SizedBox(width: 4),
+                            Text("PAUSE", style: TextStyle(color: Colors.amberAccent, fontSize: 9.5, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "$_lunchBreakDurationMinutes min",
+                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
+                            ),
+                            if (widget.isAuthorized) ...[
+                              const SizedBox(width: 5),
+                              InkWell(
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  setState(() {
+                                    _lunchBreakDurationMinutes += 10;
+                                  });
+                                  _savePresetCustomSchedule();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text("☕ Pause rallongée de 10 min (Nouvelle durée : $_lunchBreakDurationMinutes min)"),
+                                      duration: const Duration(seconds: 2),
+                                      backgroundColor: Colors.amber.shade800,
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amberAccent.withValues(alpha: 0.35),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: Colors.amberAccent, width: 0.8),
+                                  ),
+                                  child: const Text("+10m", style: TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.bold)),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+          return rotWidget;
         },
       ),
     );
@@ -1855,6 +2612,29 @@ class _CourtScheduleScreenState extends State<CourtScheduleScreen> {
                     ),
                     if (widget.isAuthorized && c['type'] != 'Ceremonie') ...[
                       const SizedBox(width: 8),
+                      if (c['matchId'] != null) ...[
+                        InkWell(
+                          onTap: () => _showMoveMatchDialog(c, _selectedRotationIndex, c['court']),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                            margin: const EdgeInsets.only(right: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.swap_horiz_rounded, color: Colors.white70, size: 14),
+                                SizedBox(width: 4),
+                                Text("Déplacer", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                       InkWell(
                         onTap: () => _callPlayersToCourt(c),
                         borderRadius: BorderRadius.circular(8),
