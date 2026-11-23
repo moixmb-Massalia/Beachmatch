@@ -161,6 +161,11 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
     _selectedCategory = _categories.first['key'] as String;
 
     _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging && _isHeaderCollapsed) {
+        setState(() => _isHeaderCollapsed = false);
+      }
+    });
     if (!_isAuthorizedUser) {
       _verifyUserPrivileges();
     }
@@ -502,11 +507,20 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                 // Top App Bar personnalisé Glassmorphism avec Export PDF
                 _buildCustomAppBar(),
 
-                // Sélecteur de Catégorie & Bannière Appel (stables, sans animation de repli sur scroll)
-                if (!_isHeaderCollapsed) ...[
-                  _buildCategorySelector(),
-                  _buildLiveCourtCallBanner(),
-                ],
+                // Sélecteur de Catégorie & Bannière Appel (repliables de manière fluide sur scroll)
+                AnimatedCrossFade(
+                  firstChild: const SizedBox(width: double.infinity, height: 0),
+                  secondChild: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildCategorySelector(),
+                      _buildLiveCourtCallBanner(),
+                    ],
+                  ),
+                  crossFadeState: _isHeaderCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                  duration: const Duration(milliseconds: 240),
+                  sizeCurve: Curves.easeInOut,
+                ),
 
                 // Stream Firestore du Tableau
                 Expanded(
@@ -574,49 +588,92 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                       final isPoolFormat = bracket.format == 'pools_and_bracket';
                       final status = _getWorkflowStatus(bracket);
 
-                      return Column(
-                        children: [
-                          // Barre de Progression / Statut du Tournoi (Stable, sans saut de layout)
-                          if (!_isHeaderCollapsed)
-                            (_isJat
-                                ? (status.step2Complete
-                                    ? _buildJatWorkflowStatusBar(bracket, status)
-                                    : _buildJatWorkflowStepper(bracket))
-                                : _buildTournamentProgressBar(bracket)),
-
-                          // Sous-onglets de navigation adaptatifs
-                          _buildSubTabBar(isPoolFormat, bracket),
-
-                          // Vues des Onglets
-                          Expanded(
-                            child: Stack(
-                              children: [
-                                TabBarView(
-                                  controller: _tabController,
-                                  children: isPoolFormat
-                                      ? [
-                                          _buildPoolsTab(bracket),
-                                          _buildFinalPhaseTab(bracket),
-                                          _buildPairsManagementTab(bracket),
-                                        ]
-                                      : [
-                                          _buildMainDrawTab(bracket),
-                                          _buildConsolationTab(bracket),
-                                          _buildPairsManagementTab(bracket),
-                                        ],
-                                ),
-                                if (_isSaving)
-                                  Container(
-                                    color: Colors.black54,
-                                    child: const Center(
-                                      child: CircularProgressIndicator(
-                                          color: AppColors.gold),
-                                    ),
-                                  ),
-                              ],
+                      return NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          if (notification.metrics.axis == Axis.vertical) {
+                            if (notification is UserScrollNotification) {
+                              if (notification.direction == ScrollDirection.reverse) {
+                                // Défilement vers le bas
+                                if (notification.metrics.pixels > 30 && !_isHeaderCollapsed) {
+                                  final now = DateTime.now();
+                                  if (now.difference(_headerToggleAt).inMilliseconds > 150) {
+                                    _headerToggleAt = now;
+                                    setState(() => _isHeaderCollapsed = true);
+                                  }
+                                }
+                              } else if (notification.direction == ScrollDirection.forward) {
+                                // Défilement vers le haut
+                                if (_isHeaderCollapsed) {
+                                  final now = DateTime.now();
+                                  if (now.difference(_headerToggleAt).inMilliseconds > 150) {
+                                    _headerToggleAt = now;
+                                    setState(() => _isHeaderCollapsed = false);
+                                  }
+                                }
+                              }
+                            } else if (notification is ScrollUpdateNotification) {
+                              if (notification.metrics.pixels <= 10 && _isHeaderCollapsed) {
+                                setState(() => _isHeaderCollapsed = false);
+                              }
+                            }
+                          }
+                          return false;
+                        },
+                        child: Column(
+                          children: [
+                            // 1. Barre de Progression / Statut du Tournoi (repliable)
+                            AnimatedCrossFade(
+                              firstChild: const SizedBox(width: double.infinity, height: 0),
+                              secondChild: _isJat
+                                  ? (status.step2Complete
+                                      ? _buildJatWorkflowStatusBar(bracket, status)
+                                      : _buildJatWorkflowStepper(bracket))
+                                  : _buildTournamentProgressBar(bracket),
+                              crossFadeState: _isHeaderCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                              duration: const Duration(milliseconds: 240),
+                              sizeCurve: Curves.easeInOut,
                             ),
-                          ),
-                        ],
+
+                            // 2. Sous-onglets de navigation adaptatifs (Principal, Consolante, Paires) (repliable)
+                            AnimatedCrossFade(
+                              firstChild: const SizedBox(width: double.infinity, height: 0),
+                              secondChild: _buildSubTabBar(isPoolFormat, bracket),
+                              crossFadeState: _isHeaderCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                              duration: const Duration(milliseconds: 240),
+                              sizeCurve: Curves.easeInOut,
+                            ),
+
+                            // Vues des Onglets
+                            Expanded(
+                              child: Stack(
+                                children: [
+                                  TabBarView(
+                                    controller: _tabController,
+                                    children: isPoolFormat
+                                        ? [
+                                            _buildPoolsTab(bracket),
+                                            _buildFinalPhaseTab(bracket),
+                                            _buildPairsManagementTab(bracket),
+                                          ]
+                                        : [
+                                            _buildMainDrawTab(bracket),
+                                            _buildConsolationTab(bracket),
+                                            _buildPairsManagementTab(bracket),
+                                          ],
+                                  ),
+                                  if (_isSaving)
+                                    Container(
+                                      color: Colors.black54,
+                                      child: const Center(
+                                        child: CircularProgressIndicator(
+                                            color: AppColors.gold),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       );
                     },
                   ),
@@ -665,56 +722,67 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
             ),
           ),
           const SizedBox(width: 10),
-          // Titre & Tournoi
+          // Titre & Tournoi (cliquable pour basculer plein écran manuellement)
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        isBr ? "CHAVE DO TORNEIO" : "COCKPIT DU TOURNOI",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.4,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
-                      decoration: BoxDecoration(
-                        color: AppColors.gold.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(5),
-                        border: Border.all(
-                            color: AppColors.gold.withValues(alpha: 0.5), width: 0.8),
-                      ),
-                      child: Text(
-                        isBr ? "CBT" : "FFT",
-                        style: const TextStyle(
-                          color: AppColors.gold,
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900,
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _isHeaderCollapsed = !_isHeaderCollapsed);
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          isBr ? "CHAVE DO TORNEIO" : "COCKPIT DU TOURNOI",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.4,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                Text(
-                  widget.tournament.name,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w500,
+                      const SizedBox(width: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(
+                              color: AppColors.gold.withValues(alpha: 0.5), width: 0.8),
+                        ),
+                        child: Text(
+                          isBr ? "CBT" : "FFT",
+                          style: const TextStyle(
+                            color: AppColors.gold,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      if (_isHeaderCollapsed) ...[
+                        const SizedBox(width: 5),
+                        const Icon(Icons.unfold_more_rounded, size: 14, color: AppColors.gold),
+                      ],
+                    ],
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  Text(
+                    widget.tournament.name,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -4824,11 +4892,17 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
     return Column(
       children: [
         if (_selectedSwapSlot != null) _buildSwapActiveBanner(bracket),
-        // Barre d'outils Arbre avec raccourcis rapides des tours
-        _buildBracketToolbar(
-          horizontalController: _mainHorizontalController,
-          rounds: rounds,
-          sortedRoundKeys: sortedRoundKeys,
+        // Barre d'outils Arbre avec raccourcis rapides des tours (repliable fluide sur scroll)
+        AnimatedCrossFade(
+          firstChild: const SizedBox(width: double.infinity, height: 0),
+          secondChild: _buildBracketToolbar(
+            horizontalController: _mainHorizontalController,
+            rounds: rounds,
+            sortedRoundKeys: sortedRoundKeys,
+          ),
+          crossFadeState: _isHeaderCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+          duration: const Duration(milliseconds: 240),
+          sizeCurve: Curves.easeInOut,
         ),
 
         // Zone de défilement manuel
@@ -4886,10 +4960,17 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
     return Column(
       children: [
         if (_selectedSwapSlot != null) _buildSwapActiveBanner(bracket),
-        _buildBracketToolbar(
-          horizontalController: _consoHorizontalController,
-          rounds: rounds,
-          sortedRoundKeys: sortedRoundKeys,
+        // Barre d'outils Consolante avec raccourcis rapides des tours (repliable fluide sur scroll)
+        AnimatedCrossFade(
+          firstChild: const SizedBox(width: double.infinity, height: 0),
+          secondChild: _buildBracketToolbar(
+            horizontalController: _consoHorizontalController,
+            rounds: rounds,
+            sortedRoundKeys: sortedRoundKeys,
+          ),
+          crossFadeState: _isHeaderCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+          duration: const Duration(milliseconds: 240),
+          sizeCurve: Curves.easeInOut,
         ),
         Expanded(
           child: _isTreeMode
