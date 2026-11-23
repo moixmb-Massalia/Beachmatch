@@ -4292,19 +4292,105 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                 ),
               ],
               const Spacer(),
-              if (match.score != null)
-                Text(
-                  match.score!,
-                  style: const TextStyle(
-                    color: AppColors.gold,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 13,
+              // Appel Terrain Rapide
+              if (_isJat && !match.isCompleted && match.pair1 != null && match.pair2 != null) ...[
+                InkWell(
+                  onTap: () => _broadcastCourtCall(
+                    court: match.court ?? 1,
+                    roundName: match.roundName,
+                    pair1Name: match.pair1!.displayName,
+                    pair2Name: match.pair2!.displayName,
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    margin: const EdgeInsets.only(right: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.white24, width: 0.8),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.campaign_rounded, size: 12, color: AppColors.gold),
+                        SizedBox(width: 3),
+                        Text(
+                          "Appeler",
+                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
+              ],
+              // Score (si terminé) - cliquable JAT
+              if (match.score != null)
+                InkWell(
+                  onTap: _isJat ? () => _showQuickJatActionSheet(match, bracket, poolId: pool.id) : null,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.gold.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                          color: AppColors.gold.withValues(alpha: 0.5), width: 0.8),
+                    ),
+                    child: Text(
+                      match.score!,
+                      style: const TextStyle(
+                        color: AppColors.gold,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+              // Bouton Action JAT Express (Saisir Score ou Modifier)
               if (_isJat) ...[
-                const SizedBox(width: 4),
+                const SizedBox(width: 5),
+                InkWell(
+                  onTap: () => _showQuickJatActionSheet(match, bracket, poolId: pool.id),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.gold.withValues(alpha: 0.95),
+                          AppColors.gold,
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(6),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.gold.withValues(alpha: 0.3),
+                          blurRadius: 4,
+                          spreadRadius: 0.5,
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.bolt_rounded, size: 11, color: Colors.black),
+                        const SizedBox(width: 2),
+                        Text(
+                          match.isCompleted ? "Modifier" : "Saisir",
+                          style: const TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 2),
                 IconButton(
-                  icon: const Icon(Icons.edit_note, color: Colors.white70, size: 18),
+                  icon: const Icon(Icons.edit_note, color: Colors.white70, size: 17),
                   tooltip: "Saisie libre JAT",
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -4338,84 +4424,6 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
             bracket: bracket,
             poolId: pool.id,
           ),
-          if (_isJat) ...[
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                // Bouton Appel Terrain Rapide
-                if (!match.isCompleted && match.pair1 != null && match.pair2 != null) ...[
-                  InkWell(
-                    onTap: () => _broadcastCourtCall(
-                      court: match.court ?? 1,
-                      roundName: match.roundName,
-                      pair1Name: match.pair1!.displayName,
-                      pair2Name: match.pair2!.displayName,
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                      margin: const EdgeInsets.only(right: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white24),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.campaign_rounded, size: 14, color: AppColors.gold),
-                          SizedBox(width: 4),
-                          Text(
-                            "Appeler",
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-                InkWell(
-                  onTap: () => _showQuickJatActionSheet(match, bracket, poolId: pool.id),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.gold.withValues(alpha: 0.9),
-                          AppColors.gold,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.gold.withValues(alpha: 0.3),
-                          blurRadius: 6,
-                          spreadRadius: 0.5,
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.bolt_rounded, size: 14, color: Colors.black),
-                        const SizedBox(width: 4),
-                        Text(
-                          match.isCompleted ? "Modifier Score" : "Saisir Score ⚡",
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );
@@ -5372,28 +5380,105 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                     ),
                   ],
                   const Spacer(),
-                  if (match.score != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: AppColors.gold.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                            color: AppColors.gold.withValues(alpha: 0.4), width: 0.8),
+                  // Appel Terrain (si 2 paires assignées et match non terminé)
+                  if (_isJat && !isByeMatch && !match.isCompleted && match.pair1 != null && match.pair2 != null) ...[
+                    InkWell(
+                      onTap: () => _broadcastCourtCall(
+                        court: match.court ?? 1,
+                        roundName: match.roundName,
+                        pair1Name: match.pair1!.displayName,
+                        pair2Name: match.pair2!.displayName,
                       ),
-                      child: Text(
-                        match.score!,
-                        style: const TextStyle(
-                          color: AppColors.gold,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        margin: const EdgeInsets.only(right: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.white24, width: 0.8),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.campaign_rounded, size: 12, color: AppColors.gold),
+                            SizedBox(width: 3),
+                            Text(
+                              "Appeler",
+                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  if (_isJat) ...[
-                    const SizedBox(width: 4),
+                  ],
+                  // Score (si match terminé) - Cliquable par le JAT pour modification rapide
+                  if (match.score != null)
+                    InkWell(
+                      onTap: _isJat && !isByeMatch ? () => _showQuickJatActionSheet(match, bracket) : null,
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                              color: AppColors.gold.withValues(alpha: 0.5), width: 0.8),
+                        ),
+                        child: Text(
+                          match.score!,
+                          style: const TextStyle(
+                            color: AppColors.gold,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Bouton Action JAT Express (Saisir Score ou Modifier)
+                  if (_isJat && !isByeMatch) ...[
+                    const SizedBox(width: 5),
+                    InkWell(
+                      onTap: () => _showQuickJatActionSheet(match, bracket),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.gold.withValues(alpha: 0.95),
+                              AppColors.gold,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(6),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.gold.withValues(alpha: 0.3),
+                              blurRadius: 4,
+                              spreadRadius: 0.5,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.bolt_rounded, size: 11, color: Colors.black),
+                            const SizedBox(width: 2),
+                            Text(
+                              match.isCompleted ? "Modifier" : "Saisir",
+                              style: const TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 2),
                     IconButton(
-                      icon: const Icon(Icons.edit_note, color: Colors.white70, size: 18),
+                      icon: const Icon(Icons.edit_note, color: Colors.white70, size: 17),
                       tooltip: "Saisie libre JAT",
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -5406,7 +5491,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
 
             // Paires 1 et 2
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: Column(
                 children: [
                   _buildPairRow(
@@ -5434,94 +5519,6 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                 ],
               ),
             ),
-
-            // Actions JAT Express 1-Clic
-            if (_isJat && !isByeMatch)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.03),
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(13)),
-                  border: Border(
-                    top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    // Bouton Appel Terrain Direct
-                    if (!match.isCompleted && match.pair1 != null && match.pair2 != null) ...[
-                      InkWell(
-                        onTap: () => _broadcastCourtCall(
-                          court: match.court ?? 1,
-                          roundName: match.roundName,
-                          pair1Name: match.pair1!.displayName,
-                          pair2Name: match.pair2!.displayName,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                          margin: const EdgeInsets.only(right: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.campaign_rounded, size: 14, color: AppColors.gold),
-                              SizedBox(width: 4),
-                              Text(
-                                "Appeler",
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                    InkWell(
-                      onTap: () => _showQuickJatActionSheet(match, bracket),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppColors.gold.withValues(alpha: 0.9),
-                              AppColors.gold,
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.gold.withValues(alpha: 0.3),
-                              blurRadius: 6,
-                              spreadRadius: 0.5,
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.bolt_rounded, size: 14, color: Colors.black),
-                            const SizedBox(width: 4),
-                            Text(
-                              match.isCompleted ? "Modifier Score" : "Saisie Express ⚡",
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
           ],
         ),
       ),
