@@ -297,6 +297,22 @@ def archive_past_tournaments(db, dry_run=False):
                 pass
 
         if is_past:
+            # Sécurité supplémentaire : vérifier si dateString mentionne une date future
+            date_str = str(d.get('dateString', ''))
+            import re
+            future_date_found = False
+            for dm in re.findall(r'(\d{1,2})/(\d{1,2})/(\d{4})', date_str):
+                try:
+                    parsed_dt = datetime(int(dm[2]), int(dm[1]), int(dm[0]), 23, 59, 59, tzinfo=timezone.utc)
+                    if parsed_dt >= now_utc:
+                        future_date_found = True
+                        break
+                except Exception:
+                    pass
+            if future_date_found:
+                print(f"  ⚠️ Tournoi préservé (dateString future: {date_str}) : {d.get('name')[:35]}")
+                continue
+
             print(f"  📦 Tournoi expiré détecté : {d.get('name')[:35]} (Fin: {end_date_val}) ➔ Statut: COMPLETED")
             if not dry_run:
                 db.collection('tournaments').document(tid).update({
