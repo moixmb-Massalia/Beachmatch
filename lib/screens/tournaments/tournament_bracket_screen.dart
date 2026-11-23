@@ -89,7 +89,6 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
   String _selectedCategory = 'double_messieurs';
   bool _isTreeMode = true; // Toggle Vue Arbre Graphique vs Vue Liste Express
   int? _selectedRoundFilter; // null = Tous les tours (filtre interactif 1/8, Quarts, Demis, Finale)
-  DateTime _headerToggleAt = DateTime(2000);
   final ValueNotifier<bool> _isHeaderCollapsedNotifier = ValueNotifier<bool>(false);
   bool get _isHeaderCollapsed => _isHeaderCollapsedNotifier.value;
 
@@ -595,40 +594,9 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                       final isPoolFormat = bracket.format == 'pools_and_bracket';
                       final status = _getWorkflowStatus(bracket);
 
-                      return NotificationListener<ScrollNotification>(
-                        onNotification: (notification) {
-                          if (notification.metrics.axis == Axis.vertical) {
-                            if (notification is UserScrollNotification) {
-                              if (notification.direction == ScrollDirection.reverse) {
-                                // Défilement vers le bas
-                                if (notification.metrics.pixels > 35 && !_isHeaderCollapsedNotifier.value) {
-                                  final now = DateTime.now();
-                                  if (now.difference(_headerToggleAt).inMilliseconds > 180) {
-                                    _headerToggleAt = now;
-                                    _isHeaderCollapsedNotifier.value = true;
-                                  }
-                                }
-                              } else if (notification.direction == ScrollDirection.forward) {
-                                // Défilement vers le haut
-                                if (_isHeaderCollapsedNotifier.value) {
-                                  final now = DateTime.now();
-                                  if (now.difference(_headerToggleAt).inMilliseconds > 180) {
-                                    _headerToggleAt = now;
-                                    _isHeaderCollapsedNotifier.value = false;
-                                  }
-                                }
-                              }
-                            } else if (notification is ScrollUpdateNotification) {
-                              if (notification.metrics.pixels <= 10 && _isHeaderCollapsedNotifier.value) {
-                                _isHeaderCollapsedNotifier.value = false;
-                              }
-                            }
-                          }
-                          return false;
-                        },
-                        child: Column(
-                          children: [
-                            // 1 & 2. Barre de Statut + Sous-onglets (unifiés en un bloc fluide avec 0 scintillement)
+                      return Column(
+                        children: [
+                          // 1 & 2. Barre de Statut + Sous-onglets (unifiés en un bloc fluide avec 0 scintillement)
                             ValueListenableBuilder<bool>(
                               valueListenable: _isHeaderCollapsedNotifier,
                               builder: (context, isCollapsed, _) {
@@ -682,8 +650,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                               ),
                             ),
                           ],
-                        ),
-                      );
+                        );
                     },
                   ),
                 ),
