@@ -101,7 +101,20 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
   bool _isTreeMode = true; // Toggle Vue Arbre Graphique vs Vue Liste Express
   int? _selectedRoundFilter; // null = Tous les tours (filtre interactif 1/8, Quarts, Demis, Finale)
   DateTime _headerToggleAt = DateTime(2000);
-  bool _isHeaderCollapsed = false; // Mode plein écran repliable lors du défilement des matches
+  final ValueNotifier<bool> _isHeaderCollapsedNotifier = ValueNotifier<bool>(false);
+  bool get _isHeaderCollapsed => _isHeaderCollapsedNotifier.value;
+  set _isHeaderCollapsed(bool val) => _isHeaderCollapsedNotifier.value = val;
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>>? _cachedBracketStream;
+  String? _cachedStreamCategory;
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> get _bracketStream {
+    if (_cachedBracketStream == null || _cachedStreamCategory != _selectedCategory) {
+      _cachedStreamCategory = _selectedCategory;
+      _cachedBracketStream = _bracketRef.snapshots();
+    }
+    return _cachedBracketStream!;
+  }
   final Set<String> _collapsedStandings = {}; // Poules dont le classement est replié pour voir directement les matches
 
   late bool _isAuthorizedUser;
@@ -162,8 +175,8 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
 
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
-      if (_tabController.indexIsChanging && _isHeaderCollapsed) {
-        setState(() => _isHeaderCollapsed = false);
+      if (_tabController.indexIsChanging && _isHeaderCollapsedNotifier.value) {
+        _isHeaderCollapsedNotifier.value = false;
       }
     });
     if (!_isAuthorizedUser) {
@@ -184,6 +197,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
 
   @override
   void dispose() {
+    _isHeaderCollapsedNotifier.dispose();
     _tabController.dispose();
     _mainVerticalController.dispose();
     _mainHorizontalController.dispose();
@@ -508,26 +522,31 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                 _buildCustomAppBar(),
 
                 // Sélecteur de Catégorie & Bannière Appel (repliables de manière fluide sur scroll)
-                AnimatedCrossFade(
-                  firstChild: const SizedBox(width: double.infinity, height: 0),
-                  secondChild: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildCategorySelector(),
-                      _buildLiveCourtCallBanner(),
-                    ],
-                  ),
-                  crossFadeState: _isHeaderCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-                  duration: const Duration(milliseconds: 240),
-                  sizeCurve: Curves.easeInOut,
+                ValueListenableBuilder<bool>(
+                  valueListenable: _isHeaderCollapsedNotifier,
+                  builder: (context, isCollapsed, _) {
+                    return AnimatedCrossFade(
+                      firstChild: const SizedBox(width: double.infinity, height: 0),
+                      secondChild: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildCategorySelector(),
+                          _buildLiveCourtCallBanner(),
+                        ],
+                      ),
+                      crossFadeState: isCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                      duration: const Duration(milliseconds: 220),
+                      sizeCurve: Curves.easeInOutCubic,
+                    );
+                  },
                 ),
 
-                // Stream Firestore du Tableau
+                // Stream Firestore du Tableau (avec Stream mis en cache anti-scintillement)
                 Expanded(
                   child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                    stream: _bracketRef.snapshots(),
+                    stream: _bracketStream,
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
+                      if (snapshot.connectionState == ConnectionState.waiting && _currentBracket == null) {
                         return const Center(
                           child: CircularProgressIndicator(color: AppColors.gold),
                         );
@@ -594,26 +613,26 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                             if (notification is UserScrollNotification) {
                               if (notification.direction == ScrollDirection.reverse) {
                                 // Défilement vers le bas
-                                if (notification.metrics.pixels > 30 && !_isHeaderCollapsed) {
+                                if (notification.metrics.pixels > 35 && !_isHeaderCollapsedNotifier.value) {
                                   final now = DateTime.now();
-                                  if (now.difference(_headerToggleAt).inMilliseconds > 150) {
+                                  if (now.difference(_headerToggleAt).inMilliseconds > 180) {
                                     _headerToggleAt = now;
-                                    setState(() => _isHeaderCollapsed = true);
+                                    _isHeaderCollapsedNotifier.value = true;
                                   }
                                 }
                               } else if (notification.direction == ScrollDirection.forward) {
                                 // Défilement vers le haut
-                                if (_isHeaderCollapsed) {
+                                if (_isHeaderCollapsedNotifier.value) {
                                   final now = DateTime.now();
-                                  if (now.difference(_headerToggleAt).inMilliseconds > 150) {
+                                  if (now.difference(_headerToggleAt).inMilliseconds > 180) {
                                     _headerToggleAt = now;
-                                    setState(() => _isHeaderCollapsed = false);
+                                    _isHeaderCollapsedNotifier.value = false;
                                   }
                                 }
                               }
                             } else if (notification is ScrollUpdateNotification) {
-                              if (notification.metrics.pixels <= 10 && _isHeaderCollapsed) {
-                                setState(() => _isHeaderCollapsed = false);
+                              if (notification.metrics.pixels <= 10 && _isHeaderCollapsedNotifier.value) {
+                                _isHeaderCollapsedNotifier.value = false;
                               }
                             }
                           }
@@ -621,26 +640,28 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                         },
                         child: Column(
                           children: [
-                            // 1. Barre de Progression / Statut du Tournoi (repliable)
-                            AnimatedCrossFade(
-                              firstChild: const SizedBox(width: double.infinity, height: 0),
-                              secondChild: _isJat
-                                  ? (status.step2Complete
-                                      ? _buildJatWorkflowStatusBar(bracket, status)
-                                      : _buildJatWorkflowStepper(bracket))
-                                  : _buildTournamentProgressBar(bracket),
-                              crossFadeState: _isHeaderCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-                              duration: const Duration(milliseconds: 240),
-                              sizeCurve: Curves.easeInOut,
-                            ),
-
-                            // 2. Sous-onglets de navigation adaptatifs (Principal, Consolante, Paires) (repliable)
-                            AnimatedCrossFade(
-                              firstChild: const SizedBox(width: double.infinity, height: 0),
-                              secondChild: _buildSubTabBar(isPoolFormat, bracket),
-                              crossFadeState: _isHeaderCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-                              duration: const Duration(milliseconds: 240),
-                              sizeCurve: Curves.easeInOut,
+                            // 1 & 2. Barre de Statut + Sous-onglets (unifiés en un bloc fluide avec 0 scintillement)
+                            ValueListenableBuilder<bool>(
+                              valueListenable: _isHeaderCollapsedNotifier,
+                              builder: (context, isCollapsed, _) {
+                                return AnimatedCrossFade(
+                                  firstChild: const SizedBox(width: double.infinity, height: 0),
+                                  secondChild: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _isJat
+                                          ? (status.step2Complete
+                                              ? _buildJatWorkflowStatusBar(bracket, status)
+                                              : _buildJatWorkflowStepper(bracket))
+                                          : _buildTournamentProgressBar(bracket),
+                                      _buildSubTabBar(isPoolFormat, bracket),
+                                    ],
+                                  ),
+                                  crossFadeState: isCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                                  duration: const Duration(milliseconds: 220),
+                                  sizeCurve: Curves.easeInOutCubic,
+                                );
+                              },
                             ),
 
                             // Vues des Onglets
@@ -727,7 +748,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
             child: InkWell(
               onTap: () {
                 HapticFeedback.selectionClick();
-                setState(() => _isHeaderCollapsed = !_isHeaderCollapsed);
+                _isHeaderCollapsedNotifier.value = !_isHeaderCollapsedNotifier.value;
               },
               borderRadius: BorderRadius.circular(8),
               child: Column(
@@ -766,10 +787,16 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                           ),
                         ),
                       ),
-                      if (_isHeaderCollapsed) ...[
-                        const SizedBox(width: 5),
-                        const Icon(Icons.unfold_more_rounded, size: 14, color: AppColors.gold),
-                      ],
+                      ValueListenableBuilder<bool>(
+                        valueListenable: _isHeaderCollapsedNotifier,
+                        builder: (context, isCollapsed, _) {
+                          if (!isCollapsed) return const SizedBox.shrink();
+                          return const Padding(
+                            padding: EdgeInsets.only(left: 5),
+                            child: Icon(Icons.unfold_more_rounded, size: 14, color: AppColors.gold),
+                          );
+                        },
+                      ),
                     ],
                   ),
                   Text(
@@ -876,7 +903,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
               if (value == 'guide') {
                 _showJatGuideModal(context);
               } else if (value == 'fullscreen') {
-                setState(() => _isHeaderCollapsed = !_isHeaderCollapsed);
+                _isHeaderCollapsedNotifier.value = !_isHeaderCollapsedNotifier.value;
               } else if (value == 'spectator') {
                 _showSpectatorInfoDialog();
               } else if (value == 'reset') {
@@ -4893,16 +4920,21 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
       children: [
         if (_selectedSwapSlot != null) _buildSwapActiveBanner(bracket),
         // Barre d'outils Arbre avec raccourcis rapides des tours (repliable fluide sur scroll)
-        AnimatedCrossFade(
-          firstChild: const SizedBox(width: double.infinity, height: 0),
-          secondChild: _buildBracketToolbar(
-            horizontalController: _mainHorizontalController,
-            rounds: rounds,
-            sortedRoundKeys: sortedRoundKeys,
-          ),
-          crossFadeState: _isHeaderCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-          duration: const Duration(milliseconds: 240),
-          sizeCurve: Curves.easeInOut,
+        ValueListenableBuilder<bool>(
+          valueListenable: _isHeaderCollapsedNotifier,
+          builder: (context, isCollapsed, _) {
+            return AnimatedCrossFade(
+              firstChild: const SizedBox(width: double.infinity, height: 0),
+              secondChild: _buildBracketToolbar(
+                horizontalController: _mainHorizontalController,
+                rounds: rounds,
+                sortedRoundKeys: sortedRoundKeys,
+              ),
+              crossFadeState: isCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+              duration: const Duration(milliseconds: 220),
+              sizeCurve: Curves.easeInOutCubic,
+            );
+          },
         ),
 
         // Zone de défilement manuel
@@ -4961,16 +4993,21 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
       children: [
         if (_selectedSwapSlot != null) _buildSwapActiveBanner(bracket),
         // Barre d'outils Consolante avec raccourcis rapides des tours (repliable fluide sur scroll)
-        AnimatedCrossFade(
-          firstChild: const SizedBox(width: double.infinity, height: 0),
-          secondChild: _buildBracketToolbar(
-            horizontalController: _consoHorizontalController,
-            rounds: rounds,
-            sortedRoundKeys: sortedRoundKeys,
-          ),
-          crossFadeState: _isHeaderCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-          duration: const Duration(milliseconds: 240),
-          sizeCurve: Curves.easeInOut,
+        ValueListenableBuilder<bool>(
+          valueListenable: _isHeaderCollapsedNotifier,
+          builder: (context, isCollapsed, _) {
+            return AnimatedCrossFade(
+              firstChild: const SizedBox(width: double.infinity, height: 0),
+              secondChild: _buildBracketToolbar(
+                horizontalController: _consoHorizontalController,
+                rounds: rounds,
+                sortedRoundKeys: sortedRoundKeys,
+              ),
+              crossFadeState: isCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+              duration: const Duration(milliseconds: 220),
+              sizeCurve: Curves.easeInOutCubic,
+            );
+          },
         ),
         Expanded(
           child: _isTreeMode
