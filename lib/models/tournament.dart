@@ -123,14 +123,21 @@ class TournamentModel {
   }
 
   bool get isPassed {
+    final end = endDate ?? startDate;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    // 🛡️ RÈGLE D'OR VERROUILLÉE :
+    // Jamais d'archivage / statut passé si la date textuelle (endDate ou startDate) est future ou aujourd'hui !
+    if (end != null && !end.isBefore(today)) {
+      return false;
+    }
+
     final s = (status ?? '').toUpperCase().trim();
     if (s == 'COMPLETED' || s == 'FINISHED' || s == 'TERMINÉ' || s == 'TERMINE') {
       return true;
     }
-    final end = endDate ?? startDate;
     if (end == null) return false;
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
     return end.isBefore(today);
   }
 

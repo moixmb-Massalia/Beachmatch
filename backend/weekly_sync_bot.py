@@ -263,6 +263,80 @@ def sync_fft_tournaments(db, dry_run=False):
 # ==============================================================================
 # MODULE 4 : ARCHIVAGE DYNAMIQUE DES TOURNOIS PASSÉS
 # ==============================================================================
+FRENCH_MONTHS_MAP = {
+    'janvier': 1, 'fevrier': 2, 'février': 2, 'mars': 3, 'avril': 4,
+    'mai': 5, 'juin': 6, 'juillet': 7, 'aout': 8, 'août': 8,
+    'septembre': 9, 'octobre': 10, 'novembre': 11, 'decembre': 12, 'décembre': 12
+}
+
+def is_date_val_future_or_today(date_val, now_utc):
+    """Vérifie si un champ date (datetime ou string) est futur ou aujourd'hui."""
+    if not date_val:
+        return False
+    if isinstance(date_val, datetime):
+        dt = date_val
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.date() >= now_utc.date()
+    if isinstance(date_val, str):
+        try:
+            dt = datetime.fromisoformat(date_val.replace('Z', '+00:00'))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.date() >= now_utc.date()
+        except Exception:
+            pass
+    return False
+
+def is_date_string_future_or_today(date_str, now_utc):
+    """
+    🛡️ RÈGLE D'OR ABSOLUE : Vérifie exhaustivement si la chaîne textuelle dateString
+    contient la moindre mention d'une date future ou en cours aujourd'hui.
+    """
+    if not date_str or not str(date_str).strip() or str(date_str).strip().lower() == 'inconnue':
+        return False
+    s = str(date_str).strip().lower()
+
+    # 1. Format DD/MM/YYYY ou DD/MM/YY
+    for dm in re.findall(r'(\d{1,2})/(\d{1,2})/(\d{2,4})', s):
+        try:
+            day, month, year = int(dm[0]), int(dm[1]), int(dm[2])
+            if year < 100:
+                year += 2000
+            parsed_dt = datetime(year, month, day, 23, 59, 59, tzinfo=timezone.utc)
+            if parsed_dt.date() >= now_utc.date():
+                return True
+        except Exception:
+            pass
+
+    # 2. Format ISO YYYY-MM-DD
+    for iso in re.findall(r'(\d{4})-(\d{1,2})-(\d{1,2})', s):
+        try:
+            year, month, day = int(iso[0]), int(iso[1]), int(iso[2])
+            parsed_dt = datetime(year, month, day, 23, 59, 59, tzinfo=timezone.utc)
+            if parsed_dt.date() >= now_utc.date():
+                return True
+        except Exception:
+            pass
+
+    # 3. Format textuel avec nom du mois en français
+    # Ex: '21 - 22 Novembre 2026', '31 Octobre - 01 Novembre 2026', '28 Novembre 2026'
+    for month_name, month_num in FRENCH_MONTHS_MAP.items():
+        if month_name in s:
+            year_match = re.search(r'20\d{2}', s)
+            year = int(year_match.group(0)) if year_match else now_utc.year
+            days = [int(x) for x in re.findall(r'\b([0-3]?\d)\b', s) if 1 <= int(x) <= 31]
+            if days:
+                max_day = max(days)
+                try:
+                    parsed_dt = datetime(year, month_num, max_day, 23, 59, 59, tzinfo=timezone.utc)
+                    if parsed_dt.date() >= now_utc.date():
+                        return True
+                except Exception:
+                    pass
+
+    return False
+
 def archive_past_tournaments(db, dry_run=False):
     print("\n" + "=" * 60)
     print("🧹 [MODULE 4] ARCHIVAGE DES TOURNOIS PASSÉS")
@@ -280,47 +354,32 @@ def archive_past_tournaments(db, dry_run=False):
         if status in ['COMPLETED', 'ARCHIVED']:
             continue
 
-        end_date_val = d.get('endDate')
-        is_past = False
+        # 🛡️ VÉRIFICATION STRICTE 1 : startDate est future ou aujourd'hui
+        if is_date_val_future_or_today(d.get('startDate'), now_utc):
+            print(f"  🛡️ [VERROU] Préservé (startDate future/en cours) : {d.get('name')[:35]}")
+            continue
 
-        if isinstance(end_date_val, datetime):
-            if end_date_val.tzinfo is None:
-                end_date_val = end_date_val.replace(tzinfo=timezone.utc)
-            is_past = end_date_val < now_utc
-        elif isinstance(end_date_val, str):
-            try:
-                dt = datetime.fromisoformat(end_date_val.replace('Z', '+00:00'))
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
-                is_past = dt < now_utc
-            except Exception:
-                pass
+        # 🛡️ VÉRIFICATION STRICTE 2 : endDate est future ou aujourd'hui
+        if is_date_val_future_or_today(d.get('endDate'), now_utc):
+            print(f"  🛡️ [VERROU] Préservé (endDate future/en cours) : {d.get('name')[:35]}")
+            continue
 
-        if is_past:
-            # Sécurité supplémentaire : vérifier si dateString mentionne une date future
-            date_str = str(d.get('dateString', ''))
-            import re
-            future_date_found = False
-            for dm in re.findall(r'(\d{1,2})/(\d{1,2})/(\d{4})', date_str):
-                try:
-                    parsed_dt = datetime(int(dm[2]), int(dm[1]), int(dm[0]), 23, 59, 59, tzinfo=timezone.utc)
-                    if parsed_dt >= now_utc:
-                        future_date_found = True
-                        break
-                except Exception:
-                    pass
-            if future_date_found:
-                print(f"  ⚠️ Tournoi préservé (dateString future: {date_str}) : {d.get('name')[:35]}")
-                continue
+        # 🛡️ VÉRIFICATION STRICTE 3 : dateString textuelle mentionne une date future ou aujourd'hui
+        date_str = str(d.get('dateString', ''))
+        if is_date_string_future_or_today(date_str, now_utc):
+            print(f"  🛡️ [VERROU] Préservé (dateString textuelle future: {date_str}) : {d.get('name')[:35]}")
+            continue
 
-            print(f"  📦 Tournoi expiré détecté : {d.get('name')[:35]} (Fin: {end_date_val}) ➔ Statut: COMPLETED")
-            if not dry_run:
-                db.collection('tournaments').document(tid).update({
-                    'status': 'COMPLETED',
-                    'isArchived': True,
-                    'archivedAt': firestore.SERVER_TIMESTAMP,
-                })
-            archived_count += 1
+        # Si et seulement si TOUTES les vérifications confirment que le tournoi est strictly dans le passé :
+        end_date_val = d.get('endDate') or d.get('startDate') or date_str
+        print(f"  📦 Tournoi expiré détecté : {d.get('name')[:35]} (Fin: {end_date_val}) ➔ Statut: COMPLETED")
+        if not dry_run:
+            db.collection('tournaments').document(tid).update({
+                'status': 'COMPLETED',
+                'isArchived': True,
+                'archivedAt': firestore.SERVER_TIMESTAMP,
+            })
+        archived_count += 1
 
     print(f"\n✅ [MODULE 4] Maintenance terminée : {archived_count} tournoi(s) archivé(s).")
     return archived_count
