@@ -85,7 +85,8 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
   final ScrollController _consoHorizontalController = ScrollController();
 
   bool _isSaving = false;
-  TournamentBracket? _currentBracket;
+  final Map<String, TournamentBracket> _categoryBrackets = {};
+  TournamentBracket? get _currentBracket => _categoryBrackets[_selectedCategory];
   String _selectedCategory = 'double_messieurs';
   bool _isTreeMode = true; // Toggle Vue Arbre Graphique vs Vue Liste Express
   int? _selectedRoundFilter; // null = Tous les tours (filtre interactif 1/8, Quarts, Demis, Finale)
@@ -209,10 +210,11 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
 
   Future<void> _saveBracket(TournamentBracket bracket) async {
     // 🛡️ BOUCLIER ANTI-ÉCRASEMENT CLIENT STRICT (Principal & Consolante)
-    if (_currentBracket != null) {
-      final oldMain = _currentBracket!.mainMatches.length;
+    final current = _currentBracket;
+    if (current != null && current.category == _selectedCategory) {
+      final oldMain = current.mainMatches.length;
       final newMain = bracket.mainMatches.length;
-      final oldConso = _currentBracket!.consolationMatches.length;
+      final oldConso = current.consolationMatches.length;
       final newConso = bracket.consolationMatches.length;
 
       // 1. Bloquer réduction du tableau principal
@@ -252,10 +254,15 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
       }
     }
 
+    final sanitized = bracket.copyWith(category: _selectedCategory);
+    _categoryBrackets[_selectedCategory] = sanitized;
+
     setState(() => _isSaving = true);
     try {
-      await _bracketRef.set(bracket.toMap(), SetOptions(merge: true));
-      await _legacyRef.set(bracket.toMap(), SetOptions(merge: true));
+      await _bracketRef.set(sanitized.toMap(), SetOptions(merge: true));
+      if (_selectedCategory == 'double_messieurs') {
+        await _legacyRef.set(sanitized.toMap(), SetOptions(merge: true));
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -313,7 +320,10 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
       setState(() => _isSaving = true);
       try {
         await _bracketRef.delete();
-        await _legacyRef.delete();
+        if (_selectedCategory == 'double_messieurs') {
+          await _legacyRef.delete();
+        }
+        _categoryBrackets.remove(_selectedCategory);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -566,30 +576,34 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                           bracket = TournamentBracket.fromMap(
                               snapshot.data!.data()!, widget.tournament.id);
                         } else {
-                          bracket = _currentBracket ??
-                              TournamentBracket(
+                          final cached = _categoryBrackets[_selectedCategory];
+                          bracket = (cached != null && cached.category == _selectedCategory)
+                              ? cached
+                              : TournamentBracket(
+                                  tournamentId: widget.tournament.id,
+                                  category: _selectedCategory,
+                                  format: _selectedCategory == 'double_mixtes'
+                                      ? 'elimination'
+                                      : 'pools_and_bracket',
+                                  numCourts: 4,
+                                  status: 'draft',
+                                  updatedAt: DateTime.now(),
+                                );
+                        }
+                      } catch (e) {
+                        final cached = _categoryBrackets[_selectedCategory];
+                        bracket = (cached != null && cached.category == _selectedCategory)
+                            ? cached
+                            : TournamentBracket(
                                 tournamentId: widget.tournament.id,
                                 category: _selectedCategory,
-                                format: _selectedCategory == 'double_mixtes'
-                                    ? 'elimination'
-                                    : 'pools_and_bracket',
+                                format: 'elimination',
                                 numCourts: 4,
                                 status: 'draft',
                                 updatedAt: DateTime.now(),
                               );
-                        }
-                      } catch (e) {
-                        bracket = _currentBracket ??
-                            TournamentBracket(
-                              tournamentId: widget.tournament.id,
-                              category: _selectedCategory,
-                              format: 'elimination',
-                              numCourts: 4,
-                              status: 'draft',
-                              updatedAt: DateTime.now(),
-                            );
                       }
-                      _currentBracket = bracket;
+                      _categoryBrackets[_selectedCategory] = bracket;
 
                       final isPoolFormat = bracket.format == 'pools_and_bracket';
                       final status = _getWorkflowStatus(bracket);
@@ -2384,8 +2398,11 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                 onTap: () {
                   if (_selectedCategory != cat['key']) {
                     setState(() {
-                      _selectedCategory = cat['key'];
+                      _selectedCategory = cat['key'] as String;
                       _tabController.index = 0;
+                      _selectedRoundFilter = null;
+                      _cachedStreamCategory = null;
+                      _cachedBracketStream = null;
                     });
                   }
                 },
@@ -4884,6 +4901,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                 horizontalController: _mainHorizontalController,
                 rounds: rounds,
                 sortedRoundKeys: sortedRoundKeys,
+                isConsolation: false,
               ),
               crossFadeState: isCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
               duration: const Duration(milliseconds: 220),
@@ -4957,6 +4975,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                 horizontalController: _consoHorizontalController,
                 rounds: rounds,
                 sortedRoundKeys: sortedRoundKeys,
+                isConsolation: true,
               ),
               crossFadeState: isCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
               duration: const Duration(milliseconds: 220),
@@ -4987,6 +5006,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
     required ScrollController horizontalController,
     required Map<int, List<BracketMatch>> rounds,
     required List<int> sortedRoundKeys,
+    required bool isConsolation,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -5107,7 +5127,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                     } else if (rLower.contains('demi') || rLower.contains('1/2') || rLower.contains('sf')) {
                       shortName = 'Demis';
                     } else if (rLower.contains('final')) {
-                      shortName = 'Finale 🏆';
+                      shortName = isConsolation ? 'Finale Conso' : 'Finale 🏆';
                     }
 
                     final isSelected = _selectedRoundFilter == roundIdx;
@@ -5220,7 +5240,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                if (isFinalRound)
+                                if (isFinalRound && !isConsolation)
                                   const Padding(
                                     padding: EdgeInsets.only(right: 6),
                                     child: Icon(Icons.emoji_events, color: AppColors.gold, size: 16),
@@ -5228,7 +5248,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                                 Text(
                                   roundName,
                                   style: TextStyle(
-                                    color: isFinalRound ? AppColors.gold : Colors.white,
+                                    color: (isFinalRound && !isConsolation) ? AppColors.gold : Colors.white,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: 1.0,

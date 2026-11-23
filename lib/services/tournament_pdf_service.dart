@@ -154,7 +154,11 @@ class TournamentPdfService {
         final code = m.matchCode ?? '';
         final id = m.id.toLowerCase();
         final name = m.roundName.toLowerCase();
-        if (code == 'PLACE_9_10' || id == 'conso_2_0' || id == 'final_p910' || (name.contains('finale') && !name.contains('demi') && !name.contains('quart') && !name.contains('1/4') && !name.contains('1/8') && !name.contains('11') && !name.contains('13'))) {
+        if (code == 'PLACE_5_6' || id == 'conso_1_0' || name.contains('place 5') || name.contains('5/6') || name.contains('5e')) {
+          p56Match ??= m;
+        } else if (code == 'PLACE_7_8' || id == 'conso_place_7_8' || name.contains('place 7') || name.contains('7/8') || name.contains('7e')) {
+          p78Match ??= m;
+        } else if (code == 'PLACE_9_10' || id == 'conso_2_0' || id == 'final_p910' || (name.contains('finale') && !name.contains('demi') && !name.contains('quart') && !name.contains('1/4') && !name.contains('1/8') && !name.contains('11') && !name.contains('13'))) {
           p910Match = m;
         } else if (code == 'PLACE_11_12' || id == 'conso_place_11_12' || id == 'final_p1112' || name.contains('11 & 12') || name.contains('11/12') || name.contains('11e')) {
           p1112Match = m;

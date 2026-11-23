@@ -89,10 +89,6 @@ class BracketGeneratorService {
           // Quarts de finale (tableau de 16) -> Demi-finales Places 5-8
           consoId = m < 2 ? "df_5_8_1" : "df_5_8_2";
           consoSlot = m % 2 == 0 ? 1 : 2;
-        } else if (bracketSize == 8 && r == 0) {
-          // Quarts de finale (tableau de 8) -> Demi-finales Places 5-8
-          consoId = m < 2 ? "df_5_8_1" : "df_5_8_2";
-          consoSlot = m % 2 == 0 ? 1 : 2;
         }
 
         mainMatches.add(BracketMatch(
@@ -113,8 +109,8 @@ class BracketGeneratorService {
       // 1. Demi-finales Places 5-8
       mainMatches.add(const BracketMatch(
         id: "df_5_8_1",
-        roundIndex: 3,
-        matchIndex: 0,
+        roundIndex: 2,
+        matchIndex: 2,
         roundName: "Demi-finales Places 5-8",
         nextMatchId: "place_5_6",
         nextMatchSlot: 1,
@@ -123,8 +119,8 @@ class BracketGeneratorService {
       ));
       mainMatches.add(const BracketMatch(
         id: "df_5_8_2",
-        roundIndex: 3,
-        matchIndex: 1,
+        roundIndex: 2,
+        matchIndex: 3,
         roundName: "Demi-finales Places 5-8",
         nextMatchId: "place_5_6",
         nextMatchSlot: 2,
@@ -132,72 +128,45 @@ class BracketGeneratorService {
         consolationSlot: 2,
       ));
 
-      // 2. Match Places 7 & 8
+      // 2. Petite Finale (Places 3 & 4)
       mainMatches.add(const BracketMatch(
-        id: "place_7_8",
-        roundIndex: 4,
+        id: "place_3_4",
+        roundIndex: 3,
         matchIndex: 1,
-        roundName: "Match Places 7 & 8",
-        matchCode: "PLACE_7_8",
+        roundName: "Petite Finale (Places 3 & 4)",
+        matchCode: "PLACE_3_4",
       ));
 
       // 3. Match Places 5 & 6
       mainMatches.add(const BracketMatch(
         id: "place_5_6",
-        roundIndex: 5,
-        matchIndex: 0,
+        roundIndex: 3,
+        matchIndex: 2,
         roundName: "Match Places 5 & 6",
         matchCode: "PLACE_5_6",
       ));
 
-      // 4. Petite Finale (Places 3 & 4)
-      mainMatches.add(const BracketMatch(
-        id: "place_3_4",
-        roundIndex: 6,
-        matchIndex: 1,
-        roundName: "Petite Finale (Places 3 & 4)",
-        matchCode: "PLACE_3_4",
-      ));
-    } else if (bracketSize == 8) {
-      // Tableau de 8 : Demi-finales 5-8, Matchs 7/8, 5/6 et Petite Finale 3/4
-      mainMatches.add(const BracketMatch(
-        id: "df_5_8_1",
-        roundIndex: 2,
-        matchIndex: 1,
-        roundName: "Demi-finales Places 5-8",
-        nextMatchId: "place_5_6",
-        nextMatchSlot: 1,
-        consolationMatchId: "place_7_8",
-        consolationSlot: 1,
-      ));
-      mainMatches.add(const BracketMatch(
-        id: "df_5_8_2",
-        roundIndex: 2,
-        matchIndex: 2,
-        roundName: "Demi-finales Places 5-8",
-        nextMatchId: "place_5_6",
-        nextMatchSlot: 2,
-        consolationMatchId: "place_7_8",
-        consolationSlot: 2,
-      ));
+      // 4. Match Places 7 & 8
       mainMatches.add(const BracketMatch(
         id: "place_7_8",
         roundIndex: 3,
-        matchIndex: 1,
+        matchIndex: 3,
         roundName: "Match Places 7 & 8",
         matchCode: "PLACE_7_8",
       ));
-      mainMatches.add(const BracketMatch(
-        id: "place_5_6",
-        roundIndex: 3,
-        matchIndex: 2,
-        roundName: "Match Places 5 & 6",
-        matchCode: "PLACE_5_6",
-      ));
+    } else if (bracketSize == 8) {
+      // Tableau de 8 :
+      // Dans le tableau principal (Places 1 à 4) :
+      // - Round 0 : 4 Quarts (les 4 perdants vont en Consolante conso_0_0 et conso_0_1)
+      // - Round 1 : 2 Demis (les 2 vainqueurs en Finale main_2_0, les 2 perdants en Petite Finale place_3_4)
+      // - Round 2 : 2 matches :
+      //     * main_2_0 (Finale, Places 1 & 2)
+      //     * place_3_4 (Petite Finale, Places 3 & 4)
+      // Les matches des places 5 à 8 sont gérés exclusivement dans le tableau de Consolante.
       mainMatches.add(const BracketMatch(
         id: "place_3_4",
-        roundIndex: 3,
-        matchIndex: 3,
+        roundIndex: 2,
+        matchIndex: 1,
         roundName: "Petite Finale (Places 3 & 4)",
         matchCode: "PLACE_3_4",
       ));
@@ -346,18 +315,26 @@ class BracketGeneratorService {
 
           String? consoId;
           int? consoSlot;
-          if (r == 1 && consoRounds >= 2) {
-            // Demi-finales consolante : perdants -> Match Places 11 & 12
-            consoId = "conso_place_11_12";
-            consoSlot = m == 0 ? 1 : 2;
-          } else if (r == 0 && consoRounds >= 3) {
-            // Quarts consolante : perdants des matches centraux -> Match Places 13 & 14
-            if (m == 1) {
-              consoId = "conso_place_13_14";
-              consoSlot = 1;
-            } else if (m == 2) {
-              consoId = "conso_place_13_14";
-              consoSlot = 2;
+          if (bracketSize >= 16) {
+            if (r == 1 && consoRounds >= 2) {
+              // Demi-finales consolante (16 équipes) : perdants -> Match Places 11 & 12
+              consoId = "conso_place_11_12";
+              consoSlot = m == 0 ? 1 : 2;
+            } else if (r == 0 && consoRounds >= 3) {
+              // Quarts consolante (16 équipes) : perdants des matches centraux -> Match Places 13 & 14
+              if (m == 1) {
+                consoId = "conso_place_13_14";
+                consoSlot = 1;
+              } else if (m == 2) {
+                consoId = "conso_place_13_14";
+                consoSlot = 2;
+              }
+            }
+          } else if (bracketSize == 8) {
+            if (r == 0) {
+              // Demi-finales consolante (8 équipes) : perdants -> Match Places 7 & 8
+              consoId = "conso_place_7_8";
+              consoSlot = m == 0 ? 1 : 2;
             }
           }
 
@@ -375,22 +352,39 @@ class BracketGeneratorService {
       }
 
       // Ajout automatique des matches de classement consolante FFT
-      if (consoSize >= 4) {
+      if (bracketSize >= 16) {
+        if (consoSize >= 4) {
+          consolationMatches.add(const BracketMatch(
+            id: "conso_place_11_12",
+            roundIndex: 2,
+            matchIndex: 1,
+            roundName: "Match Places 11 & 12",
+            matchCode: "PLACE_11_12",
+          ));
+        }
+        if (consoSize >= 8) {
+          consolationMatches.add(const BracketMatch(
+            id: "conso_place_13_14",
+            roundIndex: 2,
+            matchIndex: 2,
+            roundName: "Match Places 13 & 14",
+            matchCode: "PLACE_13_14",
+          ));
+        }
+      } else if (bracketSize == 8) {
+        // En tableau de 8 :
+        // Round 0 : 2 Demi-finales Consolante (Places 5 à 8)
+        //   - Vainqueurs -> conso_1_0 (Match Places 5 & 6)
+        //   - Perdants -> conso_place_7_8 (Match Places 7 & 8)
+        // Round 1 : 2 matches de classement :
+        //   - conso_1_0 : Match Places 5 & 6 (roundIndex: 1, matchIndex: 0)
+        //   - conso_place_7_8 : Match Places 7 & 8 (roundIndex: 1, matchIndex: 1)
         consolationMatches.add(const BracketMatch(
-          id: "conso_place_11_12",
-          roundIndex: 3,
-          matchIndex: 0,
-          roundName: "Match Places 11 & 12",
-          matchCode: "PLACE_11_12",
-        ));
-      }
-      if (consoSize >= 8) {
-        consolationMatches.add(const BracketMatch(
-          id: "conso_place_13_14",
-          roundIndex: 2,
-          matchIndex: 0,
-          roundName: "Match Places 13 & 14",
-          matchCode: "PLACE_13_14",
+          id: "conso_place_7_8",
+          roundIndex: 1,
+          matchIndex: 1,
+          roundName: "Match Places 7 & 8",
+          matchCode: "PLACE_7_8",
         ));
       }
 
