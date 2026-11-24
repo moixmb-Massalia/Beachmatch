@@ -4409,38 +4409,6 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                 ),
               ],
               const Spacer(),
-              // Appel Terrain Rapide
-              if (_isJat && !match.isCompleted && match.pair1 != null && match.pair2 != null) ...[
-                InkWell(
-                  onTap: () => _broadcastCourtCall(
-                    court: match.court ?? 1,
-                    roundName: match.roundName,
-                    pair1Name: match.pair1!.displayName,
-                    pair2Name: match.pair2!.displayName,
-                  ),
-                  borderRadius: BorderRadius.circular(6),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                    margin: const EdgeInsets.only(right: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.white24, width: 0.8),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.campaign_rounded, size: 12, color: AppColors.gold),
-                        SizedBox(width: 3),
-                        Text(
-                          "Appeler",
-                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
               // Score (si terminé) - cliquable JAT
               if (match.score != null)
                 InkWell(
