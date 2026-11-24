@@ -120,21 +120,18 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
       'label': 'DH',
       'formatCode': 'DH',
       'icon': Icons.sports_tennis,
-      'badge': 'Poules + Arbre'
     },
     {
       'key': 'double_dames',
       'label': 'DD',
       'formatCode': 'DD',
       'icon': Icons.sports_tennis_outlined,
-      'badge': 'Poules + Arbre'
     },
     {
       'key': 'double_mixtes',
       'label': 'DX',
       'formatCode': 'DX',
       'icon': Icons.star_rounded,
-      'badge': 'Tableau 16'
     },
   ];
 
@@ -2492,6 +2489,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                     ),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         cat['icon'] as IconData,
@@ -2506,24 +2504,6 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                           fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
                           fontSize: 11.5,
                           letterSpacing: 0.4,
-                        ),
-                      ),
-                      const SizedBox(width: 5),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? activeColor.withValues(alpha: 0.3)
-                              : Colors.white.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                        child: Text(
-                          cat['badge'] as String,
-                          style: TextStyle(
-                            color: isSelected ? activeColor : Colors.white54,
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.bold,
-                          ),
                         ),
                       ),
                     ],
