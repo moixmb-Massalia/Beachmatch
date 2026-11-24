@@ -45,6 +45,68 @@ class BracketMatchCard extends StatelessWidget {
     this.onExecuteSwap,
   });
 
+  Widget _buildRoundTitleBadge() {
+    final id = match.id.toLowerCase();
+    final rName = match.roundName.toLowerCase();
+
+    String title;
+    Color color;
+    Color bg;
+    Color border;
+
+    if (id.contains('main_2_0') || (rName.contains('finale') && !rName.contains('petite') && !rName.contains('conso') && !isConsolation)) {
+      title = "🏆 GRANDE FINALE (Places 1 & 2)";
+      color = AppColors.gold;
+      bg = AppColors.gold.withValues(alpha: 0.2);
+      border = AppColors.gold.withValues(alpha: 0.6);
+    } else if (id.contains('place_3_4') || rName.contains('petite') || (rName.contains('3') && rName.contains('4'))) {
+      title = "🥉 PETITE FINALE (Places 3 & 4)";
+      color = const Color(0xFFF59E0B);
+      bg = const Color(0xFFF59E0B).withValues(alpha: 0.2);
+      border = const Color(0xFFF59E0B).withValues(alpha: 0.5);
+    } else if (id.contains('conso_1_0') || (isConsolation && (rName.contains('finale') || (rName.contains('5') && rName.contains('6'))))) {
+      title = "🛡️ FINALE CONSO (Places 5 & 6)";
+      color = Colors.cyanAccent;
+      bg = Colors.cyanAccent.withValues(alpha: 0.15);
+      border = Colors.cyanAccent.withValues(alpha: 0.4);
+    } else if (id.contains('conso_place_7_8') || id.contains('place_7_8') || (rName.contains('7') && rName.contains('8'))) {
+      title = "🏅 PLACES 7 & 8";
+      color = const Color(0xFFC084FC);
+      bg = const Color(0xFFC084FC).withValues(alpha: 0.15);
+      border = const Color(0xFFC084FC).withValues(alpha: 0.4);
+    } else if (id.contains('df_5_8') || rName.contains('places 5-8')) {
+      title = "Places 5-8";
+      color = Colors.white70;
+      bg = Colors.white.withValues(alpha: 0.08);
+      border = Colors.white.withValues(alpha: 0.15);
+    } else if (match.roundName.isNotEmpty) {
+      title = match.roundName;
+      color = Colors.white70;
+      bg = Colors.white.withValues(alpha: 0.08);
+      border = Colors.white.withValues(alpha: 0.15);
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: border, width: 0.8),
+      ),
+      child: Text(
+        title,
+        style: TextStyle(
+          color: color,
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final borderColor = match.isCompleted
@@ -151,6 +213,8 @@ class BracketMatchCard extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
+                      _buildRoundTitleBadge(),
+                      const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(

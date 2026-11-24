@@ -92,6 +92,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
   int? _selectedRoundFilter; // null = Tous les tours (filtre interactif 1/8, Quarts, Demis, Finale)
   final ValueNotifier<bool> _isHeaderCollapsedNotifier = ValueNotifier<bool>(false);
   bool get _isHeaderCollapsed => _isHeaderCollapsedNotifier.value;
+  DateTime _headerToggleAt = DateTime(2000);
 
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _cachedBracketStream;
   String? _cachedStreamCategory;
@@ -608,9 +609,39 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                       final isPoolFormat = bracket.format == 'pools_and_bracket';
                       final status = _getWorkflowStatus(bracket);
 
-                      return Column(
-                        children: [
-                          // 1 & 2. Barre de Statut + Sous-onglets (unifiés en un bloc fluide avec 0 scintillement)
+                      return NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          if (notification.metrics.axis == Axis.vertical) {
+                            final now = DateTime.now();
+                            if (now.difference(_headerToggleAt).inMilliseconds > 350) {
+                              if (notification is UserScrollNotification) {
+                                if (notification.direction == ScrollDirection.reverse) {
+                                  // Défilement vers le bas : repli fluide de l'en-tête pour plein écran
+                                  if (notification.metrics.pixels > 45 && !_isHeaderCollapsedNotifier.value) {
+                                    _headerToggleAt = now;
+                                    _isHeaderCollapsedNotifier.value = true;
+                                  }
+                                } else if (notification.direction == ScrollDirection.forward) {
+                                  // Défilement vers le haut : on ne réouvre que si on remonte proche du haut
+                                  if (notification.metrics.pixels < 35 && _isHeaderCollapsedNotifier.value) {
+                                    _headerToggleAt = now;
+                                    _isHeaderCollapsedNotifier.value = false;
+                                  }
+                                }
+                              } else if (notification is ScrollUpdateNotification) {
+                                // Quand l'utilisateur est revenu tout en haut
+                                if (notification.metrics.pixels <= 5 && _isHeaderCollapsedNotifier.value) {
+                                  _headerToggleAt = now;
+                                  _isHeaderCollapsedNotifier.value = false;
+                                }
+                              }
+                            }
+                          }
+                          return false;
+                        },
+                        child: Column(
+                          children: [
+                            // 1 & 2. Barre de Statut + Sous-onglets (unifiés en un bloc fluide avec 0 scintillement)
                             ValueListenableBuilder<bool>(
                               valueListenable: _isHeaderCollapsedNotifier,
                               builder: (context, isCollapsed, _) {
@@ -664,7 +695,8 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                               ),
                             ),
                           ],
-                        );
+                        ),
+                      );
                     },
                   ),
                 ),
@@ -849,6 +881,44 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                 ],
               ),
             ),
+          ),
+          const SizedBox(width: 6),
+
+          // Bouton Bascule Plein Écran [ ⛶ ]
+          ValueListenableBuilder<bool>(
+            valueListenable: _isHeaderCollapsedNotifier,
+            builder: (context, isCollapsed, _) {
+              return Tooltip(
+                message: isCollapsed ? "Afficher l'en-tête" : "Mode Plein Écran (Masquer l'en-tête)",
+                child: InkWell(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    _isHeaderCollapsedNotifier.value = !isCollapsed;
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: isCollapsed
+                          ? AppColors.gold.withValues(alpha: 0.25)
+                          : Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isCollapsed
+                            ? AppColors.gold
+                            : Colors.white.withValues(alpha: 0.15),
+                        width: isCollapsed ? 1.2 : 0.8,
+                      ),
+                    ),
+                    child: Icon(
+                      isCollapsed ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+                      color: isCollapsed ? AppColors.gold : Colors.white70,
+                      size: 16,
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(width: 6),
 
@@ -3280,7 +3350,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
         ? bracket.pairs.length
         : (isPoolFormat
             ? bracket.pools.fold(0, (acc, p) => acc + p.pairs.length)
-            : 12);
+            : 0);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
