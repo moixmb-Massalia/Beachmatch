@@ -2,7 +2,7 @@
 description: A new Flutter project for BeachMatch.
 publish_to: 'none'
 
-version: 1.0.106+207
+version: 1.0.107+208
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
