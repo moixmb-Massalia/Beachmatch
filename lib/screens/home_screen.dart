@@ -7,7 +7,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/colors.dart';
-import '../theme/seasonal_theme.dart';
 import '../providers/app_state.dart';
 import '../models/user.dart';
 import '../models/tournament.dart';
@@ -100,17 +99,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-
-          // 🌟 Ambiance saisonnière perpétuelle et 100% automatique en arrière-plan
-          if (SeasonalTheme.hasActiveTheme)
-            const Positioned.fill(
-              child: IgnorePointer(
-                child: SeasonalOverlay(
-                  numberOfParticles: 26,
-                  maxSpeed: 1.1,
-                ),
-              ),
-            ),
 
           SafeArea(
             child: RefreshIndicator(
