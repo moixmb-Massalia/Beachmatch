@@ -161,8 +161,11 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
 
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
-      if (_tabController.indexIsChanging && _isHeaderCollapsedNotifier.value) {
-        _isHeaderCollapsedNotifier.value = false;
+      if (_tabController.indexIsChanging) {
+        if (_isHeaderCollapsedNotifier.value) {
+          _isHeaderCollapsedNotifier.value = false;
+        }
+        setState(() => _selectedRoundFilter = null);
       }
     });
     if (!_isAuthorizedUser) {
@@ -4887,6 +4890,45 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
   // DÉFILEMENT NATUREL MANUEL DE HAUT EN BAS & GAUCHE À DROITE
   // SANS AUCUN ZOOM ACCIDENTEL
   // ==========================================
+  Map<int, List<BracketMatch>> _partitionMatchesIntoDisplayRounds(
+    List<BracketMatch> matches, {
+    required bool isConsolation,
+  }) {
+    final Map<int, List<BracketMatch>> rounds = {};
+    if (matches.isEmpty) return rounds;
+
+    for (final m in matches) {
+      final id = m.id.toLowerCase();
+      final rName = m.roundName.toLowerCase();
+      final code = m.matchCode?.toUpperCase() ?? '';
+
+      int displayKey;
+
+      if (code == 'DF_5_8' || id.contains('df_5_8') || (rName.contains('5') && rName.contains('8') && !rName.contains('7'))) {
+        displayKey = 1001; // DF 5-8
+      } else if (code == 'PLACE_3_4' || id.contains('place_3_4') || (rName.contains('3') && rName.contains('4')) || rName.contains('petite')) {
+        displayKey = 1002; // Places 3/4 (Petite Finale)
+      } else if (code == 'PLACE_5_6' || id.contains('place_5_6') || (rName.contains('5') && rName.contains('6') && !isConsolation)) {
+        displayKey = 1003; // Places 5/6 (Tableau Principal)
+      } else if (code == 'PLACE_7_8' || id.contains('place_7_8') || (rName.contains('7') && rName.contains('8'))) {
+        displayKey = 1004; // Places 7/8
+      } else if (code == 'PLACE_11_12' || id.contains('place_11_12') || (rName.contains('11') && rName.contains('12'))) {
+        displayKey = 1005; // Places 11/12
+      } else if (code == 'PLACE_13_14' || id.contains('place_13_14') || (rName.contains('13') && rName.contains('14'))) {
+        displayKey = 1006; // Places 13/14
+      } else if (code == 'PLACE_15_16' || id.contains('place_15_16') || (rName.contains('15') && rName.contains('16'))) {
+        displayKey = 1007; // Places 15/16
+      } else {
+        // Matches standards du tableau (1/16, 1/8, Quarts, Demis, Finale)
+        displayKey = m.roundIndex;
+      }
+
+      rounds.putIfAbsent(displayKey, () => []).add(m);
+    }
+
+    return rounds;
+  }
+
   Widget _buildMainDrawTab(TournamentBracket bracket) {
     if (bracket.mainMatches.isEmpty) {
       if (_isJat) {
@@ -4900,10 +4942,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
       );
     }
 
-    final Map<int, List<BracketMatch>> rounds = {};
-    for (var m in bracket.mainMatches) {
-      rounds.putIfAbsent(m.roundIndex, () => []).add(m);
-    }
+    final rounds = _partitionMatchesIntoDisplayRounds(bracket.mainMatches, isConsolation: false);
     final sortedRoundKeys = rounds.keys.toList()..sort();
 
     return Column(
@@ -4974,10 +5013,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
       );
     }
 
-    final Map<int, List<BracketMatch>> rounds = {};
-    for (var m in bracket.consolationMatches) {
-      rounds.putIfAbsent(m.roundIndex, () => []).add(m);
-    }
+    final rounds = _partitionMatchesIntoDisplayRounds(bracket.consolationMatches, isConsolation: true);
     final sortedRoundKeys = rounds.keys.toList()..sort();
 
     return Column(
@@ -5228,7 +5264,11 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen>
                 final matches = rounds[roundIdx] ?? [];
                 if (matches.isEmpty) return const SizedBox.shrink();
                 final roundName = matches.first.roundName.toUpperCase();
-                final isFinalRound = sortedRoundKeys.isNotEmpty && roundIdx == sortedRoundKeys.last;
+                final isFinalRound = !isConsolation &&
+                    matches.first.id.toLowerCase().contains('main_') &&
+                    matches.first.roundName.toLowerCase().contains('finale') &&
+                    !matches.first.roundName.toLowerCase().contains('petite') &&
+                    !matches.first.roundName.toLowerCase().contains('demi');
 
                 return Container(
                   width: 310,
